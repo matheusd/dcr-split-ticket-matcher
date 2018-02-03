@@ -8,46 +8,10 @@
   revision = "5312a61534124124185d41f09206b9fef1d88403"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/btcsuite/btclog"
+  name = "github.com/ansel1/merry"
   packages = ["."]
-  revision = "84c8d2346e9fc8c7b947e243b9c24e6df9fd206a"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/btcsuite/go-socks"
-  packages = ["socks"]
-  revision = "4720035b7bfd2a9bb130b1c184f8bbe41b6f0d0f"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/btcsuite/goleveldb"
-  packages = ["leveldb","leveldb/cache","leveldb/comparer","leveldb/errors","leveldb/filter","leveldb/iterator","leveldb/journal","leveldb/memdb","leveldb/opt","leveldb/storage","leveldb/table","leveldb/util"]
-  revision = "7834afc9e8cd15233b6c3d97e12674a31ca24602"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/btcsuite/snappy-go"
-  packages = ["."]
-  revision = "0bdef8d067237991ddaa1bb6072a740bc40601ba"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/btcsuite/websocket"
-  packages = ["."]
-  revision = "31079b6807923eb23992c421b114992b95131b55"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/btcsuite/winsvc"
-  packages = ["eventlog","mgr","registry","svc","winapi"]
-  revision = "f8fb11f83f7e860e3769a08e6811d1b399a43722"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/davecgh/go-spew"
-  packages = ["spew"]
-  revision = "db69d09d2c587e9b9677f991dfcab1fc24d9086e"
+  revision = "c8d518a00eb65f58411f49c1c84ee99c02b699f5"
+  version = "v1.0.2"
 
 [[projects]]
   branch = "master"
@@ -63,7 +27,7 @@
 
 [[projects]]
   name = "github.com/decred/dcrd"
-  packages = [".","addrmgr","blockchain","blockchain/indexers","blockchain/internal/dbnamespace","blockchain/internal/progresslog","blockchain/stake","blockchain/stake/internal/dbnamespace","blockchain/stake/internal/ticketdb","blockchain/stake/internal/tickettreap","bloom","certgen","chaincfg","chaincfg/chainec","chaincfg/chainhash","connmgr","database","database/ffldb","database/internal/treap","dcrec/edwards","dcrec/secp256k1","dcrec/secp256k1/schnorr","dcrjson","dcrutil","limits","mempool","mining","peer","sampleconfig","txscript","wire"]
+  packages = ["chaincfg","chaincfg/chainec","chaincfg/chainhash","dcrec/edwards","dcrec/secp256k1","dcrec/secp256k1/schnorr","dcrutil","wire"]
   revision = "008e80bf8668544de4200a08927e95e5926439a0"
   version = "v1.1.2"
 
@@ -72,24 +36,6 @@
   packages = ["proto","ptypes","ptypes/any","ptypes/duration","ptypes/timestamp"]
   revision = "925541529c1fa6821df4e44ce2723319eb2be768"
   version = "v1.0.0"
-
-[[projects]]
-  name = "github.com/jessevdk/go-flags"
-  packages = ["."]
-  revision = "96dc06278ce32a0e9d957d590bb987c81ee66407"
-  version = "v1.3.0"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/jrick/bitset"
-  packages = ["."]
-  revision = "06eae37cdf93c699c0503c23f998167ce841974c"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/jrick/logrotate"
-  packages = ["rotator"]
-  revision = "a93b200c26cbae3bb09dd0dc2c7c7fe1468a034a"
 
 [[projects]]
   name = "github.com/op/go-logging"
@@ -130,6 +76,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "5e6c2558e949c6c8bf86ea552d5cfd6fcc78949eb71f2c984440ba9a7222db4e"
+  inputs-digest = "f185fc5cf34e6fbbe7850257902f9e7d4145a0e0017f74951621cea22927f916"
   solver-name = "gps-cdcl"
   solver-version = 1

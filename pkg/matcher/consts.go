@@ -1,9 +1,9 @@
 package matcher
 
 import (
-	"fmt"
 	"math"
 
+	"github.com/ansel1/merry"
 	"github.com/decred/dcrd/dcrutil"
 )
 
@@ -33,8 +33,12 @@ const (
 )
 
 var (
-	ErrLowAmount           = fmt.Errorf("Amount too low to participate in ticket purchase")
-	ErrTooManyParticipants = fmt.Errorf("Too many online participants at the moment")
+	ErrLowAmount                = merry.New("Amount too low to participate in ticket purchase")
+	ErrTooManyParticipants      = merry.New("Too many online participants at the moment")
+	ErrSessionNotFound          = merry.New("Session with the provided ID not found")
+	ErrCommitmentValueDifferent = merry.New("Commitment value is different than expected")
+	ErrNilCommitmentOutput      = merry.New("Nil commitment output provided")
+	ErrNilChangeOutput          = merry.New("Nil change output provided")
 )
 
 // SessionParticipantFee returns the fee that a single participant of a ticket
