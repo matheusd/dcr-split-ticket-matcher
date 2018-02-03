@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package dcrticketmatcher;
+
+service SplitTicketMatcherService {
+    rpc FindMatches (FindMatchesRequest) returns (FindMatchesResponse);
+    rpc GenerateTicket (GenerateTicketRequest) returns (GenerateTicketResponse);
+    rpc PublishTicket (PublishTicketRequest) returns (PublishTicketResponse);
+}
+
+message FindMatchesRequest {
+    uint64 amount = 1;
+}
+
+message FindMatchesResponse {
+    uint64 session_id = 1;
+    uint64 amount = 2;
+    uint64 fee = 3;
+}
+
+message GenerateTicketRequest {
+    uint64 session_id = 1;
+    bytes commitment_output = 2;
+    bytes change_output = 3;
+}
+
+message GenerateTicketResponse {
+    bytes transaction = 1;
+    int32 output_index = 2;
+}
+
+message PublishTicketRequest {
+    uint64 session_id = 1;
+    bytes split_tx = 2;
+    bytes ticket_txin = 3;
+}
+
+message PublishTicketResponse {
+    bytes ticket_tx = 1;
+}
