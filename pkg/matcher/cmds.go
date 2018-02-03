@@ -16,6 +16,11 @@ type (
 		output_index int
 		err          error
 	}
+
+	publishTicketResponse struct {
+		tx  *wire.MsgTx
+		err error
+	}
 )
 
 type (
@@ -30,5 +35,17 @@ type (
 		changeOutput     *wire.TxOut
 		voteAddress      *dcrutil.Address
 		resp             chan setParticipantOutputsResponse
+	}
+
+	publishTicketRequest struct {
+		sessionID          SessionID
+		splitTx            *wire.MsgTx
+		input              *wire.TxIn
+		splitTxOutputIndex int
+		resp               chan publishTicketResponse
+	}
+
+	publishSessionRequest struct {
+		session *Session
 	}
 )

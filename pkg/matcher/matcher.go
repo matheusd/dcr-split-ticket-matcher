@@ -3,6 +3,7 @@ package matcher
 import (
 	"math"
 
+	"github.com/ansel1/merry"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
@@ -17,18 +18,20 @@ type Participant struct {
 
 // SessionParticipant is a participant of a split in a given session
 type SessionParticipant struct {
-	ID              SessionID
-	Amount          dcrutil.Amount
-	Fee             dcrutil.Amount
-	VoteAddress     *dcrutil.Address
-	CommitmentTxOut *wire.TxOut
-	ChangeTxOut     *wire.TxOut
-	Input           *wire.TxIn
-	SplitTx         *wire.MsgTx
-	Session         *Session
-	Index           int
+	ID                 SessionID
+	Amount             dcrutil.Amount
+	Fee                dcrutil.Amount
+	VoteAddress        *dcrutil.Address
+	CommitmentTxOut    *wire.TxOut
+	ChangeTxOut        *wire.TxOut
+	Input              *wire.TxIn
+	SplitTx            *wire.MsgTx
+	SplitTxOutputIndex int
+	Session            *Session
+	Index              int
 
-	chanSetOutputsResponse chan setParticipantOutputsResponse
+	chanSetOutputsResponse    chan setParticipantOutputsResponse
+	chanPublishTicketResponse chan publishTicketResponse
 }
 
 // SessionID stores the unique id for an in-progress ticket buying session
@@ -46,6 +49,17 @@ type Session struct {
 func (sess *Session) AllOutputsFilled() bool {
 	for _, p := range sess.Participants {
 		if p.ChangeTxOut == nil || p.CommitmentTxOut == nil {
+			return false
+		}
+	}
+	return true
+}
+
+// AllInputsFilled returns true if all inputs and split transactions for
+// all participants have been filled
+func (sess *Session) AllInputsFilled() bool {
+	for _, p := range sess.Participants {
+		if p.Input == nil || p.SplitTx == nil {
 			return false
 		}
 	}
@@ -104,6 +118,8 @@ type Matcher struct {
 
 	addParticipantRequests        chan addParticipantRequest
 	setParticipantOutputsRequests chan setParticipantOutputsRequest
+	publishTicketRequests         chan publishTicketRequest
+	publishSessionRequests        chan publishSessionRequest
 }
 
 func RunMatcher(cfg *Config) error {
@@ -130,6 +146,13 @@ func (matcher *Matcher) run() error {
 			err := matcher.setParticipantsOutputs(&req)
 			if err != nil {
 				req.resp <- setParticipantOutputsResponse{
+					err: err,
+				}
+			}
+		case req := <-matcher.publishTicketRequests:
+			err := matcher.addParticipantInput(&req)
+			if err != nil {
+				req.resp <- publishTicketResponse{
 					err: err,
 				}
 			}
@@ -237,6 +260,71 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	return nil
 }
 
+func (matcher *Matcher) addParticipantInput(req *publishTicketRequest) error {
+
+	if _, has := matcher.sessions[req.sessionID]; !has {
+		return ErrSessionNotFound
+	}
+
+	sess := matcher.sessions[req.sessionID]
+	if sess.ChangeTxOut == nil {
+		return ErrNilChangeOutput
+	}
+
+	if sess.CommitmentTxOut == nil {
+		return ErrNilCommitmentOutput
+	}
+
+	txFee := req.input.ValueIn - (sess.CommitmentTxOut.Value + sess.ChangeTxOut.Value)
+	if txFee < int64(sess.Fee) {
+		return ErrFeeTooLow.
+			WithValue("expected", sess.Fee).
+			WithValue("provided", txFee)
+	}
+
+	if req.splitTxOutputIndex >= len(req.splitTx.TxOut) {
+		return ErrIndexNotFound.WithValue("index", req.splitTxOutputIndex)
+	}
+
+	splitTxOut := req.splitTx.TxOut[req.splitTxOutputIndex]
+	if splitTxOut.Value != req.input.ValueIn {
+		return ErrSplitValueInputValueMismatch.
+			WithValue("splitTxOutputAmount", splitTxOut.Value).
+			WithValue("inputValueIn", req.input.ValueIn)
+	}
+
+	engine, err := txscript.NewEngine(req.input.SignatureScript, req.splitTx,
+		req.splitTxOutputIndex, InputVmValidationFlags, splitTxOut.Version, nil)
+	if err != nil {
+		return merry.Wrap(err).WithMessage("Error creating engine for split tx validation")
+	}
+	err = engine.Execute()
+	if err != nil {
+		return merry.Wrap(err).WithMessage("Error validating participant ticket input against split tx")
+	}
+
+	sess.Input = req.input
+	sess.SplitTx = req.splitTx
+	sess.SplitTxOutputIndex = req.splitTxOutputIndex
+	sess.chanPublishTicketResponse = req.resp
+
+	if sess.Session.AllInputsFilled() {
+		tx, err := sess.Session.CreateTransaction()
+		for _, p := range sess.Session.Participants {
+			p.chanPublishTicketResponse <- publishTicketResponse{
+				err: err,
+				tx:  tx,
+			}
+		}
+
+		matcher.publishSessionRequests <- publishSessionRequest{
+			session: sess.Session,
+		}
+	}
+
+	return nil
+}
+
 func (matcher *Matcher) AddParticipant(p *Participant) (*SessionParticipant, error) {
 	if p.MaxAmount < matcher.cfg.MinAmount {
 		return nil, ErrLowAmount
@@ -277,4 +365,23 @@ func (matcher *Matcher) SetParticipantsOutputs(sessionID SessionID, commitmentOu
 	matcher.setParticipantOutputsRequests <- req
 	resp := <-req.resp
 	return resp.transaction, resp.output_index, resp.err
+}
+
+// PublishTransaction validates the signed input provided by one of the
+// participants of the given session and publishes the transaction. It blocks
+// until all participants have sent their inputs
+func (matcher *Matcher) PublishTransaction(sessionID SessionID, splitTx *wire.MsgTx,
+	splitTxOutputIndex int, input *wire.TxIn) (*wire.MsgTx, error) {
+
+	req := publishTicketRequest{
+		sessionID:          sessionID,
+		splitTx:            splitTx,
+		input:              input,
+		splitTxOutputIndex: splitTxOutputIndex,
+		resp:               make(chan publishTicketResponse),
+	}
+
+	matcher.publishTicketRequests <- req
+	resp := <-req.resp
+	return resp.tx, resp.err
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/ansel1/merry"
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/txscript"
 )
 
 const (
@@ -30,15 +31,25 @@ const (
 	// necessary for the ticket purchase each participant should have to
 	// purchase the tickets
 	ParticipantFeeOverheadEstimate dcrutil.Amount = 2 * 1e5
+
+	// InputVmValidationFlags are the flags used when creating the vm that
+	// validates ticket inputs agains split transactions
+	InputVmValidationFlags = txscript.ScriptBip16 |
+		txscript.ScriptVerifyMinimalData |
+		txscript.ScriptVerifySigPushOnly |
+		txscript.ScriptVerifySHA256
 )
 
 var (
-	ErrLowAmount                = merry.New("Amount too low to participate in ticket purchase")
-	ErrTooManyParticipants      = merry.New("Too many online participants at the moment")
-	ErrSessionNotFound          = merry.New("Session with the provided ID not found")
-	ErrCommitmentValueDifferent = merry.New("Commitment value is different than expected")
-	ErrNilCommitmentOutput      = merry.New("Nil commitment output provided")
-	ErrNilChangeOutput          = merry.New("Nil change output provided")
+	ErrLowAmount                    = merry.New("Amount too low to participate in ticket purchase")
+	ErrTooManyParticipants          = merry.New("Too many online participants at the moment")
+	ErrSessionNotFound              = merry.New("Session with the provided ID not found")
+	ErrCommitmentValueDifferent     = merry.New("Commitment value is different than expected")
+	ErrNilCommitmentOutput          = merry.New("Nil commitment output provided")
+	ErrNilChangeOutput              = merry.New("Nil change output provided")
+	ErrFeeTooLow                    = merry.New("Provided tx fee is too low")
+	ErrIndexNotFound                = merry.New("Index not found")
+	ErrSplitValueInputValueMismatch = merry.New("Amount of split tx output and ValueIn of ticket input are different")
 )
 
 // SessionParticipantFee returns the fee that a single participant of a ticket
