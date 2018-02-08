@@ -24,3 +24,21 @@ func MustRandUint64() uint64 {
 	}
 	return r
 }
+
+func NewRandInt32() (int32, error) {
+	var b [4]byte
+	_, err := rand.Read(b[:])
+	if err != nil {
+		return 0, err
+	}
+
+	return int32(uint32(b[0]) | uint32(b[1])<<8 | uint32(b[2])<<16 | uint32(b[3])<<24), nil
+}
+
+func MustRandInt32() int32 {
+	r, err := NewRandInt32()
+	if err != nil {
+		panic(err)
+	}
+	return r
+}

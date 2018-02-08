@@ -25,8 +25,8 @@ type (
 
 type (
 	addParticipantRequest struct {
-		participant *Participant
-		resp        chan addParticipantResponse
+		maxAmount uint64
+		resp      chan addParticipantResponse
 	}
 
 	setParticipantOutputsRequest struct {

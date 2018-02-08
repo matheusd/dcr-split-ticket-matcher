@@ -11,11 +11,6 @@ import (
 	logging "github.com/op/go-logging"
 )
 
-// Participant is someone that can participate on a ticket split
-type Participant struct {
-	MaxAmount dcrutil.Amount
-}
-
 // SessionParticipant is a participant of a split in a given session
 type SessionParticipant struct {
 	ID                 SessionID
@@ -35,7 +30,7 @@ type SessionParticipant struct {
 }
 
 // SessionID stores the unique id for an in-progress ticket buying session
-type SessionID uint64
+type SessionID int32
 
 // Session is a particular ticket being built
 type Session struct {
@@ -86,7 +81,7 @@ func (sess *Session) CreateTransaction() (*wire.MsgTx, error) {
 		}
 
 		if p.CommitmentTxOut != nil {
-			tx.AddTxOut(p.ChangeTxOut)
+			tx.AddTxOut(p.CommitmentTxOut)
 		}
 
 		if p.ChangeTxOut != nil {
@@ -98,12 +93,12 @@ func (sess *Session) CreateTransaction() (*wire.MsgTx, error) {
 }
 
 type TicketPriceProvider interface {
-	CurrentTicketPrice() dcrutil.Amount
+	CurrentTicketPrice() uint64
 }
 
 // Config stores the parameters for the matcher engine
 type Config struct {
-	MinAmount             dcrutil.Amount
+	MinAmount             uint64
 	MaxOnlineParticipants int
 	PriceProvider         TicketPriceProvider
 	LogLevel              logging.Level
@@ -122,22 +117,29 @@ type Matcher struct {
 	publishSessionRequests        chan publishSessionRequest
 }
 
-func RunMatcher(cfg *Config) error {
+func NewMatcher(cfg *Config) *Matcher {
 	m := &Matcher{
-		cfg: cfg,
-		log: logging.MustGetLogger("matcher"),
+		cfg:                           cfg,
+		log:                           logging.MustGetLogger("matcher"),
+		sessions:                      make(map[SessionID]*SessionParticipant),
+		addParticipantRequests:        make(chan addParticipantRequest),
+		setParticipantOutputsRequests: make(chan setParticipantOutputsRequest),
+		publishTicketRequests:         make(chan publishTicketRequest),
+		publishSessionRequests:        make(chan publishSessionRequest),
 	}
 	util.SetLoggerBackend(true, "", "", cfg.LogLevel, m.log)
 
 	m.addParticipantRequests = make(chan addParticipantRequest, cfg.MaxOnlineParticipants)
 
-	return m.run()
+	return m
 }
 
-func (matcher *Matcher) run() error {
+// Run listens for all matcher messages and runs the matching engine.
+func (matcher *Matcher) Run() error {
 	for {
 		select {
 		case req := <-matcher.addParticipantRequests:
+			matcher.log.Infof("Adding participant for amount %s", dcrutil.Amount(req.maxAmount))
 			matcher.waitingParticipants = append(matcher.waitingParticipants, &req)
 			if matcher.enoughForNewSession() {
 				matcher.startNewSession()
@@ -163,15 +165,15 @@ func (matcher *Matcher) run() error {
 
 func (matcher *Matcher) enoughForNewSession() bool {
 
-	ticketPrice := matcher.cfg.PriceProvider.CurrentTicketPrice()
-	availableSum := dcrutil.Amount(0)
+	ticketPrice := dcrutil.Amount(matcher.cfg.PriceProvider.CurrentTicketPrice())
+	var availableSum uint64
 
 	for _, r := range matcher.waitingParticipants {
-		availableSum += r.participant.MaxAmount
+		availableSum += r.maxAmount
 	}
 
 	ticketFee := SessionFeeEstimate(len(matcher.waitingParticipants))
-	neededAmount := ticketPrice + ticketFee
+	neededAmount := uint64(ticketPrice + ticketFee)
 	return availableSum > neededAmount
 }
 
@@ -180,15 +182,19 @@ func (matcher *Matcher) startNewSession() {
 	ticketFee := SessionFeeEstimate(numParts)
 	partFee := dcrutil.Amount(math.Ceil(float64(ticketFee) / float64(numParts)))
 
+	matcher.log.Infof("Starting new session: Ticket Price=%s Fees=%s Participants=%d",
+		dcrutil.Amount(matcher.cfg.PriceProvider.CurrentTicketPrice()),
+		ticketFee, numParts)
+
 	sess := &Session{
 		Participants: make([]*SessionParticipant, numParts),
-		TicketPrice:  matcher.cfg.PriceProvider.CurrentTicketPrice(),
+		TicketPrice:  dcrutil.Amount(matcher.cfg.PriceProvider.CurrentTicketPrice()),
 		VoterIndex:   0, // FIXME: select voter index at random
 	}
 
-	amountLeft := matcher.cfg.PriceProvider.CurrentTicketPrice()
+	amountLeft := dcrutil.Amount(matcher.cfg.PriceProvider.CurrentTicketPrice())
 	for i, r := range matcher.waitingParticipants {
-		amount := r.participant.MaxAmount - partFee
+		amount := dcrutil.Amount(r.maxAmount) - partFee
 		if amount > amountLeft {
 			amount = amountLeft
 		}
@@ -199,7 +205,7 @@ func (matcher *Matcher) startNewSession() {
 			Session: sess,
 			Index:   i,
 		}
-		sess.Participants = append(sess.Participants, sessPart)
+		sess.Participants[i] = sessPart
 
 		id := matcher.newSessionID()
 		matcher.sessions[id] = sessPart
@@ -215,16 +221,16 @@ func (matcher *Matcher) startNewSession() {
 
 func (matcher *Matcher) newSessionID() SessionID {
 	// TODO: rw lock matcher.sessions here
-	id := MustRandUint64()
+	id := MustRandInt32()
 	for _, has := matcher.sessions[SessionID(id)]; has; {
-		id = MustRandUint64()
+		id = MustRandInt32()
 	}
 	return SessionID(id)
 }
 
 func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest) error {
 	if _, has := matcher.sessions[req.sessionID]; !has {
-		return ErrSessionNotFound
+		return ErrSessionNotFound.WithMessagef("Session with ID %d not found", req.sessionID)
 	}
 
 	if req.commitmentOutput == nil {
@@ -236,15 +242,17 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	}
 
 	sess := matcher.sessions[req.sessionID]
-	if req.commitmentOutput.Value != int64(sess.Amount) {
-		return ErrCommitmentValueDifferent.
-			WithValue("expectedAmount", sess.Amount).
-			WithValue("providedAmount", req.commitmentOutput.Value)
-	}
+	// TODO: decode and check commitment amount
+	// if req.commitmentOutput.Value != int64(sess.Amount) {
+	// 	return ErrCommitmentValueDifferent.
+	// 		WithValue("expectedAmount", sess.Amount).
+	// 		WithValue("providedAmount", req.commitmentOutput.Value)
+	// }
 
 	sess.CommitmentTxOut = req.commitmentOutput
 	sess.ChangeTxOut = req.changeOutput
 	sess.chanSetOutputsResponse = req.resp
+	sess.VoteAddress = req.voteAddress
 
 	if sess.Session.AllOutputsFilled() {
 		tx, err := sess.Session.CreateTransaction()
@@ -275,23 +283,25 @@ func (matcher *Matcher) addParticipantInput(req *publishTicketRequest) error {
 		return ErrNilCommitmentOutput
 	}
 
-	txFee := req.input.ValueIn - (sess.CommitmentTxOut.Value + sess.ChangeTxOut.Value)
-	if txFee < int64(sess.Fee) {
-		return ErrFeeTooLow.
-			WithValue("expected", sess.Fee).
-			WithValue("provided", txFee)
-	}
-
 	if req.splitTxOutputIndex >= len(req.splitTx.TxOut) {
 		return ErrIndexNotFound.WithValue("index", req.splitTxOutputIndex)
 	}
 
 	splitTxOut := req.splitTx.TxOut[req.splitTxOutputIndex]
-	if splitTxOut.Value != req.input.ValueIn {
-		return ErrSplitValueInputValueMismatch.
-			WithValue("splitTxOutputAmount", splitTxOut.Value).
-			WithValue("inputValueIn", req.input.ValueIn)
+	// if splitTxOut.Value != req.input.ValueIn {
+	// 	return ErrSplitValueInputValueMismatch.
+	// 		WithMessagef("Split txOut.value (%d) !== input.ValueIn (%d)", splitTxOut.Value, req.input.ValueIn).
+	// 		WithValue("splitTxOutputAmount", splitTxOut.Value).
+	// 		WithValue("inputValueIn", req.input.ValueIn)
+	// }
+
+	txFee := splitTxOut.Value - (sess.CommitmentTxOut.Value + sess.ChangeTxOut.Value)
+	if txFee < int64(sess.Fee) {
+		return ErrFeeTooLow.WithMessagef("Fee too low. Expected=%s but got=%s", sess.Fee, txFee).
+			WithValue("expected", sess.Fee).
+			WithValue("provided", txFee)
 	}
+	req.input.ValueIn = wire.NullValueIn
 
 	engine, err := txscript.NewEngine(req.input.SignatureScript, req.splitTx,
 		req.splitTxOutputIndex, InputVmValidationFlags, splitTxOut.Version, nil)
@@ -325,8 +335,8 @@ func (matcher *Matcher) addParticipantInput(req *publishTicketRequest) error {
 	return nil
 }
 
-func (matcher *Matcher) AddParticipant(p *Participant) (*SessionParticipant, error) {
-	if p.MaxAmount < matcher.cfg.MinAmount {
+func (matcher *Matcher) AddParticipant(maxAmount uint64) (*SessionParticipant, error) {
+	if maxAmount < matcher.cfg.MinAmount {
 		return nil, ErrLowAmount
 	}
 
@@ -338,8 +348,8 @@ func (matcher *Matcher) AddParticipant(p *Participant) (*SessionParticipant, err
 	}
 
 	req := addParticipantRequest{
-		participant: p,
-		resp:        make(chan addParticipantResponse),
+		maxAmount: maxAmount,
+		resp:      make(chan addParticipantResponse),
 	}
 	matcher.addParticipantRequests <- req
 
