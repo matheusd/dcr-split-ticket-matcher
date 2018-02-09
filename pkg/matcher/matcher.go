@@ -114,7 +114,6 @@ type Matcher struct {
 	addParticipantRequests        chan addParticipantRequest
 	setParticipantOutputsRequests chan setParticipantOutputsRequest
 	publishTicketRequests         chan publishTicketRequest
-	publishSessionRequests        chan publishSessionRequest
 }
 
 func NewMatcher(cfg *Config) *Matcher {
@@ -125,7 +124,6 @@ func NewMatcher(cfg *Config) *Matcher {
 		addParticipantRequests:        make(chan addParticipantRequest),
 		setParticipantOutputsRequests: make(chan setParticipantOutputsRequest),
 		publishTicketRequests:         make(chan publishTicketRequest),
-		publishSessionRequests:        make(chan publishSessionRequest),
 	}
 	util.SetLoggerBackend(true, "", "", cfg.LogLevel, m.log)
 
@@ -160,7 +158,6 @@ func (matcher *Matcher) Run() error {
 			}
 		}
 	}
-	return nil
 }
 
 func (matcher *Matcher) enoughForNewSession() bool {
@@ -214,6 +211,8 @@ func (matcher *Matcher) startNewSession() {
 		r.resp <- addParticipantResponse{
 			participant: sessPart,
 		}
+
+		amountLeft -= amount
 	}
 
 	matcher.waitingParticipants = nil
@@ -245,9 +244,12 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	// TODO: decode and check commitment amount
 	// if req.commitmentOutput.Value != int64(sess.Amount) {
 	// 	return ErrCommitmentValueDifferent.
+	// 		WithMessagef("Commitment amount %s different then expected %s", dcrutil.Amount(req.commitmentOutput.Value), sess.Amount).
 	// 		WithValue("expectedAmount", sess.Amount).
 	// 		WithValue("providedAmount", req.commitmentOutput.Value)
 	// }
+
+	matcher.log.Infof("Participant %d set output commitment %s", req.sessionID, sess.Amount)
 
 	sess.CommitmentTxOut = req.commitmentOutput
 	sess.ChangeTxOut = req.changeOutput
@@ -255,6 +257,7 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	sess.VoteAddress = req.voteAddress
 
 	if sess.Session.AllOutputsFilled() {
+		matcher.log.Infof("All outputs for session received. Creating tx.")
 		tx, err := sess.Session.CreateTransaction()
 		for _, p := range sess.Session.Participants {
 			p.chanSetOutputsResponse <- setParticipantOutputsResponse{
@@ -318,8 +321,11 @@ func (matcher *Matcher) addParticipantInput(req *publishTicketRequest) error {
 	sess.SplitTxOutputIndex = req.splitTxOutputIndex
 	sess.chanPublishTicketResponse = req.resp
 
+	matcher.log.Infof("Setting input for participant %d", req.sessionID)
+
 	if sess.Session.AllInputsFilled() {
 		tx, err := sess.Session.CreateTransaction()
+		matcher.log.Infof("All inputs received for session")
 		for _, p := range sess.Session.Participants {
 			p.chanPublishTicketResponse <- publishTicketResponse{
 				err: err,
@@ -327,9 +333,7 @@ func (matcher *Matcher) addParticipantInput(req *publishTicketRequest) error {
 			}
 		}
 
-		matcher.publishSessionRequests <- publishSessionRequest{
-			session: sess.Session,
-		}
+		// FIXME: do publish the transaction on the chain
 	}
 
 	return nil

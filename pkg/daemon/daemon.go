@@ -30,9 +30,9 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 
 	mcfg := &matcher.Config{
 		LogLevel:              cfg.LogLevel,
-		MinAmount:             10,
+		MinAmount:             2,
 		MaxOnlineParticipants: 10,
-		PriceProvider:         &util.FixedTicketPriceProvider{TicketPrice: 80.938 * 1e8},
+		PriceProvider:         &util.FixedTicketPriceProvider{TicketPrice: 25.938 * 1e8},
 	}
 	d.matcher = matcher.NewMatcher(mcfg)
 
