@@ -1,10 +1,9 @@
-TODO:
-- Protect against accessing old/errored sessions
-- Protect against canceling and restarting many sessions
-- Protect against using non-controlled funds
-- Protect against timeouts
-- Add cancel stack
+# DCR Split Ticket Matcher Service
 
+POC split ticket matcher service.
 
-Protocol improvements
-- Receive split tx hash only instead of whole split tx (protect against fee drain)
+See it in action:
+
+![video](https://streamable.com/qnfsm)
+
+[Published Testnet tx](https://testnet.dcrdata.org/tx/bd08b3c27ef7a760eda9160c7ab986a0c5612dc873c95d9f6052af3a35f3dbe0)
