@@ -37,3 +37,5 @@
   - Maybe on `Participate()` the users send and sign the UTXOs that sum up to max participation amount?
 - Any way of preventing fee drain?
   - Maybe with a single splitTx?
+- Where to run this service?
+  - Single, standalone service? Multiple Standalone? Automatic in each stakepool?
