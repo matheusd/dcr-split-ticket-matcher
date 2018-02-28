@@ -9,12 +9,16 @@ It is generated from these files:
 
 It has these top-level messages:
 	TxOut
+	TxIn
+	OutPoint
 	FindMatchesRequest
 	FindMatchesResponse
 	GenerateTicketRequest
 	GenerateTicketResponse
-	PublishTicketRequest
-	PublishTicketResponse
+	FundTicketRequest
+	FundTicketResponse
+	FundSplitTxRequest
+	FundSplitTxResponse
 	StatusRequest
 	StatusResponse
 */
@@ -64,6 +68,62 @@ func (m *TxOut) GetScript() []byte {
 	return nil
 }
 
+type TxIn struct {
+	PrevHash  []byte `protobuf:"bytes,1,opt,name=prev_hash,json=prevHash,proto3" json:"prev_hash,omitempty"`
+	PrevIndex int32  `protobuf:"varint,2,opt,name=prev_index,json=prevIndex" json:"prev_index,omitempty"`
+	ScriptSig []byte `protobuf:"bytes,3,opt,name=script_sig,json=scriptSig,proto3" json:"script_sig,omitempty"`
+}
+
+func (m *TxIn) Reset()                    { *m = TxIn{} }
+func (m *TxIn) String() string            { return proto.CompactTextString(m) }
+func (*TxIn) ProtoMessage()               {}
+func (*TxIn) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+
+func (m *TxIn) GetPrevHash() []byte {
+	if m != nil {
+		return m.PrevHash
+	}
+	return nil
+}
+
+func (m *TxIn) GetPrevIndex() int32 {
+	if m != nil {
+		return m.PrevIndex
+	}
+	return 0
+}
+
+func (m *TxIn) GetScriptSig() []byte {
+	if m != nil {
+		return m.ScriptSig
+	}
+	return nil
+}
+
+type OutPoint struct {
+	PrevHash  []byte `protobuf:"bytes,1,opt,name=prev_hash,json=prevHash,proto3" json:"prev_hash,omitempty"`
+	PrevIndex int32  `protobuf:"varint,2,opt,name=prev_index,json=prevIndex" json:"prev_index,omitempty"`
+}
+
+func (m *OutPoint) Reset()                    { *m = OutPoint{} }
+func (m *OutPoint) String() string            { return proto.CompactTextString(m) }
+func (*OutPoint) ProtoMessage()               {}
+func (*OutPoint) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+
+func (m *OutPoint) GetPrevHash() []byte {
+	if m != nil {
+		return m.PrevHash
+	}
+	return nil
+}
+
+func (m *OutPoint) GetPrevIndex() int32 {
+	if m != nil {
+		return m.PrevIndex
+	}
+	return 0
+}
+
 type FindMatchesRequest struct {
 	Amount uint64 `protobuf:"varint,1,opt,name=amount" json:"amount,omitempty"`
 }
@@ -71,7 +131,7 @@ type FindMatchesRequest struct {
 func (m *FindMatchesRequest) Reset()                    { *m = FindMatchesRequest{} }
 func (m *FindMatchesRequest) String() string            { return proto.CompactTextString(m) }
 func (*FindMatchesRequest) ProtoMessage()               {}
-func (*FindMatchesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+func (*FindMatchesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
 
 func (m *FindMatchesRequest) GetAmount() uint64 {
 	if m != nil {
@@ -89,7 +149,7 @@ type FindMatchesResponse struct {
 func (m *FindMatchesResponse) Reset()                    { *m = FindMatchesResponse{} }
 func (m *FindMatchesResponse) String() string            { return proto.CompactTextString(m) }
 func (*FindMatchesResponse) ProtoMessage()               {}
-func (*FindMatchesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+func (*FindMatchesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
 
 func (m *FindMatchesResponse) GetSessionId() int32 {
 	if m != nil {
@@ -113,16 +173,19 @@ func (m *FindMatchesResponse) GetFee() uint64 {
 }
 
 type GenerateTicketRequest struct {
-	SessionId        int32  `protobuf:"varint,1,opt,name=session_id,json=sessionId" json:"session_id,omitempty"`
-	CommitmentOutput *TxOut `protobuf:"bytes,2,opt,name=commitment_output,json=commitmentOutput" json:"commitment_output,omitempty"`
-	ChangeOutput     *TxOut `protobuf:"bytes,3,opt,name=change_output,json=changeOutput" json:"change_output,omitempty"`
-	VoteAddress      string `protobuf:"bytes,4,opt,name=vote_address,json=voteAddress" json:"vote_address,omitempty"`
+	SessionId        int32       `protobuf:"varint,1,opt,name=session_id,json=sessionId" json:"session_id,omitempty"`
+	CommitmentOutput *TxOut      `protobuf:"bytes,2,opt,name=commitment_output,json=commitmentOutput" json:"commitment_output,omitempty"`
+	ChangeOutput     *TxOut      `protobuf:"bytes,3,opt,name=change_output,json=changeOutput" json:"change_output,omitempty"`
+	SplitTxOutput    *TxOut      `protobuf:"bytes,4,opt,name=split_tx_output,json=splitTxOutput" json:"split_tx_output,omitempty"`
+	SplitTxChange    *TxOut      `protobuf:"bytes,5,opt,name=split_tx_change,json=splitTxChange" json:"split_tx_change,omitempty"`
+	SplitTxInputs    []*OutPoint `protobuf:"bytes,6,rep,name=split_tx_inputs,json=splitTxInputs" json:"split_tx_inputs,omitempty"`
+	VoteAddress      string      `protobuf:"bytes,7,opt,name=vote_address,json=voteAddress" json:"vote_address,omitempty"`
 }
 
 func (m *GenerateTicketRequest) Reset()                    { *m = GenerateTicketRequest{} }
 func (m *GenerateTicketRequest) String() string            { return proto.CompactTextString(m) }
 func (*GenerateTicketRequest) ProtoMessage()               {}
-func (*GenerateTicketRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
+func (*GenerateTicketRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
 
 func (m *GenerateTicketRequest) GetSessionId() int32 {
 	if m != nil {
@@ -145,6 +208,27 @@ func (m *GenerateTicketRequest) GetChangeOutput() *TxOut {
 	return nil
 }
 
+func (m *GenerateTicketRequest) GetSplitTxOutput() *TxOut {
+	if m != nil {
+		return m.SplitTxOutput
+	}
+	return nil
+}
+
+func (m *GenerateTicketRequest) GetSplitTxChange() *TxOut {
+	if m != nil {
+		return m.SplitTxChange
+	}
+	return nil
+}
+
+func (m *GenerateTicketRequest) GetSplitTxInputs() []*OutPoint {
+	if m != nil {
+		return m.SplitTxInputs
+	}
+	return nil
+}
+
 func (m *GenerateTicketRequest) GetVoteAddress() string {
 	if m != nil {
 		return m.VoteAddress
@@ -153,81 +237,105 @@ func (m *GenerateTicketRequest) GetVoteAddress() string {
 }
 
 type GenerateTicketResponse struct {
-	Transaction []byte `protobuf:"bytes,1,opt,name=transaction,proto3" json:"transaction,omitempty"`
-	OutputIndex int32  `protobuf:"varint,2,opt,name=output_index,json=outputIndex" json:"output_index,omitempty"`
+	Ticket  []byte `protobuf:"bytes,1,opt,name=ticket,proto3" json:"ticket,omitempty"`
+	SplitTx []byte `protobuf:"bytes,2,opt,name=split_tx,json=splitTx,proto3" json:"split_tx,omitempty"`
 }
 
 func (m *GenerateTicketResponse) Reset()                    { *m = GenerateTicketResponse{} }
 func (m *GenerateTicketResponse) String() string            { return proto.CompactTextString(m) }
 func (*GenerateTicketResponse) ProtoMessage()               {}
-func (*GenerateTicketResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
+func (*GenerateTicketResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
 
-func (m *GenerateTicketResponse) GetTransaction() []byte {
+func (m *GenerateTicketResponse) GetTicket() []byte {
 	if m != nil {
-		return m.Transaction
+		return m.Ticket
 	}
 	return nil
 }
 
-func (m *GenerateTicketResponse) GetOutputIndex() int32 {
-	if m != nil {
-		return m.OutputIndex
-	}
-	return 0
-}
-
-type PublishTicketRequest struct {
-	SessionId            int32  `protobuf:"varint,1,opt,name=session_id,json=sessionId" json:"session_id,omitempty"`
-	SplitTx              []byte `protobuf:"bytes,2,opt,name=split_tx,json=splitTx,proto3" json:"split_tx,omitempty"`
-	SplitTxOutputIndex   int32  `protobuf:"varint,3,opt,name=split_tx_output_index,json=splitTxOutputIndex" json:"split_tx_output_index,omitempty"`
-	TicketInputScriptsig []byte `protobuf:"bytes,4,opt,name=ticket_input_scriptsig,json=ticketInputScriptsig,proto3" json:"ticket_input_scriptsig,omitempty"`
-}
-
-func (m *PublishTicketRequest) Reset()                    { *m = PublishTicketRequest{} }
-func (m *PublishTicketRequest) String() string            { return proto.CompactTextString(m) }
-func (*PublishTicketRequest) ProtoMessage()               {}
-func (*PublishTicketRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
-
-func (m *PublishTicketRequest) GetSessionId() int32 {
-	if m != nil {
-		return m.SessionId
-	}
-	return 0
-}
-
-func (m *PublishTicketRequest) GetSplitTx() []byte {
+func (m *GenerateTicketResponse) GetSplitTx() []byte {
 	if m != nil {
 		return m.SplitTx
 	}
 	return nil
 }
 
-func (m *PublishTicketRequest) GetSplitTxOutputIndex() int32 {
+type FundTicketRequest struct {
+	SessionId            int32  `protobuf:"varint,1,opt,name=session_id,json=sessionId" json:"session_id,omitempty"`
+	TicketInputScriptsig []byte `protobuf:"bytes,2,opt,name=ticket_input_scriptsig,json=ticketInputScriptsig,proto3" json:"ticket_input_scriptsig,omitempty"`
+}
+
+func (m *FundTicketRequest) Reset()                    { *m = FundTicketRequest{} }
+func (m *FundTicketRequest) String() string            { return proto.CompactTextString(m) }
+func (*FundTicketRequest) ProtoMessage()               {}
+func (*FundTicketRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
+
+func (m *FundTicketRequest) GetSessionId() int32 {
 	if m != nil {
-		return m.SplitTxOutputIndex
+		return m.SessionId
 	}
 	return 0
 }
 
-func (m *PublishTicketRequest) GetTicketInputScriptsig() []byte {
+func (m *FundTicketRequest) GetTicketInputScriptsig() []byte {
 	if m != nil {
 		return m.TicketInputScriptsig
 	}
 	return nil
 }
 
-type PublishTicketResponse struct {
-	TicketTx []byte `protobuf:"bytes,1,opt,name=ticket_tx,json=ticketTx,proto3" json:"ticket_tx,omitempty"`
+type FundTicketResponse struct {
+	Ticket []byte `protobuf:"bytes,1,opt,name=ticket,proto3" json:"ticket,omitempty"`
 }
 
-func (m *PublishTicketResponse) Reset()                    { *m = PublishTicketResponse{} }
-func (m *PublishTicketResponse) String() string            { return proto.CompactTextString(m) }
-func (*PublishTicketResponse) ProtoMessage()               {}
-func (*PublishTicketResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
+func (m *FundTicketResponse) Reset()                    { *m = FundTicketResponse{} }
+func (m *FundTicketResponse) String() string            { return proto.CompactTextString(m) }
+func (*FundTicketResponse) ProtoMessage()               {}
+func (*FundTicketResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
 
-func (m *PublishTicketResponse) GetTicketTx() []byte {
+func (m *FundTicketResponse) GetTicket() []byte {
 	if m != nil {
-		return m.TicketTx
+		return m.Ticket
+	}
+	return nil
+}
+
+type FundSplitTxRequest struct {
+	SessionId         int32    `protobuf:"varint,1,opt,name=session_id,json=sessionId" json:"session_id,omitempty"`
+	SplitTxScriptsigs [][]byte `protobuf:"bytes,2,rep,name=split_tx_scriptsigs,json=splitTxScriptsigs,proto3" json:"split_tx_scriptsigs,omitempty"`
+}
+
+func (m *FundSplitTxRequest) Reset()                    { *m = FundSplitTxRequest{} }
+func (m *FundSplitTxRequest) String() string            { return proto.CompactTextString(m) }
+func (*FundSplitTxRequest) ProtoMessage()               {}
+func (*FundSplitTxRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
+
+func (m *FundSplitTxRequest) GetSessionId() int32 {
+	if m != nil {
+		return m.SessionId
+	}
+	return 0
+}
+
+func (m *FundSplitTxRequest) GetSplitTxScriptsigs() [][]byte {
+	if m != nil {
+		return m.SplitTxScriptsigs
+	}
+	return nil
+}
+
+type FundSplitTxResponse struct {
+	SplitTx []byte `protobuf:"bytes,1,opt,name=split_tx,json=splitTx,proto3" json:"split_tx,omitempty"`
+}
+
+func (m *FundSplitTxResponse) Reset()                    { *m = FundSplitTxResponse{} }
+func (m *FundSplitTxResponse) String() string            { return proto.CompactTextString(m) }
+func (*FundSplitTxResponse) ProtoMessage()               {}
+func (*FundSplitTxResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
+
+func (m *FundSplitTxResponse) GetSplitTx() []byte {
+	if m != nil {
+		return m.SplitTx
 	}
 	return nil
 }
@@ -238,7 +346,7 @@ type StatusRequest struct {
 func (m *StatusRequest) Reset()                    { *m = StatusRequest{} }
 func (m *StatusRequest) String() string            { return proto.CompactTextString(m) }
 func (*StatusRequest) ProtoMessage()               {}
-func (*StatusRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
+func (*StatusRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
 
 type StatusResponse struct {
 	TicketPrice uint64 `protobuf:"varint,1,opt,name=ticket_price,json=ticketPrice" json:"ticket_price,omitempty"`
@@ -247,7 +355,7 @@ type StatusResponse struct {
 func (m *StatusResponse) Reset()                    { *m = StatusResponse{} }
 func (m *StatusResponse) String() string            { return proto.CompactTextString(m) }
 func (*StatusResponse) ProtoMessage()               {}
-func (*StatusResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
+func (*StatusResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{12} }
 
 func (m *StatusResponse) GetTicketPrice() uint64 {
 	if m != nil {
@@ -258,12 +366,16 @@ func (m *StatusResponse) GetTicketPrice() uint64 {
 
 func init() {
 	proto.RegisterType((*TxOut)(nil), "dcrticketmatcher.TxOut")
+	proto.RegisterType((*TxIn)(nil), "dcrticketmatcher.TxIn")
+	proto.RegisterType((*OutPoint)(nil), "dcrticketmatcher.OutPoint")
 	proto.RegisterType((*FindMatchesRequest)(nil), "dcrticketmatcher.FindMatchesRequest")
 	proto.RegisterType((*FindMatchesResponse)(nil), "dcrticketmatcher.FindMatchesResponse")
 	proto.RegisterType((*GenerateTicketRequest)(nil), "dcrticketmatcher.GenerateTicketRequest")
 	proto.RegisterType((*GenerateTicketResponse)(nil), "dcrticketmatcher.GenerateTicketResponse")
-	proto.RegisterType((*PublishTicketRequest)(nil), "dcrticketmatcher.PublishTicketRequest")
-	proto.RegisterType((*PublishTicketResponse)(nil), "dcrticketmatcher.PublishTicketResponse")
+	proto.RegisterType((*FundTicketRequest)(nil), "dcrticketmatcher.FundTicketRequest")
+	proto.RegisterType((*FundTicketResponse)(nil), "dcrticketmatcher.FundTicketResponse")
+	proto.RegisterType((*FundSplitTxRequest)(nil), "dcrticketmatcher.FundSplitTxRequest")
+	proto.RegisterType((*FundSplitTxResponse)(nil), "dcrticketmatcher.FundSplitTxResponse")
 	proto.RegisterType((*StatusRequest)(nil), "dcrticketmatcher.StatusRequest")
 	proto.RegisterType((*StatusResponse)(nil), "dcrticketmatcher.StatusResponse")
 }
@@ -281,7 +393,8 @@ const _ = grpc.SupportPackageIsVersion4
 type SplitTicketMatcherServiceClient interface {
 	FindMatches(ctx context.Context, in *FindMatchesRequest, opts ...grpc.CallOption) (*FindMatchesResponse, error)
 	GenerateTicket(ctx context.Context, in *GenerateTicketRequest, opts ...grpc.CallOption) (*GenerateTicketResponse, error)
-	PublishTicket(ctx context.Context, in *PublishTicketRequest, opts ...grpc.CallOption) (*PublishTicketResponse, error)
+	FundTicket(ctx context.Context, in *FundTicketRequest, opts ...grpc.CallOption) (*FundTicketResponse, error)
+	FundSplitTx(ctx context.Context, in *FundSplitTxRequest, opts ...grpc.CallOption) (*FundSplitTxResponse, error)
 	Status(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error)
 }
 
@@ -311,9 +424,18 @@ func (c *splitTicketMatcherServiceClient) GenerateTicket(ctx context.Context, in
 	return out, nil
 }
 
-func (c *splitTicketMatcherServiceClient) PublishTicket(ctx context.Context, in *PublishTicketRequest, opts ...grpc.CallOption) (*PublishTicketResponse, error) {
-	out := new(PublishTicketResponse)
-	err := grpc.Invoke(ctx, "/dcrticketmatcher.SplitTicketMatcherService/PublishTicket", in, out, c.cc, opts...)
+func (c *splitTicketMatcherServiceClient) FundTicket(ctx context.Context, in *FundTicketRequest, opts ...grpc.CallOption) (*FundTicketResponse, error) {
+	out := new(FundTicketResponse)
+	err := grpc.Invoke(ctx, "/dcrticketmatcher.SplitTicketMatcherService/FundTicket", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *splitTicketMatcherServiceClient) FundSplitTx(ctx context.Context, in *FundSplitTxRequest, opts ...grpc.CallOption) (*FundSplitTxResponse, error) {
+	out := new(FundSplitTxResponse)
+	err := grpc.Invoke(ctx, "/dcrticketmatcher.SplitTicketMatcherService/FundSplitTx", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +456,8 @@ func (c *splitTicketMatcherServiceClient) Status(ctx context.Context, in *Status
 type SplitTicketMatcherServiceServer interface {
 	FindMatches(context.Context, *FindMatchesRequest) (*FindMatchesResponse, error)
 	GenerateTicket(context.Context, *GenerateTicketRequest) (*GenerateTicketResponse, error)
-	PublishTicket(context.Context, *PublishTicketRequest) (*PublishTicketResponse, error)
+	FundTicket(context.Context, *FundTicketRequest) (*FundTicketResponse, error)
+	FundSplitTx(context.Context, *FundSplitTxRequest) (*FundSplitTxResponse, error)
 	Status(context.Context, *StatusRequest) (*StatusResponse, error)
 }
 
@@ -378,20 +501,38 @@ func _SplitTicketMatcherService_GenerateTicket_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SplitTicketMatcherService_PublishTicket_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PublishTicketRequest)
+func _SplitTicketMatcherService_FundTicket_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FundTicketRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SplitTicketMatcherServiceServer).PublishTicket(ctx, in)
+		return srv.(SplitTicketMatcherServiceServer).FundTicket(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/dcrticketmatcher.SplitTicketMatcherService/PublishTicket",
+		FullMethod: "/dcrticketmatcher.SplitTicketMatcherService/FundTicket",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SplitTicketMatcherServiceServer).PublishTicket(ctx, req.(*PublishTicketRequest))
+		return srv.(SplitTicketMatcherServiceServer).FundTicket(ctx, req.(*FundTicketRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SplitTicketMatcherService_FundSplitTx_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FundSplitTxRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SplitTicketMatcherServiceServer).FundSplitTx(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/dcrticketmatcher.SplitTicketMatcherService/FundSplitTx",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SplitTicketMatcherServiceServer).FundSplitTx(ctx, req.(*FundSplitTxRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -427,8 +568,12 @@ var _SplitTicketMatcherService_serviceDesc = grpc.ServiceDesc{
 			Handler:    _SplitTicketMatcherService_GenerateTicket_Handler,
 		},
 		{
-			MethodName: "PublishTicket",
-			Handler:    _SplitTicketMatcherService_PublishTicket_Handler,
+			MethodName: "FundTicket",
+			Handler:    _SplitTicketMatcherService_FundTicket_Handler,
+		},
+		{
+			MethodName: "FundSplitTx",
+			Handler:    _SplitTicketMatcherService_FundSplitTx_Handler,
 		},
 		{
 			MethodName: "Status",
@@ -442,39 +587,46 @@ var _SplitTicketMatcherService_serviceDesc = grpc.ServiceDesc{
 func init() { proto.RegisterFile("api.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 539 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x54, 0x51, 0x8f, 0xd2, 0x4c,
-	0x14, 0x4d, 0x97, 0x85, 0x6f, 0xb9, 0x2d, 0xfb, 0xe1, 0x08, 0xc8, 0x62, 0x8c, 0x6c, 0xa3, 0x2e,
-	0x0f, 0x86, 0xc4, 0xdd, 0xf5, 0xcd, 0x17, 0x13, 0xa3, 0x21, 0xc6, 0xb0, 0x29, 0x3c, 0x99, 0x68,
-	0xed, 0x4e, 0xc7, 0x65, 0x22, 0x4c, 0xeb, 0xcc, 0x2d, 0xe9, 0x7f, 0xf0, 0x17, 0xf9, 0x63, 0xfc,
-	0x2f, 0xa6, 0x33, 0xd3, 0x2c, 0xd0, 0x55, 0xe2, 0x1b, 0x73, 0xe6, 0x9c, 0x73, 0xef, 0x3d, 0xdc,
-	0x29, 0x34, 0xa3, 0x94, 0x8f, 0x53, 0x99, 0x60, 0x42, 0xda, 0x31, 0x95, 0xc8, 0xe9, 0x37, 0x86,
-	0xab, 0x08, 0xe9, 0x82, 0x49, 0xff, 0x25, 0xd4, 0xe7, 0xf9, 0x34, 0x43, 0xd2, 0x81, 0xfa, 0x3a,
-	0x5a, 0x66, 0xac, 0xef, 0x0c, 0x9d, 0xd1, 0x61, 0x60, 0x0e, 0xa4, 0x07, 0x0d, 0x45, 0x25, 0x4f,
-	0xb1, 0x7f, 0x30, 0x74, 0x46, 0x5e, 0x60, 0x4f, 0xfe, 0x73, 0x20, 0x6f, 0xb9, 0x88, 0x3f, 0x68,
-	0x17, 0x15, 0xb0, 0xef, 0x19, 0x53, 0x58, 0xb0, 0xa3, 0x55, 0x92, 0x09, 0xb4, 0x26, 0xf6, 0xe4,
-	0x7f, 0x86, 0xfb, 0x5b, 0x6c, 0x95, 0x26, 0x42, 0x31, 0xf2, 0x08, 0x40, 0x31, 0xa5, 0x78, 0x22,
-	0x42, 0x1e, 0x6b, 0x49, 0x3d, 0x68, 0x5a, 0x64, 0x12, 0x6f, 0xb8, 0x1d, 0x6c, 0xba, 0x91, 0x36,
-	0xd4, 0xbe, 0x32, 0xd6, 0xaf, 0x69, 0xb0, 0xf8, 0xe9, 0xff, 0x72, 0xa0, 0xfb, 0x8e, 0x09, 0x26,
-	0x23, 0x64, 0x73, 0x3d, 0x5e, 0xd9, 0xd1, 0x9e, 0x12, 0x6f, 0xe0, 0x1e, 0x4d, 0x56, 0x2b, 0x8e,
-	0x2b, 0x26, 0x30, 0x4c, 0x32, 0x4c, 0x33, 0x53, 0xcd, 0x3d, 0x7f, 0x30, 0xde, 0xcd, 0x6a, 0xac,
-	0x83, 0x0a, 0xda, 0xb7, 0x8a, 0xa9, 0x16, 0x90, 0x57, 0xd0, 0xa2, 0x8b, 0x48, 0xdc, 0xb0, 0xd2,
-	0xa1, 0xf6, 0x77, 0x07, 0xcf, 0xb0, 0xad, 0xfa, 0x14, 0xbc, 0x75, 0x82, 0x2c, 0x8c, 0xe2, 0x58,
-	0x32, 0xa5, 0xfa, 0x87, 0x43, 0x67, 0xd4, 0x0c, 0xdc, 0x02, 0x7b, 0x6d, 0x20, 0xff, 0x13, 0xf4,
-	0x76, 0xc7, 0xb3, 0x11, 0x0e, 0xc1, 0x45, 0x19, 0x09, 0x15, 0x51, 0xe4, 0x89, 0xd0, 0x03, 0x7a,
-	0xc1, 0x26, 0x54, 0xd8, 0x9b, 0xae, 0x42, 0x2e, 0x62, 0x96, 0xeb, 0xe9, 0xea, 0x81, 0x6b, 0xb0,
-	0x49, 0x01, 0xf9, 0x3f, 0x1d, 0xe8, 0x5c, 0x65, 0xd7, 0x4b, 0xae, 0x16, 0xff, 0x94, 0xde, 0x09,
-	0x1c, 0xa9, 0x74, 0xc9, 0x31, 0xc4, 0xdc, 0xae, 0xc7, 0x7f, 0xfa, 0x3c, 0xcf, 0xc9, 0x0b, 0xe8,
-	0x96, 0x57, 0xe1, 0x56, 0xf9, 0x9a, 0x36, 0x21, 0x96, 0x37, 0xbd, 0xed, 0x82, 0x5c, 0x42, 0xcf,
-	0x84, 0x15, 0x72, 0x51, 0xf0, 0xcd, 0xa6, 0x29, 0x7e, 0xa3, 0x13, 0xf1, 0x82, 0x8e, 0xb9, 0x9d,
-	0x14, 0x97, 0xb3, 0xf2, 0xce, 0xbf, 0x84, 0xee, 0x4e, 0xeb, 0x36, 0x99, 0x87, 0xd0, 0xb4, 0x76,
-	0x98, 0xdb, 0x5c, 0x8e, 0x0c, 0x30, 0xcf, 0xfd, 0xff, 0xa1, 0x35, 0xc3, 0x08, 0xb3, 0x72, 0x73,
-	0xfd, 0x0b, 0x38, 0x2e, 0x01, 0xab, 0x3f, 0x05, 0xcf, 0xea, 0x53, 0xc9, 0x69, 0xf9, 0x2c, 0x5c,
-	0x83, 0x5d, 0x15, 0xd0, 0xf9, 0x8f, 0x1a, 0x9c, 0xcc, 0xf4, 0x20, 0x1a, 0x34, 0xeb, 0x2d, 0x67,
-	0x4c, 0xae, 0x39, 0x65, 0xe4, 0x23, 0xb8, 0x1b, 0x4b, 0x4f, 0x9e, 0x54, 0xb7, 0xa1, 0xfa, 0x82,
-	0x06, 0x4f, 0xf7, 0xb0, 0x6c, 0x73, 0x14, 0x8e, 0xb7, 0x17, 0x82, 0x9c, 0x55, 0x85, 0x77, 0xbe,
-	0x88, 0xc1, 0x68, 0x3f, 0xd1, 0x16, 0xf9, 0x02, 0xad, 0xad, 0x68, 0xc9, 0xb3, 0xaa, 0xf4, 0xae,
-	0xb5, 0x19, 0x9c, 0xed, 0xe5, 0xd9, 0x0a, 0xef, 0xa1, 0x61, 0x52, 0x27, 0x8f, 0xab, 0x92, 0xad,
-	0x3f, 0x68, 0x30, 0xfc, 0x33, 0xc1, 0x98, 0x5d, 0x37, 0xf4, 0x27, 0xee, 0xe2, 0x77, 0x00, 0x00,
-	0x00, 0xff, 0xff, 0x3d, 0x9d, 0xe6, 0x9b, 0xef, 0x04, 0x00, 0x00,
+	// 649 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x55, 0x5f, 0x8f, 0xd2, 0x4e,
+	0x14, 0x0d, 0x5b, 0x60, 0x97, 0x4b, 0xf7, 0xdf, 0xb0, 0x3f, 0x7e, 0x5d, 0x8c, 0xb1, 0x5b, 0xd7,
+	0xd8, 0x07, 0x43, 0x0c, 0xab, 0x6f, 0x26, 0xc6, 0x3f, 0x41, 0xc9, 0xc6, 0xb0, 0x29, 0x24, 0x26,
+	0x3e, 0xd8, 0xd4, 0x76, 0xa4, 0x13, 0x97, 0x69, 0xed, 0x4c, 0x09, 0xdf, 0xc7, 0xef, 0xe5, 0x67,
+	0x31, 0x9d, 0x99, 0x42, 0x0b, 0x2c, 0xac, 0xf1, 0x8d, 0xb9, 0x73, 0xcf, 0xb9, 0xe7, 0xce, 0xb9,
+	0xb7, 0x40, 0xc3, 0x8b, 0x49, 0x37, 0x4e, 0x22, 0x1e, 0xa1, 0x93, 0xc0, 0x4f, 0x38, 0xf1, 0x7f,
+	0x60, 0x3e, 0xf5, 0xb8, 0x1f, 0xe2, 0xc4, 0x7a, 0x09, 0xb5, 0xf1, 0x7c, 0x98, 0x72, 0x74, 0x06,
+	0xb5, 0x99, 0x77, 0x9b, 0x62, 0xa3, 0x62, 0x56, 0xec, 0xaa, 0x23, 0x0f, 0xa8, 0x0d, 0x75, 0xe6,
+	0x27, 0x24, 0xe6, 0xc6, 0x9e, 0x59, 0xb1, 0x75, 0x47, 0x9d, 0x2c, 0x0f, 0xaa, 0xe3, 0xf9, 0x80,
+	0xa2, 0x07, 0xd0, 0x88, 0x13, 0x3c, 0x73, 0x43, 0x8f, 0x85, 0x02, 0xa9, 0x3b, 0x07, 0x59, 0xe0,
+	0xa3, 0xc7, 0x42, 0xf4, 0x10, 0x40, 0x5c, 0x12, 0x1a, 0xe0, 0xb9, 0x20, 0xa8, 0x39, 0x22, 0x7d,
+	0x90, 0x05, 0xb2, 0x6b, 0xc9, 0xe6, 0x32, 0x32, 0x31, 0x34, 0x01, 0x6e, 0xc8, 0xc8, 0x88, 0x4c,
+	0xac, 0x3e, 0x1c, 0x0c, 0x53, 0x7e, 0x13, 0x11, 0xca, 0xff, 0xa5, 0x8c, 0xf5, 0x0c, 0x50, 0x9f,
+	0xd0, 0xe0, 0x93, 0x68, 0x98, 0x39, 0xf8, 0x67, 0x8a, 0x19, 0xcf, 0x1a, 0xf3, 0xa6, 0x51, 0x4a,
+	0xb9, 0xea, 0x57, 0x9d, 0xac, 0xaf, 0xd0, 0x2a, 0x65, 0xb3, 0x38, 0xa2, 0x0c, 0x0b, 0xad, 0x98,
+	0x31, 0x12, 0x51, 0x97, 0x04, 0x02, 0x52, 0x73, 0x1a, 0x2a, 0x32, 0x08, 0x0a, 0x6c, 0x7b, 0x45,
+	0x36, 0x74, 0x02, 0xda, 0x77, 0x8c, 0x45, 0x6f, 0x55, 0x27, 0xfb, 0x69, 0xfd, 0xd2, 0xe0, 0xbf,
+	0x0f, 0x98, 0xe2, 0xc4, 0xe3, 0x78, 0x2c, 0x9c, 0xc8, 0x15, 0xed, 0x28, 0xf1, 0x1e, 0x4e, 0xfd,
+	0x68, 0x3a, 0x25, 0x7c, 0x8a, 0x29, 0x77, 0xa3, 0x94, 0xc7, 0xa9, 0xac, 0xd6, 0xec, 0xfd, 0xdf,
+	0x5d, 0xb5, 0xb5, 0x2b, 0x3c, 0x75, 0x4e, 0x96, 0x88, 0xa1, 0x00, 0xa0, 0x57, 0x70, 0xe8, 0x87,
+	0x1e, 0x9d, 0xe0, 0x9c, 0x41, 0xdb, 0xce, 0xa0, 0xcb, 0x6c, 0x85, 0x7e, 0x0d, 0xc7, 0x2c, 0xbe,
+	0x25, 0xdc, 0xe5, 0xf3, 0x1c, 0x5f, 0xdd, 0x8e, 0x3f, 0x14, 0xf9, 0xe2, 0xf7, 0x2a, 0x81, 0x64,
+	0x36, 0x6a, 0xf7, 0x23, 0x78, 0x27, 0xb2, 0xd1, 0xdb, 0x02, 0x01, 0xa1, 0x71, 0xca, 0x99, 0x51,
+	0x37, 0x35, 0xbb, 0xd9, 0xeb, 0xac, 0x13, 0xe4, 0xd3, 0xb3, 0xe0, 0x18, 0x08, 0x00, 0xba, 0x00,
+	0x7d, 0x16, 0x71, 0xec, 0x7a, 0x41, 0x90, 0x60, 0xc6, 0x8c, 0x7d, 0xb3, 0x62, 0x37, 0x9c, 0x66,
+	0x16, 0x7b, 0x23, 0x43, 0xd6, 0x35, 0xb4, 0x57, 0x4d, 0x52, 0x83, 0xd0, 0x86, 0xba, 0xac, 0xa2,
+	0xc6, 0x50, 0x9d, 0xd0, 0x39, 0x1c, 0xe4, 0xc2, 0xd4, 0xaa, 0xec, 0xab, 0xaa, 0x56, 0x08, 0xa7,
+	0xfd, 0x94, 0x06, 0x7f, 0xe5, 0xf6, 0x0b, 0x68, 0x4b, 0x62, 0xd9, 0xa5, 0x2b, 0xd7, 0x22, 0xdb,
+	0x13, 0x49, 0x7e, 0x26, 0x6f, 0x45, 0x47, 0xa3, 0xfc, 0x4e, 0x8c, 0x7a, 0xa1, 0xd2, 0x76, 0xc9,
+	0x96, 0x2f, 0xb3, 0x47, 0x52, 0xe6, 0x3d, 0x85, 0x75, 0xa1, 0xb5, 0x30, 0x60, 0x21, 0x8a, 0x19,
+	0x7b, 0xa6, 0x66, 0xeb, 0xce, 0xa9, 0x6a, 0x79, 0xa1, 0x88, 0x59, 0xcf, 0xa1, 0x55, 0x2a, 0xa2,
+	0x34, 0x15, 0x9f, 0xab, 0x52, 0x7e, 0xae, 0x63, 0x38, 0x1c, 0x71, 0x8f, 0xa7, 0xf9, 0xaa, 0x5a,
+	0x57, 0x70, 0x94, 0x07, 0x14, 0xfa, 0x02, 0x74, 0xf5, 0x3a, 0x71, 0x42, 0xfc, 0xfc, 0x93, 0xd5,
+	0x94, 0xb1, 0x9b, 0x2c, 0xd4, 0xfb, 0xad, 0xc1, 0xb9, 0x2c, 0x2a, 0x82, 0x72, 0x9f, 0x93, 0x11,
+	0x4e, 0x66, 0xc4, 0xc7, 0xe8, 0x0b, 0x34, 0x0b, 0x5b, 0x8e, 0x2e, 0xd7, 0x87, 0x67, 0xfd, 0x93,
+	0xd1, 0x79, 0xb2, 0x23, 0x4b, 0x89, 0xf3, 0xe1, 0xa8, 0x3c, 0x3b, 0xe8, 0xe9, 0x3a, 0x70, 0xe3,
+	0x27, 0xa0, 0x63, 0xef, 0x4e, 0x54, 0x45, 0x3e, 0x03, 0x2c, 0x9d, 0x46, 0x8f, 0x37, 0x28, 0x5b,
+	0x9d, 0xb8, 0xce, 0xe5, 0xf6, 0x24, 0x45, 0x9c, 0xbd, 0xcc, 0xd2, 0x2f, 0x74, 0x07, 0xa8, 0x3c,
+	0x33, 0x1b, 0x5f, 0x66, 0x83, 0xe9, 0xd7, 0x50, 0x97, 0x46, 0xa2, 0x47, 0xeb, 0x80, 0x92, 0xe7,
+	0x1d, 0xf3, 0xee, 0x04, 0x49, 0xf6, 0xad, 0x2e, 0xfe, 0xd1, 0xae, 0xfe, 0x04, 0x00, 0x00, 0xff,
+	0xff, 0x4f, 0x32, 0xaf, 0x7f, 0xde, 0x06, 0x00, 0x00,
 }

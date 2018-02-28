@@ -3,7 +3,6 @@ package matcher
 import (
 	"math"
 
-	"github.com/ansel1/merry"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
@@ -19,14 +18,17 @@ type SessionParticipant struct {
 	VoteAddress        *dcrutil.Address
 	CommitmentTxOut    *wire.TxOut
 	ChangeTxOut        *wire.TxOut
-	Input              *wire.TxIn
-	SplitTx            *wire.MsgTx
+	SplitTxOut         *wire.TxOut
+	SplitTxChange      *wire.TxOut
+	SplitTxInputs      []*wire.TxIn
+	TicketScriptSig    []byte
 	SplitTxOutputIndex int
 	Session            *Session
 	Index              int
 
-	chanSetOutputsResponse    chan setParticipantOutputsResponse
-	chanPublishTicketResponse chan publishTicketResponse
+	chanSetOutputsResponse  chan setParticipantOutputsResponse
+	chanFundTicketResponse  chan fundTicketResponse
+	chanFundSplitTxResponse chan fundSplitTxResponse
 }
 
 // SessionID stores the unique id for an in-progress ticket buying session
@@ -43,53 +45,86 @@ type Session struct {
 // participants have been filled
 func (sess *Session) AllOutputsFilled() bool {
 	for _, p := range sess.Participants {
-		if p.ChangeTxOut == nil || p.CommitmentTxOut == nil {
+		if p.ChangeTxOut == nil || p.CommitmentTxOut == nil || p.SplitTxOut == nil ||
+			len(p.SplitTxInputs) == 0 {
+
 			return false
 		}
 	}
 	return true
 }
 
-// AllInputsFilled returns true if all inputs and split transactions for
-// all participants have been filled
-func (sess *Session) AllInputsFilled() bool {
+// TicketIsFunded returns true if all ticket inputs have been filled.
+func (sess *Session) TicketIsFunded() bool {
 	for _, p := range sess.Participants {
-		if p.Input == nil || p.SplitTx == nil {
+		if p.TicketScriptSig == nil {
 			return false
 		}
 	}
 	return true
 }
 
-// CreateTransaction creates the transaction with all the currently available
-// information
-func (sess *Session) CreateTransaction() (*wire.MsgTx, error) {
-	tx := wire.NewMsgTx()
+// SplitTxIsFunded returns true if the split tx is funded
+func (sess *Session) SplitTxIsFunded() bool {
+	for _, p := range sess.Participants {
+		for _, in := range p.SplitTxInputs {
+			if len(in.SignatureScript) == 0 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// CreateTransactions creates the ticket and split tx transactions with all the
+// currently available information
+func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, error) {
+	ticket := wire.NewMsgTx()
+	splitTx := wire.NewMsgTx()
 
 	if sess.Participants[sess.VoterIndex].VoteAddress != nil {
 		script, err := txscript.PayToSStx(*sess.Participants[sess.VoterIndex].VoteAddress)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		txout := wire.NewTxOut(int64(sess.TicketPrice), script)
-		tx.AddTxOut(txout)
+		ticket.AddTxOut(txout)
 	}
 
+	var spOutIndex uint32
+
 	for _, p := range sess.Participants {
-		if p.Input != nil {
-			tx.AddTxIn(p.Input)
+		if p.SplitTxOut != nil {
+			ticket.AddTxIn(wire.NewTxIn(&wire.OutPoint{Index: spOutIndex}, p.TicketScriptSig))
+			splitTx.AddTxOut(p.SplitTxOut)
+			spOutIndex++
+		}
+
+		if p.SplitTxChange != nil {
+			splitTx.AddTxOut(p.SplitTxChange)
+			spOutIndex++
 		}
 
 		if p.CommitmentTxOut != nil {
-			tx.AddTxOut(p.CommitmentTxOut)
+			ticket.AddTxOut(p.CommitmentTxOut)
 		}
 
 		if p.ChangeTxOut != nil {
-			tx.AddTxOut(p.ChangeTxOut)
+			ticket.AddTxOut(p.ChangeTxOut)
+		}
+
+		for _, in := range p.SplitTxInputs {
+			splitTx.AddTxIn(in)
 		}
 	}
 
-	return tx, nil
+	// back-fill the ticket input's outpoints with the split tx hash
+	splitHash := splitTx.TxHash()
+	for _, in := range ticket.TxIn {
+		in.PreviousOutPoint.Hash = splitHash
+	}
+
+	return ticket, splitTx, nil
 }
 
 type TicketPriceProvider interface {
@@ -113,7 +148,8 @@ type Matcher struct {
 
 	addParticipantRequests        chan addParticipantRequest
 	setParticipantOutputsRequests chan setParticipantOutputsRequest
-	publishTicketRequests         chan publishTicketRequest
+	fundTicketRequests            chan fundTicketRequest
+	fundSplitTxRequests           chan fundSplitTxRequest
 }
 
 func NewMatcher(cfg *Config) *Matcher {
@@ -123,7 +159,8 @@ func NewMatcher(cfg *Config) *Matcher {
 		sessions:                      make(map[SessionID]*SessionParticipant),
 		addParticipantRequests:        make(chan addParticipantRequest),
 		setParticipantOutputsRequests: make(chan setParticipantOutputsRequest),
-		publishTicketRequests:         make(chan publishTicketRequest),
+		fundTicketRequests:            make(chan fundTicketRequest),
+		fundSplitTxRequests:           make(chan fundSplitTxRequest),
 	}
 	util.SetLoggerBackend(true, "", "", cfg.LogLevel, m.log)
 
@@ -149,10 +186,17 @@ func (matcher *Matcher) Run() error {
 					err: err,
 				}
 			}
-		case req := <-matcher.publishTicketRequests:
-			err := matcher.addParticipantInput(&req)
+		case req := <-matcher.fundTicketRequests:
+			err := matcher.fundTicket(&req)
 			if err != nil {
-				req.resp <- publishTicketResponse{
+				req.resp <- fundTicketResponse{
+					err: err,
+				}
+			}
+		case req := <-matcher.fundSplitTxRequests:
+			err := matcher.fundSplitTx(&req)
+			if err != nil {
+				req.resp <- fundSplitTxResponse{
 					err: err,
 				}
 			}
@@ -248,22 +292,40 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	// 		WithValue("expectedAmount", sess.Amount).
 	// 		WithValue("providedAmount", req.commitmentOutput.Value)
 	// }
+	if req.splitTxOutput.Value != int64(sess.Amount+sess.Fee) {
+		return ErrSplitValueInputValueMismatch.
+			WithMessagef("Split txOut.value (%s) !== session.amount (%s) + session.fee(%s)", dcrutil.Amount(req.splitTxOutput.Value), sess.Amount, sess.Fee)
+	}
+
+	if len(req.splitTxOutPoints) == 0 {
+		return ErrNoSplitTxInputOutPoints
+	}
+
+	// TODO: get the utxos from network and validate whether the sum(utxos) == splitTxOut + splitTxChange + SplitTxFee
 
 	matcher.log.Infof("Participant %d set output commitment %s", req.sessionID, sess.Amount)
 
 	sess.CommitmentTxOut = req.commitmentOutput
 	sess.ChangeTxOut = req.changeOutput
 	sess.chanSetOutputsResponse = req.resp
+	sess.SplitTxOut = req.splitTxOutput
+	sess.SplitTxChange = req.splitTxChange
 	sess.VoteAddress = req.voteAddress
+	sess.SplitTxInputs = make([]*wire.TxIn, len(req.splitTxOutPoints))
+	for i, outp := range req.splitTxOutPoints {
+		sess.SplitTxInputs[i] = wire.NewTxIn(outp, nil)
+	}
 
 	if sess.Session.AllOutputsFilled() {
-		matcher.log.Infof("All outputs for session received. Creating tx.")
-		tx, err := sess.Session.CreateTransaction()
+		matcher.log.Infof("All outputs for session received. Creating txs.")
+
+		ticket, splitTx, err := sess.Session.CreateTransactions()
+
 		for _, p := range sess.Session.Participants {
 			p.chanSetOutputsResponse <- setParticipantOutputsResponse{
-				output_index: p.Index,
-				transaction:  tx,
-				err:          err,
+				ticket:  ticket,
+				splitTx: splitTx,
+				err:     err,
 			}
 		}
 	}
@@ -271,8 +333,7 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	return nil
 }
 
-func (matcher *Matcher) addParticipantInput(req *publishTicketRequest) error {
-
+func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 	if _, has := matcher.sessions[req.sessionID]; !has {
 		return ErrSessionNotFound
 	}
@@ -286,54 +347,59 @@ func (matcher *Matcher) addParticipantInput(req *publishTicketRequest) error {
 		return ErrNilCommitmentOutput
 	}
 
-	if req.splitTxOutputIndex >= len(req.splitTx.TxOut) {
-		return ErrIndexNotFound.WithValue("index", req.splitTxOutputIndex)
-	}
+	// TODO: check if ticketInputScriptSig actually commits to the ticket's outputs
+	// and is of the correct sigHashType
 
-	splitTxOut := req.splitTx.TxOut[req.splitTxOutputIndex]
-	// if splitTxOut.Value != req.input.ValueIn {
-	// 	return ErrSplitValueInputValueMismatch.
-	// 		WithMessagef("Split txOut.value (%d) !== input.ValueIn (%d)", splitTxOut.Value, req.input.ValueIn).
-	// 		WithValue("splitTxOutputAmount", splitTxOut.Value).
-	// 		WithValue("inputValueIn", req.input.ValueIn)
-	// }
+	sess.TicketScriptSig = req.ticketInputScriptSig
+	sess.chanFundTicketResponse = req.resp
 
-	txFee := splitTxOut.Value - (sess.CommitmentTxOut.Value + sess.ChangeTxOut.Value)
-	if txFee < int64(sess.Fee) {
-		return ErrFeeTooLow.WithMessagef("Fee too low. Expected=%s but got=%s", sess.Fee, txFee).
-			WithValue("expected", sess.Fee).
-			WithValue("provided", txFee)
-	}
-	req.input.ValueIn = wire.NullValueIn
+	if sess.Session.TicketIsFunded() {
+		matcher.log.Infof("All sigscripts for ticket received. Creating funded ticket.")
 
-	engine, err := txscript.NewEngine(req.input.SignatureScript, req.splitTx,
-		req.splitTxOutputIndex, InputVmValidationFlags, splitTxOut.Version, nil)
-	if err != nil {
-		return merry.Wrap(err).WithMessage("Error creating engine for split tx validation")
-	}
-	err = engine.Execute()
-	if err != nil {
-		return merry.Wrap(err).WithMessage("Error validating participant ticket input against split tx")
-	}
+		ticket, _, err := sess.Session.CreateTransactions()
 
-	sess.Input = req.input
-	sess.SplitTx = req.splitTx
-	sess.SplitTxOutputIndex = req.splitTxOutputIndex
-	sess.chanPublishTicketResponse = req.resp
-
-	matcher.log.Infof("Setting input for participant %d", req.sessionID)
-
-	if sess.Session.AllInputsFilled() {
-		tx, err := sess.Session.CreateTransaction()
-		matcher.log.Infof("All inputs received for session")
 		for _, p := range sess.Session.Participants {
-			p.chanPublishTicketResponse <- publishTicketResponse{
-				err: err,
-				tx:  tx,
+			p.chanFundTicketResponse <- fundTicketResponse{
+				ticket: ticket,
+				err:    err,
 			}
+			matcher.log.Infof("Alerted participant %d of funded ticked", p.ID)
 		}
+	}
 
-		// FIXME: do publish the transaction on the chain
+	return nil
+}
+
+func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
+	if _, has := matcher.sessions[req.sessionID]; !has {
+		return ErrSessionNotFound
+	}
+	sess := matcher.sessions[req.sessionID]
+
+	if len(sess.SplitTxInputs) != len(req.inputScriptSigs) {
+		return ErrSplitInputSignLenMismatch.
+			WithMessagef("len(splitTxInputs %d) != len(inputScriptSigs %d)", len(sess.SplitTxInputs), len(req.inputScriptSigs))
+	}
+
+	// TODO: make sure the script sigs actually sign the split tx
+
+	for i, script := range req.inputScriptSigs {
+		sess.SplitTxInputs[i].SignatureScript = script
+	}
+	sess.chanFundSplitTxResponse = req.resp
+
+	if sess.Session.SplitTxIsFunded() {
+		matcher.log.Infof("All inputs for split tx received. Creating split tx.")
+
+		_, splitTx, err := sess.Session.CreateTransactions()
+
+		for _, p := range sess.Session.Participants {
+			p.chanFundSplitTxResponse <- fundSplitTxResponse{
+				splitTx: splitTx,
+				err:     err,
+			}
+			matcher.log.Infof("Alerted participant %d of funded split tx", p.ID)
+		}
 	}
 
 	return nil
@@ -366,36 +432,52 @@ func (matcher *Matcher) AddParticipant(maxAmount uint64) (*SessionParticipant, e
 // outputs, then generates the ticket tx and returns the index of the input
 // that should receive this participants funds
 func (matcher *Matcher) SetParticipantsOutputs(sessionID SessionID, commitmentOutput,
-	changeOutput wire.TxOut, voteAddress dcrutil.Address) (*wire.MsgTx, int, error) {
+	changeOutput wire.TxOut, voteAddress dcrutil.Address, splitTxChange wire.TxOut,
+	splitTxOutput wire.TxOut, splitTxOutPoints []*wire.OutPoint) (*wire.MsgTx, *wire.MsgTx, error) {
+
+	outpoints := make([]*wire.OutPoint, len(splitTxOutPoints))
+	for i, o := range splitTxOutPoints {
+		outpoints[i] = o
+	}
 
 	req := setParticipantOutputsRequest{
 		sessionID:        sessionID,
 		commitmentOutput: &commitmentOutput,
 		changeOutput:     &changeOutput,
 		voteAddress:      &voteAddress,
+		splitTxChange:    &splitTxChange,
+		splitTxOutput:    &splitTxOutput,
+		splitTxOutPoints: outpoints,
 		resp:             make(chan setParticipantOutputsResponse),
 	}
 
 	matcher.setParticipantOutputsRequests <- req
 	resp := <-req.resp
-	return resp.transaction, resp.output_index, resp.err
+	return resp.ticket, resp.splitTx, resp.err
 }
 
-// PublishTransaction validates the signed input provided by one of the
-// participants of the given session and publishes the transaction. It blocks
-// until all participants have sent their inputs
-func (matcher *Matcher) PublishTransaction(sessionID SessionID, splitTx *wire.MsgTx,
-	splitTxOutputIndex int, input *wire.TxIn) (*wire.MsgTx, error) {
+func (matcher *Matcher) FundTicket(sessionID SessionID, inputScriptSig []byte) (*wire.MsgTx, error) {
 
-	req := publishTicketRequest{
-		sessionID:          sessionID,
-		splitTx:            splitTx,
-		input:              input,
-		splitTxOutputIndex: splitTxOutputIndex,
-		resp:               make(chan publishTicketResponse),
+	req := fundTicketRequest{
+		sessionID:            sessionID,
+		ticketInputScriptSig: inputScriptSig,
+		resp:                 make(chan fundTicketResponse),
 	}
 
-	matcher.publishTicketRequests <- req
+	matcher.fundTicketRequests <- req
 	resp := <-req.resp
-	return resp.tx, resp.err
+	return resp.ticket, resp.err
+}
+
+func (matcher *Matcher) FundSplit(sessionID SessionID, inputScriptSigs [][]byte) (*wire.MsgTx, error) {
+
+	req := fundSplitTxRequest{
+		sessionID:       sessionID,
+		inputScriptSigs: inputScriptSigs,
+		resp:            make(chan fundSplitTxResponse),
+	}
+	matcher.fundSplitTxRequests <- req
+	resp := <-req.resp
+	return resp.splitTx, resp.err
+
 }

@@ -5,13 +5,25 @@ package dcrticketmatcher;
 service SplitTicketMatcherService {
     rpc FindMatches (FindMatchesRequest) returns (FindMatchesResponse);
     rpc GenerateTicket (GenerateTicketRequest) returns (GenerateTicketResponse);
-    rpc PublishTicket (PublishTicketRequest) returns (PublishTicketResponse);
+    rpc FundTicket (FundTicketRequest) returns (FundTicketResponse);
+    rpc FundSplitTx (FundSplitTxRequest) returns (FundSplitTxResponse);
     rpc Status (StatusRequest) returns (StatusResponse);
 }
 
 message TxOut {
     uint64 value = 1;
     bytes script = 2;
+}
+
+message TxIn {
+    bytes prev_hash = 1;
+    int32 prev_index = 2;
+    bytes script_sig = 3;
+}
+
+message OutPoint {
+    bytes prev_hash = 1;
+    int32 prev_index = 2;
 }
 
 message FindMatchesRequest {
@@ -28,23 +40,33 @@ message GenerateTicketRequest {
     int32 session_id = 1;
     TxOut commitment_output = 2;
     TxOut change_output = 3;
-    string vote_address = 4;
+    TxOut split_tx_output = 4;
+    TxOut split_tx_change = 5;
+    repeated OutPoint split_tx_inputs = 6;
+    string vote_address = 7;
 }
 
 message GenerateTicketResponse {
-    bytes transaction = 1;
-    int32 output_index = 2;
-}
-
-message PublishTicketRequest {
-    int32 session_id = 1;
+    bytes ticket = 1;
     bytes split_tx = 2;
-    int32 split_tx_output_index = 3;
-    bytes ticket_input_scriptsig = 4;
 }
 
-message PublishTicketResponse {
-    bytes ticket_tx = 1;
+message FundTicketRequest {
+    int32 session_id = 1;
+    bytes ticket_input_scriptsig = 2;
+}
+
+message FundTicketResponse {
+    bytes ticket = 1;
+}
+
+message FundSplitTxRequest {
+    int32 session_id = 1;
+    repeated bytes split_tx_scriptsigs = 2;
+}
+
+message FundSplitTxResponse {
+    bytes split_tx = 1;
 }
 
 message StatusRequest { }

@@ -32,7 +32,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		LogLevel:              cfg.LogLevel,
 		MinAmount:             2,
 		MaxOnlineParticipants: 10,
-		PriceProvider:         &util.FixedTicketPriceProvider{TicketPrice: 25.938 * 1e8},
+		PriceProvider:         &util.FixedTicketPriceProvider{TicketPrice: 32.938 * 1e8},
 	}
 	d.matcher = matcher.NewMatcher(mcfg)
 

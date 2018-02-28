@@ -12,9 +12,19 @@ type (
 	}
 
 	setParticipantOutputsResponse struct {
-		transaction  *wire.MsgTx
-		output_index int
-		err          error
+		ticket  *wire.MsgTx
+		splitTx *wire.MsgTx
+		err     error
+	}
+
+	fundTicketResponse struct {
+		ticket *wire.MsgTx
+		err    error
+	}
+
+	fundSplitTxResponse struct {
+		splitTx *wire.MsgTx
+		err     error
 	}
 
 	publishTicketResponse struct {
@@ -33,19 +43,22 @@ type (
 		sessionID        SessionID
 		commitmentOutput *wire.TxOut
 		changeOutput     *wire.TxOut
+		splitTxOutput    *wire.TxOut
+		splitTxChange    *wire.TxOut
+		splitTxOutPoints []*wire.OutPoint
 		voteAddress      *dcrutil.Address
 		resp             chan setParticipantOutputsResponse
 	}
 
-	publishTicketRequest struct {
-		sessionID          SessionID
-		splitTx            *wire.MsgTx
-		input              *wire.TxIn
-		splitTxOutputIndex int
-		resp               chan publishTicketResponse
+	fundTicketRequest struct {
+		sessionID            SessionID
+		ticketInputScriptSig []byte
+		resp                 chan fundTicketResponse
 	}
 
-	publishSessionRequest struct {
-		session *Session
+	fundSplitTxRequest struct {
+		sessionID       SessionID
+		inputScriptSigs [][]byte
+		resp            chan fundSplitTxResponse
 	}
 )

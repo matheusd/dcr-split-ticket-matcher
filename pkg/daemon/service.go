@@ -3,6 +3,7 @@ package daemon
 import (
 	"bytes"
 
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
@@ -37,69 +38,91 @@ func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.F
 
 func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *pb.GenerateTicketRequest) (*pb.GenerateTicketResponse, error) {
 
-	var commitTxout, changeTxout *wire.TxOut
+	var commitTxout, changeTxout, splitTxout, splitChange *wire.TxOut
 	var voteAddr dcrutil.Address
 	var err error
 
 	commitTxout = wire.NewTxOut(int64(req.CommitmentOutput.Value), req.CommitmentOutput.Script)
 	changeTxout = wire.NewTxOut(int64(req.ChangeOutput.Value), req.ChangeOutput.Script)
+	splitTxout = wire.NewTxOut(int64(req.SplitTxOutput.Value), req.SplitTxOutput.Script)
+	splitChange = wire.NewTxOut(int64(req.SplitTxChange.Value), req.SplitTxChange.Script)
 	voteAddr, err = dcrutil.DecodeAddress(req.VoteAddress)
 	if err != nil {
 		return nil, err
 	}
 
-	tx, outIdx, err := svc.matcher.SetParticipantsOutputs(matcher.SessionID(req.SessionId),
-		*commitTxout, *changeTxout, voteAddr)
+	splitOutpoints := make([]*wire.OutPoint, len(req.SplitTxInputs))
+	for i, in := range req.SplitTxInputs {
+		hash, err := chainhash.NewHash(in.PrevHash)
+		if err != nil {
+			return nil, err
+		}
+		splitOutpoints[i] = wire.NewOutPoint(hash, uint32(in.PrevIndex), wire.TxTreeRegular)
+	}
+
+	ticket, split, err := svc.matcher.SetParticipantsOutputs(matcher.SessionID(req.SessionId),
+		*commitTxout, *changeTxout, voteAddr, *splitChange, *splitTxout, splitOutpoints)
 	if err != nil {
 		return nil, err
 	}
 
-	buff := bytes.NewBuffer(nil)
-	buff.Grow(tx.SerializeSize())
-	err = tx.BtcEncode(buff, 0)
+	buffTicket := bytes.NewBuffer(nil)
+	buffTicket.Grow(ticket.SerializeSize())
+	err = ticket.BtcEncode(buffTicket, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	buffSplit := bytes.NewBuffer(nil)
+	buffSplit.Grow(split.SerializeSize())
+	err = split.BtcEncode(buffSplit, 0)
 	if err != nil {
 		return nil, err
 	}
 
 	resp := &pb.GenerateTicketResponse{
-		Transaction: buff.Bytes(),
-		OutputIndex: int32(outIdx),
+		Ticket:  buffTicket.Bytes(),
+		SplitTx: buffSplit.Bytes(),
 	}
 
 	return resp, nil
 }
 
-func (svc *SplitTicketMatcherService) PublishTicket(ctx context.Context, req *pb.PublishTicketRequest) (*pb.PublishTicketResponse, error) {
-
-	var splitTx *wire.MsgTx
-	var input *wire.TxIn
-
-	splitBuff := bytes.NewBuffer(req.GetSplitTx())
-	splitTx = wire.NewMsgTx()
-	splitTx.BtcDecode(splitBuff, 0)
-
-	inputOutpoint := &wire.OutPoint{
-		Hash:  splitTx.TxHash(),
-		Index: uint32(req.SplitTxOutputIndex),
-		Tree:  wire.TxTreeRegular,
-	}
-	input = wire.NewTxIn(inputOutpoint, req.GetTicketInputScriptsig())
-
-	ticket, err := svc.matcher.PublishTransaction(matcher.SessionID(req.SessionId), splitTx,
-		int(req.SplitTxOutputIndex), input)
+func (svc *SplitTicketMatcherService) FundTicket(ctx context.Context, req *pb.FundTicketRequest) (*pb.FundTicketResponse, error) {
+	ticket, err := svc.matcher.FundTicket(matcher.SessionID(req.SessionId), req.TicketInputScriptsig)
 	if err != nil {
 		return nil, err
 	}
 
-	buff := bytes.NewBuffer(nil)
-	buff.Grow(ticket.SerializeSize())
-	err = ticket.BtcEncode(buff, 0)
+	buffTicket := bytes.NewBuffer(nil)
+	buffTicket.Grow(ticket.SerializeSize())
+	err = ticket.BtcEncode(buffTicket, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	resp := &pb.PublishTicketResponse{
-		TicketTx: buff.Bytes(),
+	resp := &pb.FundTicketResponse{
+		Ticket: buffTicket.Bytes(),
+	}
+	return resp, nil
+}
+
+func (svc *SplitTicketMatcherService) FundSplitTx(ctx context.Context, req *pb.FundSplitTxRequest) (*pb.FundSplitTxResponse, error) {
+	split, err := svc.matcher.FundSplit(matcher.SessionID(req.SessionId),
+		req.SplitTxScriptsigs)
+	if err != nil {
+		return nil, err
+	}
+
+	buffSplit := bytes.NewBuffer(nil)
+	buffSplit.Grow(split.SerializeSize())
+	err = split.BtcEncode(buffSplit, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &pb.FundSplitTxResponse{
+		SplitTx: buffSplit.Bytes(),
 	}
 	return resp, nil
 }
