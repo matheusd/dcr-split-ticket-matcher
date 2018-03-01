@@ -24,6 +24,7 @@ message TxIn {
 message OutPoint {
     bytes prev_hash = 1;
     int32 prev_index = 2;
+    int32 tree = 3;
 }
 
 message FindMatchesRequest {
@@ -49,6 +50,7 @@ message GenerateTicketRequest {
 message GenerateTicketResponse {
     bytes ticket = 1;
     bytes split_tx = 2;
+    bytes revocation = 3;
 }
 
 message FundTicketRequest {

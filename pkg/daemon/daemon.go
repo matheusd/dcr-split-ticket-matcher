@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/decred/dcrd/dcrutil"
+
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/util"
@@ -28,11 +30,19 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 
 	util.SetLoggerBackend(true, "", "", cfg.LogLevel, d.log)
 
+	voteAddr, err := dcrutil.DecodeAddress("TsbDGCuLMuVpZeP2HwgUKFm8ucGTCxmbatA") // online voting wallet
+	//voteAddr, err := dcrutil.DecodeAddress("Tse7wS9P6V5JCyy4pNEZxW3D39935MB83jX") // non-online wallet
+	if err != nil {
+		panic(err)
+	}
+
 	mcfg := &matcher.Config{
 		LogLevel:              cfg.LogLevel,
 		MinAmount:             2,
 		MaxOnlineParticipants: 10,
-		PriceProvider:         &util.FixedTicketPriceProvider{TicketPrice: 32.938 * 1e8},
+		PriceProvider:         &util.FixedTicketPriceProvider{TicketPrice: 38.938 * 1e8},
+		VoteAddrProvider:      &util.FixedVoteAddressProvider{Address: voteAddr},
+		Wallet:                NewWalletClient(),
 	}
 	d.matcher = matcher.NewMatcher(mcfg)
 

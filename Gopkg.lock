@@ -15,6 +15,24 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/btcsuite/btclog"
+  packages = ["."]
+  revision = "84c8d2346e9fc8c7b947e243b9c24e6df9fd206a"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/btcsuite/go-socks"
+  packages = ["socks"]
+  revision = "4720035b7bfd2a9bb130b1c184f8bbe41b6f0d0f"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/btcsuite/websocket"
+  packages = ["."]
+  revision = "31079b6807923eb23992c421b114992b95131b55"
+
+[[projects]]
+  branch = "master"
   name = "github.com/dchest/blake256"
   packages = ["."]
   revision = "dee3fe6eb0e98dc774a94fc231f85baf7c29d360"
@@ -26,10 +44,16 @@
   revision = "a5d313ea54d82327fbdc0fefc817776aa74f44f0"
 
 [[projects]]
+  branch = "master"
   name = "github.com/decred/dcrd"
-  packages = ["chaincfg","chaincfg/chainec","chaincfg/chainhash","dcrec/edwards","dcrec/secp256k1","dcrec/secp256k1/schnorr","dcrutil","wire"]
-  revision = "008e80bf8668544de4200a08927e95e5926439a0"
-  version = "v1.1.2"
+  packages = ["blockchain","blockchain/internal/dbnamespace","blockchain/internal/progresslog","blockchain/stake","blockchain/stake/internal/dbnamespace","blockchain/stake/internal/ticketdb","blockchain/stake/internal/tickettreap","chaincfg","chaincfg/chainec","chaincfg/chainhash","database","dcrec/edwards","dcrec/secp256k1","dcrec/secp256k1/schnorr","dcrjson","dcrutil","rpcclient","txscript","wire"]
+  revision = "1a583c75b70e8b7e4255aa02c5a9bfa1ff8591f5"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/decred/dcrwallet"
+  packages = ["internal/helpers","wallet/internal/txsizes","wallet/txrules"]
+  revision = "4de0ebfec7d52e2e2bead22ca9a7ffbb0690ce83"
 
 [[projects]]
   name = "github.com/golang/protobuf"
@@ -76,6 +100,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "f185fc5cf34e6fbbe7850257902f9e7d4145a0e0017f74951621cea22927f916"
+  inputs-digest = "56b2818e0de4572b265b533486caf0bbd9b6c109437f5b0e710b88bf4bc4148f"
   solver-name = "gps-cdcl"
   solver-version = 1

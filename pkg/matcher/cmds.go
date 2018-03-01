@@ -12,9 +12,10 @@ type (
 	}
 
 	setParticipantOutputsResponse struct {
-		ticket  *wire.MsgTx
-		splitTx *wire.MsgTx
-		err     error
+		ticket     *wire.MsgTx
+		splitTx    *wire.MsgTx
+		revocation *wire.MsgTx
+		err        error
 	}
 
 	fundTicketResponse struct {

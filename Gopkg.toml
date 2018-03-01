@@ -39,7 +39,11 @@
 
 [[constraint]]
   name = "github.com/decred/dcrd"
-  version = "1.1.2"
+  branch = "master"
+
+[[constraint]]
+  name = "github.com/decred/dcrwallet"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/ansel1/merry"

@@ -57,10 +57,10 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 		if err != nil {
 			return nil, err
 		}
-		splitOutpoints[i] = wire.NewOutPoint(hash, uint32(in.PrevIndex), wire.TxTreeRegular)
+		splitOutpoints[i] = wire.NewOutPoint(hash, uint32(in.PrevIndex), int8(in.Tree))
 	}
 
-	ticket, split, err := svc.matcher.SetParticipantsOutputs(matcher.SessionID(req.SessionId),
+	ticket, split, revocation, err := svc.matcher.SetParticipantsOutputs(matcher.SessionID(req.SessionId),
 		*commitTxout, *changeTxout, voteAddr, *splitChange, *splitTxout, splitOutpoints)
 	if err != nil {
 		return nil, err
@@ -80,9 +80,17 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 		return nil, err
 	}
 
+	buffRevoke := bytes.NewBuffer(nil)
+	buffRevoke.Grow(revocation.SerializeSize())
+	err = revocation.BtcEncode(buffRevoke, 0)
+	if err != nil {
+		return nil, err
+	}
+
 	resp := &pb.GenerateTicketResponse{
-		Ticket:  buffTicket.Bytes(),
-		SplitTx: buffSplit.Bytes(),
+		Ticket:     buffTicket.Bytes(),
+		SplitTx:    buffSplit.Bytes(),
+		Revocation: buffRevoke.Bytes(),
 	}
 
 	return resp, nil
