@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
@@ -30,19 +31,26 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 
 	util.SetLoggerBackend(true, "", "", cfg.LogLevel, d.log)
 
-	voteAddr, err := dcrutil.DecodeAddress("TsbDGCuLMuVpZeP2HwgUKFm8ucGTCxmbatA") // online voting wallet
-	//voteAddr, err := dcrutil.DecodeAddress("Tse7wS9P6V5JCyy4pNEZxW3D39935MB83jX") // non-online wallet
+	//voteAddr, err := dcrutil.DecodeAddress("TsbDGCuLMuVpZeP2HwgUKFm8ucGTCxmbatA") // online voting wallet
+	voteAddr, err := dcrutil.DecodeAddress("Tse7wS9P6V5JCyy4pNEZxW3D39935MB83jX") // non-online wallet
 	if err != nil {
 		panic(err)
 	}
+
+	// voteProvider := &util.FixedVoteAddressProvider{Address: voteAddr}
+	voteProvider, err := util.NewScriptVoteAddressProvider(voteAddr, 1440, &chaincfg.TestNet2Params)
+	if err != nil {
+		panic(err)
+	}
+
+	d.log.Infof("Using voting address %s", voteProvider.VotingAddress().String())
 
 	mcfg := &matcher.Config{
 		LogLevel:              cfg.LogLevel,
 		MinAmount:             2,
 		MaxOnlineParticipants: 10,
-		PriceProvider:         &util.FixedTicketPriceProvider{TicketPrice: 38.938 * 1e8},
-		VoteAddrProvider:      &util.FixedVoteAddressProvider{Address: voteAddr},
-		Wallet:                NewWalletClient(),
+		PriceProvider:         &util.FixedTicketPriceProvider{TicketPrice: 45.938 * 1e8},
+		VoteAddrProvider:      voteProvider,
 	}
 	d.matcher = matcher.NewMatcher(mcfg)
 

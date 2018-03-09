@@ -134,9 +134,6 @@ type TicketPriceProvider interface {
 
 type VoteAddressProvider interface {
 	VotingAddress() dcrutil.Address
-}
-
-type WalletServicesProvider interface {
 	SignRevocation(ticket, revocation *wire.MsgTx) (*wire.MsgTx, error)
 }
 
@@ -146,7 +143,6 @@ type Config struct {
 	MaxOnlineParticipants int
 	PriceProvider         TicketPriceProvider
 	VoteAddrProvider      VoteAddressProvider
-	Wallet                WalletServicesProvider
 	LogLevel              logging.Level
 }
 
@@ -343,7 +339,7 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 			ticketHash := ticket.TxHash()
 			unsignedRevoke, err = createUnsignedRevocation(&ticketHash, ticket, revocationFee)
 			if err == nil {
-				revocation, err = matcher.cfg.Wallet.SignRevocation(ticket, unsignedRevoke)
+				revocation, err = matcher.cfg.VoteAddrProvider.SignRevocation(ticket, unsignedRevoke)
 				if err != nil {
 					matcher.log.Errorf("Error signing revocation: %v", err)
 				}
