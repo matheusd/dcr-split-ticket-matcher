@@ -106,3 +106,4 @@ https://testnet.dcrdata.org/api/tx/decoded/52cc60a2008b64d9e558be34a25820995a38b
 
 - How to prevent spam?
   - Require signing the outpoints to be used during `addOutputs()`? Or require the outpoints on `Participate()`?
+- Model possible influence growth attacks (dcr owners buying more influence on split tickets than on single tickets)
