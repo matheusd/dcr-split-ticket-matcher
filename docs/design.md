@@ -33,17 +33,46 @@
 
 ## Voting Rights
 
-- The matcher decides the voting address for the ticket
-- The strategy for determining the ticket address may be matcher-dependent
-- The strategy for determining voting decision (block validity flag + agenda flags) may be matcher-dependent. Possible strategies:
-  - Majority rule (choose whatever > 50% of what the participants want; abstain otherwise)
-  - Supermajority rule (choose whatever > 75% of what the participants want; abstain otherwise)
-  - Participant with highest contribution chooses
-  - Randomly choose a participant
-  - Randomly choose a participant, weighted by the contribution %
-  - Pool always chooses the option (delegate authority)
+The matcher decides the voting address for the ticket and more generally (if it is also acting as a stake pool) decides the actual vote choices. In the case of a split ticket, many strategies for deciding the participants influence over this process are possible (and may be matcher-dependent):
 
-Optionally, the voting private key may be disclosed to one of the participants (chosen using a known and previously publicized selection criteria) so that he can also vote the ticket.
+- Majority rule (choose whatever > 50% of what the participants want; abstain otherwise - **vulnerable to influence amplification**)
+- Supermajority rule (choose whatever > 75% of what the participants want; abstain otherwise - **vulnerable to influence amplification**)
+- Participant with highest contribution chooses (**vulnerable to influence amplification**)
+- Randomly choose a participant (**vulnerable to influence amplification**)
+- Randomly choose a participant, weighted by the contribution %
+- Pool always chooses the option (delegate authority)
+
+The actual voting right (i.e. the private key used for the ticket submission output that would allow someone to create the vote transaction) can either be maintained by the pool, with the pool deciding the vote choices based on its internal state and/or the private key or a multisig script can be used to allow one of the participants to vote.
+
+Care must be taken when using the second option though, because if the matcher discloses the voting participant before the split and ticket transactions are fully funded and transmitted it becomes vulnerable to attack by participants closing the session early if they do not receive the voting rights.
+
+### Influence Amplification
+
+We call *influence amplification* a possible attack where a big decred holder can gain more influence on agenda decisions (more voting power) by exploiting the matcher vote decision strategy.
+
+A malicious matcher can trivially gain more influence over the network the same way the existing stake pools can: by overriding voters' preferences and always voting a certain way. Due to the centralized nature of stakepools, we assume users trust (but periodically verify) that the stakepools are honoring their vote choices and the same consideration applies to this service: we assume the users trust the matcher they connect to (which will probably be a stakepool by itself).
+
+The attack we describe here, however, is slightly more subtle: it tries to craft a participation strategy that exploits the voting rights decision of honest matchers/stakepools uses that to try and gain more influence over the network.
+
+Some of alternatives for deciding the vote choice outlined on the previous section are vulnerable to this attack. For a concrete example, assume the following:
+
+  - Attacker has 1e6 DCR available for purchasing influence in any way and wants to have biggest impact
+  - Ticket price remains stable at 100 DCR (attack is carried over a long period of time)
+  - Ticket, transaction and stakepool fees are negligible and ignored (best case for an attacker)
+  - Attacker can craft any participation level (measured as % of a split ticket) desired
+
+Given the previous assumptions, the attacker could buy 1e4 tickets outright and have that amount of influence on the agenda. **OR** it could try to exploit vulnerable pools.
+
+Pools using the strategy of majority rule (participant with >51% of participation level choose the the vote) are vulnerable to this attack by having the attacker buy exactly 51% of each split ticket and deciding the vote of the full ticket. In the example, the attacker can buy voting rights for up to (1e6 / (51% * 1e2)) 19607 tickets or almost double its influence compared to buying full tickets.
+
+In general, any pool using the rule of granting voting rights to the participant with x% of a ticket will allow the attacker to increase its voting influence to 1/x%, so this strategy is not suitable to prevent influence amplification.
+
+Pools that use the strategy of selecting a random participant to vote are also vulnerable to this, because an attacker can simply simulate a large number of participants of a split (increasing its chances of being selected with minimal increase in usage of funds).
+
+Pools that use the strategy of selecting a random participant to vote, weighted by their participation % are *not* vulnerable to this attack. Working out the previous example, assuming an attacker buying 51% of tickets, they can purchase up to 19607 tickets. However, in each individual ticket the attacker only has 51% chance of being selected to decide the vote choice, therefore we expect it will actually decide the vote in only (19607*51%) ~10000 tickets, bringing it back in line with the voting influence it could have if it used its original funds to purchase individual tickets.
+
+Therefore, pools should preferably use this method of vote choice.
+
 
 ## Revocation Rights
 
@@ -106,4 +135,3 @@ https://testnet.dcrdata.org/api/tx/decoded/52cc60a2008b64d9e558be34a25820995a38b
 
 - How to prevent spam?
   - Require signing the outpoints to be used during `addOutputs()`? Or require the outpoints on `Participate()`?
-- Model possible influence growth attacks (dcr owners buying more influence on split tickets than on single tickets)
