@@ -51,14 +51,18 @@ var (
 	ErrIndexNotFound                = merry.New("Index not found")
 	ErrSplitValueInputValueMismatch = merry.New("Amount of split tx output and ValueIn of ticket input are different")
 	ErrNoSplitTxInputOutPoints      = merry.New("No split tx input outpoints sent")
+	ErrVoteAddressNotSpecified      = merry.New("Voter Address not specified")
 	ErrSplitInputSignLenMismatch    = merry.New("Split input count and script sig count mismatch")
 	ErrNoVoteAddress                = merry.New("Vote Address not specified for session")
+	ErrNoPoolAddress                = merry.New("Pool address was not specified")
+	ErrNoRevocationScriptSig        = merry.New("Revocation Script not specified")
 )
 
 // SessionParticipantFee returns the fee that a single participant of a ticket
 // split tx with the given number of participants should pay
 func SessionParticipantFee(numParticipants int) dcrutil.Amount {
 	txSize := TicketTxInitialSize + numParticipants*TicketParticipantSize
+	txSize += TicketParticipantSize // Pool input/outputs
 	ticketFee, _ := dcrutil.NewAmount(float64(txSize) * TicketFeeEstimate)
 	ticketFee = ticketFee + 50001 // just to increase chances of ticket being mined soon
 	partFee := dcrutil.Amount(math.Ceil(float64(ticketFee) / float64(numParticipants)))

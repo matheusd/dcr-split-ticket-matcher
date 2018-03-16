@@ -29,9 +29,10 @@ func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.F
 	}
 
 	res := &pb.FindMatchesResponse{
-		Amount:    uint64(sess.Amount),
+		Amount:    uint64(sess.CommitAmount),
 		Fee:       uint64(sess.Fee),
 		SessionId: int32(sess.ID),
+		PoolFee:   uint64(sess.PoolFee),
 	}
 	return res, nil
 }
@@ -39,7 +40,7 @@ func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.F
 func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *pb.GenerateTicketRequest) (*pb.GenerateTicketResponse, error) {
 
 	var commitTxout, changeTxout, splitTxout, splitChange *wire.TxOut
-	var voteAddr dcrutil.Address
+	var voteAddr, poolAddr dcrutil.Address
 	var err error
 
 	commitTxout = wire.NewTxOut(int64(req.CommitmentOutput.Value), req.CommitmentOutput.Script)
@@ -47,6 +48,11 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 	splitTxout = wire.NewTxOut(int64(req.SplitTxOutput.Value), req.SplitTxOutput.Script)
 	splitChange = wire.NewTxOut(int64(req.SplitTxChange.Value), req.SplitTxChange.Script)
 	voteAddr, err = dcrutil.DecodeAddress(req.VoteAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	poolAddr, err = dcrutil.DecodeAddress(req.PoolAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +67,7 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 	}
 
 	ticket, split, revocation, err := svc.matcher.SetParticipantsOutputs(matcher.SessionID(req.SessionId),
-		*commitTxout, *changeTxout, voteAddr, *splitChange, *splitTxout, splitOutpoints)
+		*commitTxout, *changeTxout, voteAddr, *splitChange, *splitTxout, splitOutpoints, poolAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +103,7 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 }
 
 func (svc *SplitTicketMatcherService) FundTicket(ctx context.Context, req *pb.FundTicketRequest) (*pb.FundTicketResponse, error) {
-	ticket, err := svc.matcher.FundTicket(matcher.SessionID(req.SessionId), req.TicketInputScriptsig)
+	ticket, revocationScriptSig, err := svc.matcher.FundTicket(matcher.SessionID(req.SessionId), req.TicketInputScriptsig, req.RevocationScriptSig)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +116,8 @@ func (svc *SplitTicketMatcherService) FundTicket(ctx context.Context, req *pb.Fu
 	}
 
 	resp := &pb.FundTicketResponse{
-		Ticket: buffTicket.Bytes(),
+		Ticket:              buffTicket.Bytes(),
+		RevocationScriptSig: revocationScriptSig,
 	}
 	return resp, nil
 }

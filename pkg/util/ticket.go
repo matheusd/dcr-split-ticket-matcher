@@ -11,10 +11,15 @@ import (
 
 type FixedTicketPriceProvider struct {
 	TicketPrice uint64
+	BlockHeight int32
 }
 
 func (p *FixedTicketPriceProvider) CurrentTicketPrice() uint64 {
 	return p.TicketPrice
+}
+
+func (p *FixedTicketPriceProvider) CurrentBlockHeight() int32 {
+	return p.BlockHeight
 }
 
 type FixedVoteAddressProvider struct {
@@ -103,4 +108,44 @@ func (p *ScriptVoteAddressProvider) SignRevocation(ticket, revocation *wire.MsgT
 	revoke.TxIn[0].Sequence = p.revocationRelLockTime
 	revoke.Version = 2 // needed to process OP_CHECKSEQUENCEVERIFY
 	return revoke, nil
+}
+
+type BrokenInsecureSplitOutSigner struct {
+	Script        []byte
+	ScriptAddress dcrutil.Address
+	SigScript     []byte
+}
+
+func NewBrokenInsecureSplitOutSigner(net *chaincfg.Params) *BrokenInsecureSplitOutSigner {
+
+	script := []byte{txscript.OP_NOP}
+
+	scriptAddr, err := dcrutil.NewAddressScriptHash(script, net)
+	if err != nil {
+		panic(err)
+	}
+
+	b := txscript.NewScriptBuilder()
+	b.AddOp(txscript.OP_TRUE)
+	b.AddData(script)
+
+	sig, err := b.Script()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(sig)
+
+	return &BrokenInsecureSplitOutSigner{
+		Script:        script,
+		ScriptAddress: scriptAddr,
+		SigScript:     sig,
+	}
+}
+
+func (signer *BrokenInsecureSplitOutSigner) Address() dcrutil.Address {
+	return signer.ScriptAddress
+}
+
+func (signer *BrokenInsecureSplitOutSigner) SignPoolSplitOutput(split, ticket *wire.MsgTx) ([]byte, error) {
+	return signer.SigScript, nil
 }

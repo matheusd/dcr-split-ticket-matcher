@@ -3,27 +3,33 @@ package matcher
 import (
 	"math"
 
+	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
+	"github.com/decred/dcrwallet/wallet/txrules"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/util"
 	logging "github.com/op/go-logging"
 )
 
 // SessionParticipant is a participant of a split in a given session
 type SessionParticipant struct {
-	ID                 SessionID
-	Amount             dcrutil.Amount
-	Fee                dcrutil.Amount
-	CommitmentTxOut    *wire.TxOut
-	ChangeTxOut        *wire.TxOut
-	SplitTxOut         *wire.TxOut
-	SplitTxChange      *wire.TxOut
-	SplitTxInputs      []*wire.TxIn
-	TicketScriptSig    []byte
-	SplitTxOutputIndex int
-	Session            *Session
-	Index              int
+	ID                  SessionID
+	CommitAmount        dcrutil.Amount
+	Fee                 dcrutil.Amount
+	PoolFee             dcrutil.Amount
+	CommitmentTxOut     *wire.TxOut
+	ChangeTxOut         *wire.TxOut
+	SplitTxOut          *wire.TxOut
+	SplitTxChange       *wire.TxOut
+	SplitTxInputs       []*wire.TxIn
+	TicketScriptSig     []byte
+	RevocationScriptSig []byte
+	SplitTxOutputIndex  int
+	Session             *Session
+	VoteAddress         *dcrutil.Address
+	PoolAddress         *dcrutil.Address
+	Index               int
 
 	chanSetOutputsResponse  chan setParticipantOutputsResponse
 	chanFundTicketResponse  chan fundTicketResponse
@@ -35,9 +41,13 @@ type SessionID int32
 
 // Session is a particular ticket being built
 type Session struct {
-	Participants []*SessionParticipant
-	TicketPrice  dcrutil.Amount
-	VoteAddress  dcrutil.Address
+	Participants   []*SessionParticipant
+	TicketPrice    dcrutil.Amount
+	VoterIndex     int
+	PoolFee        dcrutil.Amount
+	ChainParams    *chaincfg.Params
+	SplitTxPoolOut *wire.TxOut
+	TicketPoolIn   *wire.TxIn
 }
 
 // AllOutputsFilled returns true if all commitment and change outputs for all
@@ -75,25 +85,59 @@ func (sess *Session) SplitTxIsFunded() bool {
 	return true
 }
 
+func (sess *Session) addCommonTicketOutputs(ticket *wire.MsgTx) error {
+	voter := sess.Participants[sess.VoterIndex]
+
+	if voter.VoteAddress == nil {
+		return ErrNoVoteAddress
+	}
+
+	if voter.PoolAddress == nil {
+		return ErrNoPoolAddress
+	}
+
+	voteScript, err := txscript.PayToSStx(*voter.VoteAddress)
+	if err != nil {
+		return err
+	}
+
+	limits := uint16(0x5800)
+	commitScript, err := txscript.GenerateSStxAddrPush(*voter.PoolAddress,
+		sess.PoolFee, limits)
+	if err != nil {
+		return err
+	}
+
+	zeroed := [20]byte{}
+	addrZeroed, err := dcrutil.NewAddressPubKeyHash(zeroed[:], sess.ChainParams, 0)
+	if err != nil {
+		return err
+	}
+	changeScript, err := txscript.PayToSStxChange(addrZeroed)
+	if err != nil {
+		return err
+	}
+
+	ticket.AddTxIn(sess.TicketPoolIn)
+	ticket.AddTxOut(wire.NewTxOut(int64(sess.TicketPrice), voteScript))
+	ticket.AddTxOut(wire.NewTxOut(0, commitScript))
+	ticket.AddTxOut(wire.NewTxOut(0, changeScript))
+
+	return nil
+}
+
 // CreateTransactions creates the ticket and split tx transactions with all the
 // currently available information
 func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, error) {
+	var spOutIndex uint32 = 0
+
 	ticket := wire.NewMsgTx()
 	splitTx := wire.NewMsgTx()
 
-	if sess.VoteAddress == nil {
-		return nil, nil, ErrNoVoteAddress
-	}
+	sess.addCommonTicketOutputs(ticket)
 
-	script, err := txscript.PayToSStx(sess.VoteAddress)
-	if err != nil {
-		return nil, nil, err
-	}
-	txout := wire.NewTxOut(int64(sess.TicketPrice), script)
-	ticket.AddTxOut(txout)
-
-	var spOutIndex uint32
-
+	splitTx.AddTxOut(sess.SplitTxPoolOut)
+	spOutIndex++
 	for _, p := range sess.Participants {
 		if p.SplitTxOut != nil {
 			ticket.AddTxIn(wire.NewTxIn(&wire.OutPoint{Index: spOutIndex}, p.TicketScriptSig))
@@ -130,6 +174,12 @@ func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, error) {
 
 type TicketPriceProvider interface {
 	CurrentTicketPrice() uint64
+	CurrentBlockHeight() int32
+}
+
+type SignPoolSplitOutputProvider interface {
+	Address() dcrutil.Address
+	SignPoolSplitOutput(split, ticket *wire.MsgTx) ([]byte, error)
 }
 
 type VoteAddressProvider interface {
@@ -139,11 +189,14 @@ type VoteAddressProvider interface {
 
 // Config stores the parameters for the matcher engine
 type Config struct {
-	MinAmount             uint64
-	MaxOnlineParticipants int
-	PriceProvider         TicketPriceProvider
-	VoteAddrProvider      VoteAddressProvider
-	LogLevel              logging.Level
+	MinAmount                uint64
+	MaxOnlineParticipants    int
+	PriceProvider            TicketPriceProvider
+	VoteAddrProvider         VoteAddressProvider
+	SignPoolSplitOutProvider SignPoolSplitOutputProvider
+	LogLevel                 logging.Level
+	ChainParams              *chaincfg.Params
+	PoolFee                  float64
 }
 
 // Matcher is the main engine for matching operations
@@ -227,33 +280,51 @@ func (matcher *Matcher) enoughForNewSession() bool {
 
 func (matcher *Matcher) startNewSession() {
 	numParts := len(matcher.waitingParticipants)
-	ticketFee := SessionFeeEstimate(numParts)
-	partFee := dcrutil.Amount(math.Ceil(float64(ticketFee) / float64(numParts)))
+	partFee := SessionParticipantFee(numParts)
+	ticketTxFee := partFee * dcrutil.Amount(numParts)
+	ticketPrice := dcrutil.Amount(matcher.cfg.PriceProvider.CurrentTicketPrice())
+	blockHeight := matcher.cfg.PriceProvider.CurrentBlockHeight()
+	poolFeePerc := matcher.cfg.PoolFee
+	poolFee := txrules.StakePoolTicketFee(ticketPrice, ticketTxFee, blockHeight,
+		poolFeePerc, matcher.cfg.ChainParams)
+	poolFeePart := dcrutil.Amount(math.Ceil(float64(poolFee) / float64(numParts)))
 
-	matcher.log.Infof("Starting new session: Ticket Price=%s Fees=%s Participants=%d",
-		dcrutil.Amount(matcher.cfg.PriceProvider.CurrentTicketPrice()),
-		ticketFee, numParts)
+	matcher.log.Infof("Starting new session: Ticket Price=%s Fees=%s Participants=%d PoolFee=%d",
+		ticketPrice, ticketTxFee, numParts, poolFee)
 
-	sess := &Session{
-		Participants: make([]*SessionParticipant, numParts),
-		TicketPrice:  dcrutil.Amount(matcher.cfg.PriceProvider.CurrentTicketPrice()),
-		VoteAddress:  matcher.cfg.VoteAddrProvider.VotingAddress(),
+	splitPoolOutAddr := matcher.cfg.SignPoolSplitOutProvider.Address()
+	splitPoolOutScript, err := txscript.PayToAddrScript(splitPoolOutAddr)
+	if err != nil {
+		matcher.log.Errorf("Error generating splitPoolOutScript: %v", err)
+		panic(err)
 	}
 
-	amountLeft := dcrutil.Amount(matcher.cfg.PriceProvider.CurrentTicketPrice())
+	sess := &Session{
+		Participants:   make([]*SessionParticipant, numParts),
+		TicketPrice:    dcrutil.Amount(matcher.cfg.PriceProvider.CurrentTicketPrice()),
+		PoolFee:        poolFee,
+		ChainParams:    matcher.cfg.ChainParams,
+		TicketPoolIn:   wire.NewTxIn(&wire.OutPoint{Index: 0}, nil),
+		SplitTxPoolOut: wire.NewTxOut(int64(poolFee), splitPoolOutScript),
+	}
+
+	contributions := make([]dcrutil.Amount, numParts)
+	commitLeft := ticketPrice - poolFee
 	for i, r := range matcher.waitingParticipants {
-		amount := dcrutil.Amount(r.maxAmount) - partFee
-		if amount > amountLeft {
-			amount = amountLeft
+		commitAmount := dcrutil.Amount(r.maxAmount) - partFee - poolFeePart
+		if commitAmount > commitLeft {
+			commitAmount = commitLeft
 		}
 
 		sessPart := &SessionParticipant{
-			Amount:  amount,
-			Fee:     partFee,
-			Session: sess,
-			Index:   i,
+			CommitAmount: commitAmount,
+			PoolFee:      poolFeePart,
+			Fee:          partFee,
+			Session:      sess,
+			Index:        i,
 		}
 		sess.Participants[i] = sessPart
+		contributions[i] = commitAmount
 
 		id := matcher.newSessionID()
 		matcher.sessions[id] = sessPart
@@ -263,8 +334,10 @@ func (matcher *Matcher) startNewSession() {
 			participant: sessPart,
 		}
 
-		amountLeft -= amount
+		commitLeft -= commitAmount
 	}
+
+	sess.VoterIndex = ChooseVoter(contributions)
 
 	matcher.waitingParticipants = nil
 }
@@ -305,18 +378,26 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	// 		WithValue("expectedAmount", sess.Amount).
 	// 		WithValue("providedAmount", req.commitmentOutput.Value)
 	// }
-	if req.splitTxOutput.Value != int64(sess.Amount+sess.Fee) {
+	if req.splitTxOutput.Value != int64(sess.CommitAmount+sess.Fee) {
 		return ErrSplitValueInputValueMismatch.
-			WithMessagef("Split txOut.value (%s) !== session.amount (%s) + session.fee(%s)", dcrutil.Amount(req.splitTxOutput.Value), sess.Amount, sess.Fee)
+			WithMessagef("Split txOut.value (%s) !== session.amount (%s) + session.fee(%s)", dcrutil.Amount(req.splitTxOutput.Value), sess.CommitAmount, sess.Fee)
 	}
 
 	if len(req.splitTxOutPoints) == 0 {
 		return ErrNoSplitTxInputOutPoints
 	}
 
+	if req.voteAddress == nil {
+		return ErrVoteAddressNotSpecified
+	}
+
+	if req.poolAddress == nil {
+		return ErrNoPoolAddress
+	}
+
 	// TODO: get the utxos from network and validate whether the sum(utxos) == splitTxOut + splitTxChange + SplitTxFee
 
-	matcher.log.Infof("Participant %d set output commitment %s", req.sessionID, sess.Amount)
+	matcher.log.Infof("Participant %d set output commitment %s", req.sessionID, sess.CommitAmount)
 
 	sess.CommitmentTxOut = req.commitmentOutput
 	sess.ChangeTxOut = req.changeOutput
@@ -324,6 +405,8 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	sess.SplitTxOut = req.splitTxOutput
 	sess.SplitTxChange = req.splitTxChange
 	sess.SplitTxInputs = make([]*wire.TxIn, len(req.splitTxOutPoints))
+	sess.VoteAddress = req.voteAddress
+	sess.PoolAddress = req.poolAddress
 	for i, outp := range req.splitTxOutPoints {
 		sess.SplitTxInputs[i] = wire.NewTxIn(outp, nil)
 	}
@@ -331,20 +414,23 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	if sess.Session.AllOutputsFilled() {
 		matcher.log.Infof("All outputs for session received. Creating txs.")
 
-		var ticket, splitTx, unsignedRevoke, revocation *wire.MsgTx
+		var ticket, splitTx, unsignedRevoke *wire.MsgTx
+		var poolTicketInSig []byte
 		var err error
 
 		ticket, splitTx, err = sess.Session.CreateTransactions()
 		if err == nil {
 			ticketHash := ticket.TxHash()
 			unsignedRevoke, err = createUnsignedRevocation(&ticketHash, ticket, revocationFee)
-			if err == nil {
-				revocation, err = matcher.cfg.VoteAddrProvider.SignRevocation(ticket, unsignedRevoke)
-				if err != nil {
-					matcher.log.Errorf("Error signing revocation: %v", err)
-				}
-			} else {
+			if err != nil {
 				matcher.log.Errorf("Error generating revocation: %v", err)
+			}
+
+			poolTicketInSig, err = matcher.cfg.SignPoolSplitOutProvider.SignPoolSplitOutput(splitTx, ticket)
+			if err == nil {
+				sess.Session.TicketPoolIn.SignatureScript = poolTicketInSig
+			} else {
+				matcher.log.Errorf("Error signing pool split input: %v", err)
 			}
 		} else {
 			matcher.log.Errorf("Error generating session transactions: %v", err)
@@ -354,11 +440,13 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 			p.chanSetOutputsResponse <- setParticipantOutputsResponse{
 				ticket:     ticket,
 				splitTx:    splitTx,
-				revocation: revocation,
+				revocation: unsignedRevoke,
 				err:        err,
 			}
 		}
 	}
+
+	matcher.log.Infof("Notified participants of created txs")
 
 	return nil
 }
@@ -377,21 +465,31 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 		return ErrNilCommitmentOutput
 	}
 
+	if (sess.Index == sess.Session.VoterIndex) && (req.revocationScriptSig == nil) {
+		return ErrNoRevocationScriptSig
+	}
+
+	// TODO: check if revocationScriptSig actually successfully signs the
+	// revocation transaction
+
 	// TODO: check if ticketInputScriptSig actually commits to the ticket's outputs
 	// and is of the correct sigHashType
 
 	sess.TicketScriptSig = req.ticketInputScriptSig
 	sess.chanFundTicketResponse = req.resp
+	sess.RevocationScriptSig = req.revocationScriptSig
 
 	if sess.Session.TicketIsFunded() {
 		matcher.log.Infof("All sigscripts for ticket received. Creating funded ticket.")
 
 		ticket, _, err := sess.Session.CreateTransactions()
+		voter := sess.Session.Participants[sess.Session.VoterIndex]
 
 		for _, p := range sess.Session.Participants {
 			p.chanFundTicketResponse <- fundTicketResponse{
-				ticket: ticket,
-				err:    err,
+				ticket:              ticket,
+				revocationScriptSig: voter.RevocationScriptSig,
+				err:                 err,
 			}
 			matcher.log.Infof("Alerted participant %d of funded ticked", p.ID)
 		}
@@ -463,7 +561,7 @@ func (matcher *Matcher) AddParticipant(maxAmount uint64) (*SessionParticipant, e
 // that should receive this participants funds
 func (matcher *Matcher) SetParticipantsOutputs(sessionID SessionID, commitmentOutput,
 	changeOutput wire.TxOut, voteAddress dcrutil.Address, splitTxChange wire.TxOut,
-	splitTxOutput wire.TxOut, splitTxOutPoints []*wire.OutPoint) (*wire.MsgTx, *wire.MsgTx, *wire.MsgTx, error) {
+	splitTxOutput wire.TxOut, splitTxOutPoints []*wire.OutPoint, poolAddress dcrutil.Address) (*wire.MsgTx, *wire.MsgTx, *wire.MsgTx, error) {
 
 	outpoints := make([]*wire.OutPoint, len(splitTxOutPoints))
 	for i, o := range splitTxOutPoints {
@@ -475,6 +573,7 @@ func (matcher *Matcher) SetParticipantsOutputs(sessionID SessionID, commitmentOu
 		commitmentOutput: &commitmentOutput,
 		changeOutput:     &changeOutput,
 		voteAddress:      &voteAddress,
+		poolAddress:      &poolAddress,
 		splitTxChange:    &splitTxChange,
 		splitTxOutput:    &splitTxOutput,
 		splitTxOutPoints: outpoints,
@@ -486,17 +585,18 @@ func (matcher *Matcher) SetParticipantsOutputs(sessionID SessionID, commitmentOu
 	return resp.ticket, resp.splitTx, resp.revocation, resp.err
 }
 
-func (matcher *Matcher) FundTicket(sessionID SessionID, inputScriptSig []byte) (*wire.MsgTx, error) {
+func (matcher *Matcher) FundTicket(sessionID SessionID, inputScriptSig []byte, revocationScriptSig []byte) (*wire.MsgTx, []byte, error) {
 
 	req := fundTicketRequest{
 		sessionID:            sessionID,
 		ticketInputScriptSig: inputScriptSig,
+		revocationScriptSig:  revocationScriptSig,
 		resp:                 make(chan fundTicketResponse),
 	}
 
 	matcher.fundTicketRequests <- req
 	resp := <-req.resp
-	return resp.ticket, resp.err
+	return resp.ticket, resp.revocationScriptSig, resp.err
 }
 
 func (matcher *Matcher) FundSplit(sessionID SessionID, inputScriptSigs [][]byte) (*wire.MsgTx, error) {

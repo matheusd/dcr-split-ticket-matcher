@@ -31,6 +31,8 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 
 	util.SetLoggerBackend(true, "", "", cfg.LogLevel, d.log)
 
+	net := &chaincfg.TestNet2Params
+
 	//voteAddr, err := dcrutil.DecodeAddress("TsbDGCuLMuVpZeP2HwgUKFm8ucGTCxmbatA") // online voting wallet
 	voteAddr, err := dcrutil.DecodeAddress("Tse7wS9P6V5JCyy4pNEZxW3D39935MB83jX") // non-online wallet
 	if err != nil {
@@ -38,7 +40,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	}
 
 	// voteProvider := &util.FixedVoteAddressProvider{Address: voteAddr}
-	voteProvider, err := util.NewScriptVoteAddressProvider(voteAddr, 1440, &chaincfg.TestNet2Params)
+	voteProvider, err := util.NewScriptVoteAddressProvider(voteAddr, 1440, net)
 	if err != nil {
 		panic(err)
 	}
@@ -46,11 +48,14 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	d.log.Infof("Using voting address %s", voteProvider.VotingAddress().String())
 
 	mcfg := &matcher.Config{
-		LogLevel:              cfg.LogLevel,
-		MinAmount:             2,
-		MaxOnlineParticipants: 10,
-		PriceProvider:         &util.FixedTicketPriceProvider{TicketPrice: 45.938 * 1e8},
-		VoteAddrProvider:      voteProvider,
+		LogLevel:                 cfg.LogLevel,
+		MinAmount:                2,
+		MaxOnlineParticipants:    10,
+		PriceProvider:            &util.FixedTicketPriceProvider{TicketPrice: 51.938 * 1e8, BlockHeight: 260000},
+		VoteAddrProvider:         voteProvider,
+		SignPoolSplitOutProvider: util.NewBrokenInsecureSplitOutSigner(net),
+		ChainParams:              net,
+		PoolFee:                  7.5,
 	}
 	d.matcher = matcher.NewMatcher(mcfg)
 

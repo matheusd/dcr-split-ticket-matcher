@@ -19,8 +19,9 @@ type (
 	}
 
 	fundTicketResponse struct {
-		ticket *wire.MsgTx
-		err    error
+		ticket              *wire.MsgTx
+		revocationScriptSig []byte
+		err                 error
 	}
 
 	fundSplitTxResponse struct {
@@ -48,12 +49,14 @@ type (
 		splitTxChange    *wire.TxOut
 		splitTxOutPoints []*wire.OutPoint
 		voteAddress      *dcrutil.Address
+		poolAddress      *dcrutil.Address
 		resp             chan setParticipantOutputsResponse
 	}
 
 	fundTicketRequest struct {
 		sessionID            SessionID
 		ticketInputScriptSig []byte
+		revocationScriptSig  []byte
 		resp                 chan fundTicketResponse
 	}
 

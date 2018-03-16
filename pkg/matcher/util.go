@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"math/big"
 
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -109,4 +110,32 @@ func createUnsignedRevocation(ticketHash *chainhash.Hash, ticketPurchase *wire.M
 		}
 	}
 	return nil, errors.New("no suitable revocation outputs to pay relay fee")
+}
+
+// ChooseVoter chooses who should vote on a ticket purchase, given an array of
+// contribution amounts that sum to the ticket price. Chance to be selected is
+// proportional to amount of contribution
+func ChooseVoter(contributions []dcrutil.Amount) int {
+	var total dcrutil.Amount
+	for _, v := range contributions {
+		total += v
+	}
+
+	selected, err := rand.Int(rand.Reader, big.NewInt(int64(total)))
+	if err != nil {
+		// entropy problems... just quit
+		panic(err)
+	}
+	sel := dcrutil.Amount(selected.Int64())
+
+	total = 0
+	for i, v := range contributions {
+		total += v
+		if sel < total {
+			return i
+		}
+	}
+
+	// we shouldn't really get here, as rand.Int() returns [0, total)
+	return len(contributions) - 1
 }
