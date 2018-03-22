@@ -63,7 +63,7 @@ message FundTicketRequest {
 
 message FundTicketResponse {
     bytes ticket = 1;
-    bytes revocation_script_sig = 2;
+    bytes revocation = 2;
 }
 
 message FundSplitTxRequest {

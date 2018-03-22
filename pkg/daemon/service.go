@@ -103,7 +103,7 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 }
 
 func (svc *SplitTicketMatcherService) FundTicket(ctx context.Context, req *pb.FundTicketRequest) (*pb.FundTicketResponse, error) {
-	ticket, revocationScriptSig, err := svc.matcher.FundTicket(matcher.SessionID(req.SessionId), req.TicketInputScriptsig, req.RevocationScriptSig)
+	ticket, revocation, err := svc.matcher.FundTicket(matcher.SessionID(req.SessionId), req.TicketInputScriptsig, req.RevocationScriptSig)
 	if err != nil {
 		return nil, err
 	}
@@ -115,9 +115,16 @@ func (svc *SplitTicketMatcherService) FundTicket(ctx context.Context, req *pb.Fu
 		return nil, err
 	}
 
+	buffRevocation := bytes.NewBuffer(nil)
+	buffRevocation.Grow(ticket.SerializeSize())
+	err = revocation.BtcEncode(buffRevocation, 0)
+	if err != nil {
+		return nil, err
+	}
+
 	resp := &pb.FundTicketResponse{
-		Ticket:              buffTicket.Bytes(),
-		RevocationScriptSig: revocationScriptSig,
+		Ticket:     buffTicket.Bytes(),
+		Revocation: buffRevocation.Bytes(),
 	}
 	return resp, nil
 }

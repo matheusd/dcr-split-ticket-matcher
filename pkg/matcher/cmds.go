@@ -19,9 +19,9 @@ type (
 	}
 
 	fundTicketResponse struct {
-		ticket              *wire.MsgTx
-		revocationScriptSig []byte
-		err                 error
+		ticket     *wire.MsgTx
+		revocation *wire.MsgTx
+		err        error
 	}
 
 	fundSplitTxResponse struct {
