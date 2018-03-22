@@ -1,6 +1,7 @@
 package matcher
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/decred/dcrd/chaincfg"
@@ -12,9 +13,18 @@ import (
 	logging "github.com/op/go-logging"
 )
 
+// ParticipantID is the unique ID of a participant of a session
+type ParticipantID int32
+
+func (id ParticipantID) String() string {
+	upper := uint32(id) >> 16
+	lower := int32(id) & 0xffff
+	return fmt.Sprintf("%.4x.%.4x", upper, lower)
+}
+
 // SessionParticipant is a participant of a split in a given session
 type SessionParticipant struct {
-	ID                  SessionID
+	ID                  ParticipantID
 	CommitAmount        dcrutil.Amount
 	Fee                 dcrutil.Amount
 	PoolFee             dcrutil.Amount
@@ -37,10 +47,15 @@ type SessionParticipant struct {
 }
 
 // SessionID stores the unique id for an in-progress ticket buying session
-type SessionID int32
+type SessionID int16
+
+func (id SessionID) String() string {
+	return fmt.Sprintf("%.4x", uint16(id))
+}
 
 // Session is a particular ticket being built
 type Session struct {
+	ID             SessionID
 	Participants   []*SessionParticipant
 	TicketPrice    dcrutil.Amount
 	VoterIndex     int
@@ -217,7 +232,8 @@ type Config struct {
 // Matcher is the main engine for matching operations
 type Matcher struct {
 	waitingParticipants []*addParticipantRequest
-	sessions            map[SessionID]*SessionParticipant
+	sessions            map[SessionID]*Session
+	participants        map[ParticipantID]*SessionParticipant
 	cfg                 *Config
 	log                 *logging.Logger
 
@@ -231,7 +247,8 @@ func NewMatcher(cfg *Config) *Matcher {
 	m := &Matcher{
 		cfg:                           cfg,
 		log:                           logging.MustGetLogger("matcher"),
-		sessions:                      make(map[SessionID]*SessionParticipant),
+		sessions:                      make(map[SessionID]*Session),
+		participants:                  make(map[ParticipantID]*SessionParticipant),
 		addParticipantRequests:        make(chan addParticipantRequest),
 		setParticipantOutputsRequests: make(chan setParticipantOutputsRequest),
 		fundTicketRequests:            make(chan fundTicketRequest),
@@ -303,9 +320,10 @@ func (matcher *Matcher) startNewSession() {
 	poolFee := txrules.StakePoolTicketFee(ticketPrice, ticketTxFee, blockHeight,
 		poolFeePerc, matcher.cfg.ChainParams)
 	poolFeePart := dcrutil.Amount(math.Ceil(float64(poolFee) / float64(numParts)))
+	sessID := matcher.newSessionID()
 
-	matcher.log.Infof("Starting new session: Ticket Price=%s Fees=%s Participants=%d PoolFee=%d",
-		ticketPrice, ticketTxFee, numParts, poolFee)
+	matcher.log.Infof("Starting new session %s: Ticket Price=%s Fees=%s Participants=%d PoolFee=%d",
+		sessID, ticketPrice, ticketTxFee, numParts, poolFee)
 
 	splitPoolOutAddr := matcher.cfg.SignPoolSplitOutProvider.Address()
 	splitPoolOutScript, err := txscript.PayToAddrScript(splitPoolOutAddr)
@@ -321,7 +339,9 @@ func (matcher *Matcher) startNewSession() {
 		ChainParams:    matcher.cfg.ChainParams,
 		TicketPoolIn:   wire.NewTxIn(&wire.OutPoint{Index: 0}, nil),
 		SplitTxPoolOut: wire.NewTxOut(int64(poolFee), splitPoolOutScript),
+		ID:             sessID,
 	}
+	matcher.sessions[sessID] = sess
 
 	contributions := make([]dcrutil.Amount, numParts)
 	commitLeft := ticketPrice - poolFee
@@ -331,45 +351,59 @@ func (matcher *Matcher) startNewSession() {
 			commitAmount = commitLeft
 		}
 
+		id := matcher.newParticipantID(sessID)
 		sessPart := &SessionParticipant{
 			CommitAmount: commitAmount,
 			PoolFee:      poolFeePart,
 			Fee:          partFee,
 			Session:      sess,
 			Index:        i,
+			ID:           id,
 		}
 		sess.Participants[i] = sessPart
 		contributions[i] = commitAmount
 
-		id := matcher.newSessionID()
-		matcher.sessions[id] = sessPart
-		sessPart.ID = id
+		matcher.participants[id] = sessPart
 
 		r.resp <- addParticipantResponse{
 			participant: sessPart,
 		}
 
 		commitLeft -= commitAmount
+
+		matcher.log.Infof("Participant %s contributing with %s", id, commitAmount)
 	}
 
 	sess.VoterIndex = ChooseVoter(contributions)
+	voter := sess.Participants[sess.VoterIndex]
+	matcher.log.Infof("Chosen as voter %s", voter.ID)
 
 	matcher.waitingParticipants = nil
 }
 
 func (matcher *Matcher) newSessionID() SessionID {
 	// TODO: rw lock matcher.sessions here
-	id := MustRandInt32()
-	for _, has := matcher.sessions[SessionID(id)]; has; {
-		id = MustRandInt32()
+	id := SessionID(MustRandInt16())
+	for _, has := matcher.sessions[id]; has; {
+		id = SessionID(MustRandInt16())
 	}
-	return SessionID(id)
+	return id
+}
+
+func (matcher *Matcher) newParticipantID(sessionID SessionID) ParticipantID {
+	// TODO rw lock matcher.participants
+	upper := ParticipantID(int32(sessionID) << 16)
+	id := upper | ParticipantID(uint16(MustRandInt16()))
+	for _, has := matcher.participants[id]; has; {
+		id = upper | ParticipantID(MustRandInt16())
+	}
+	return id
 }
 
 func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest) error {
 
-	if _, has := matcher.sessions[req.sessionID]; !has {
-		return ErrSessionNotFound.WithMessagef("Session with ID %d not found", req.sessionID)
+	if _, has := matcher.participants[req.sessionID]; !has {
+		return ErrSessionNotFound.WithMessagef("Session with ID %s not found", req.sessionID)
 	}
 
 	if req.commitmentOutput == nil {
@@ -380,7 +414,7 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 		return ErrNilChangeOutput
 	}
 
-	sess := matcher.sessions[req.sessionID]
+	sess := matcher.participants[req.sessionID]
 	// TODO: decode and check commitment amount
 	// if req.commitmentOutput.Value != int64(sess.Amount) {
 	// 	return ErrCommitmentValueDifferent.
@@ -407,7 +441,7 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 
 	// TODO: get the utxos from network and validate whether the sum(utxos) == splitTxOut + splitTxChange + SplitTxFee
 
-	matcher.log.Infof("Participant %d set output commitment %s", req.sessionID, sess.CommitAmount)
+	matcher.log.Infof("Participant %s set output commitment %s", req.sessionID, sess.CommitAmount)
 
 	sess.CommitmentTxOut = req.commitmentOutput
 	sess.ChangeTxOut = req.changeOutput
@@ -456,11 +490,11 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 }
 
 func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
-	if _, has := matcher.sessions[req.sessionID]; !has {
+	if _, has := matcher.participants[req.sessionID]; !has {
 		return ErrSessionNotFound
 	}
 
-	sess := matcher.sessions[req.sessionID]
+	sess := matcher.participants[req.sessionID]
 	if sess.ChangeTxOut == nil {
 		return ErrNilChangeOutput
 	}
@@ -494,7 +528,7 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 				revocation: revocation,
 				err:        err,
 			}
-			matcher.log.Infof("Alerted participant %d of funded ticked", p.ID)
+			matcher.log.Infof("Alerted participant %s of funded ticked", p.ID)
 		}
 	}
 
@@ -502,10 +536,10 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 }
 
 func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
-	if _, has := matcher.sessions[req.sessionID]; !has {
+	if _, has := matcher.participants[req.sessionID]; !has {
 		return ErrSessionNotFound
 	}
-	sess := matcher.sessions[req.sessionID]
+	sess := matcher.participants[req.sessionID]
 
 	if len(sess.SplitTxInputs) != len(req.inputScriptSigs) {
 		return ErrSplitInputSignLenMismatch.
@@ -529,7 +563,7 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 				splitTx: splitTx,
 				err:     err,
 			}
-			matcher.log.Infof("Alerted participant %d of funded split tx", p.ID)
+			matcher.log.Infof("Alerted participant %s of funded split tx", p.ID)
 		}
 	}
 
@@ -562,7 +596,7 @@ func (matcher *Matcher) AddParticipant(maxAmount uint64) (*SessionParticipant, e
 // for the provided outputs, waits for all participants to provide their own
 // outputs, then generates the ticket tx and returns the index of the input
 // that should receive this participants funds
-func (matcher *Matcher) SetParticipantsOutputs(sessionID SessionID, commitmentOutput,
+func (matcher *Matcher) SetParticipantsOutputs(sessionID ParticipantID, commitmentOutput,
 	changeOutput wire.TxOut, voteAddress dcrutil.Address, splitTxChange wire.TxOut,
 	splitTxOutput wire.TxOut, splitTxOutPoints []*wire.OutPoint, poolAddress dcrutil.Address) (*wire.MsgTx, *wire.MsgTx, *wire.MsgTx, error) {
 
@@ -588,7 +622,7 @@ func (matcher *Matcher) SetParticipantsOutputs(sessionID SessionID, commitmentOu
 	return resp.ticket, resp.splitTx, resp.revocation, resp.err
 }
 
-func (matcher *Matcher) FundTicket(sessionID SessionID, inputScriptSig []byte, revocationScriptSig []byte) (*wire.MsgTx, *wire.MsgTx, error) {
+func (matcher *Matcher) FundTicket(sessionID ParticipantID, inputScriptSig []byte, revocationScriptSig []byte) (*wire.MsgTx, *wire.MsgTx, error) {
 
 	req := fundTicketRequest{
 		sessionID:            sessionID,
@@ -602,7 +636,7 @@ func (matcher *Matcher) FundTicket(sessionID SessionID, inputScriptSig []byte, r
 	return resp.ticket, resp.revocation, resp.err
 }
 
-func (matcher *Matcher) FundSplit(sessionID SessionID, inputScriptSigs [][]byte) (*wire.MsgTx, error) {
+func (matcher *Matcher) FundSplit(sessionID ParticipantID, inputScriptSigs [][]byte) (*wire.MsgTx, error) {
 
 	req := fundSplitTxRequest{
 		sessionID:       sessionID,

@@ -42,7 +42,7 @@ type (
 	}
 
 	setParticipantOutputsRequest struct {
-		sessionID        SessionID
+		sessionID        ParticipantID
 		commitmentOutput *wire.TxOut
 		changeOutput     *wire.TxOut
 		splitTxOutput    *wire.TxOut
@@ -54,14 +54,14 @@ type (
 	}
 
 	fundTicketRequest struct {
-		sessionID            SessionID
+		sessionID            ParticipantID
 		ticketInputScriptSig []byte
 		revocationScriptSig  []byte
 		resp                 chan fundTicketResponse
 	}
 
 	fundSplitTxRequest struct {
-		sessionID       SessionID
+		sessionID       ParticipantID
 		inputScriptSigs [][]byte
 		resp            chan fundSplitTxResponse
 	}
