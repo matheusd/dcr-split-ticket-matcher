@@ -188,8 +188,10 @@ func (wc *WalletClient) SignTicket(ctx context.Context, session *BuyerSession, c
 	signed := wire.NewMsgTx()
 	signed.FromBytes(resp.Transaction)
 
-	for _, in := range signed.TxIn {
-		if in.SignatureScript != nil {
+	for i, in := range signed.TxIn {
+		// FIXME not really great to get the signed input by checking if (i > 0)
+		// ideally we should get the ticket output index by the matcher
+		if (in.SignatureScript != nil) && (i > 0) {
 			session.ticketScriptSig = in.SignatureScript
 			return nil
 		}
@@ -270,9 +272,10 @@ func (wc *WalletClient) SignSplit(ctx context.Context, session *BuyerSession, cf
 
 				inSplit.SignatureScript = in.SignatureScript
 				signedCount++
-			} else {
-				return ErrWrongInputSignedOnSplit
 			}
+			// } else {
+			// 	return ErrWrongInputSignedOnSplit
+			// }
 		}
 	}
 

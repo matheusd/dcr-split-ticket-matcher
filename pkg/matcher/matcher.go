@@ -208,7 +208,7 @@ type TicketPriceProvider interface {
 }
 
 type SignPoolSplitOutputProvider interface {
-	Address() dcrutil.Address
+	PoolFeeAddress() dcrutil.Address
 	SignPoolSplitOutput(split, ticket *wire.MsgTx) ([]byte, error)
 }
 
@@ -325,7 +325,7 @@ func (matcher *Matcher) startNewSession() {
 	matcher.log.Infof("Starting new session %s: Ticket Price=%s Fees=%s Participants=%d PoolFee=%d",
 		sessID, ticketPrice, ticketTxFee, numParts, poolFee)
 
-	splitPoolOutAddr := matcher.cfg.SignPoolSplitOutProvider.Address()
+	splitPoolOutAddr := matcher.cfg.SignPoolSplitOutProvider.PoolFeeAddress()
 	splitPoolOutScript, err := txscript.PayToAddrScript(splitPoolOutAddr)
 	if err != nil {
 		matcher.log.Errorf("Error generating splitPoolOutScript: %v", err)

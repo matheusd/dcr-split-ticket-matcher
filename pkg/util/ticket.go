@@ -142,7 +142,7 @@ func NewBrokenInsecureSplitOutSigner(net *chaincfg.Params) *BrokenInsecureSplitO
 	}
 }
 
-func (signer *BrokenInsecureSplitOutSigner) Address() dcrutil.Address {
+func (signer *BrokenInsecureSplitOutSigner) PoolFeeAddress() dcrutil.Address {
 	return signer.ScriptAddress
 }
 

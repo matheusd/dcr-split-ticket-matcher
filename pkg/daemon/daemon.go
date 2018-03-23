@@ -19,14 +19,16 @@ type Daemon struct {
 	cfg     *Config
 	log     *logging.Logger
 	matcher *matcher.Matcher
+	wallet  *WalletClient
 }
 
 // NewDaemon returns a new daemon instance and prepares it to listen to
 // requests.
 func NewDaemon(cfg *Config) (*Daemon, error) {
 	d := &Daemon{
-		cfg: cfg,
-		log: logging.MustGetLogger("dcr-split-ticket-matcher"),
+		cfg:    cfg,
+		log:    logging.MustGetLogger("dcr-split-ticket-matcher"),
+		wallet: NewWalletClient(),
 	}
 
 	util.SetLoggerBackend(true, "", "", cfg.LogLevel, d.log)
@@ -53,7 +55,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		MaxOnlineParticipants:    10,
 		PriceProvider:            &util.FixedTicketPriceProvider{TicketPrice: 51.938 * 1e8, BlockHeight: 260000},
 		VoteAddrProvider:         voteProvider,
-		SignPoolSplitOutProvider: util.NewBrokenInsecureSplitOutSigner(net),
+		SignPoolSplitOutProvider: d.wallet,
 		ChainParams:              net,
 		PoolFee:                  7.5,
 	}
