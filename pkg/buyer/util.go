@@ -25,7 +25,7 @@ func (rep *StdOutReporter) reportStage(ctx context.Context, stage BuyerStage, se
 		fmt.Printf("Finding peers to split ticket buy\n")
 		return
 	case StageConnectingToWallet:
-		fmt.Printf("Connecting to wallet\n")
+		fmt.Printf("Connecting to wallet %s\n", cfg.WalletHost)
 		return
 	}
 

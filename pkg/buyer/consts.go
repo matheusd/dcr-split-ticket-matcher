@@ -44,4 +44,5 @@ var (
 	ErrWrongInputSignedOnSplit              = merry.New("Wrong input signed on split transaction")
 	ErrMissingSigOnSplitTx                  = merry.New("Missing signature of desired split tx input")
 	ErrSplitChangeOutputNotFoundOnConstruct = merry.New("Could not find the split change output when constructing the split transaction inputs")
+	ErrWalletOnWrongNetwork                 = merry.New("Wallet on wrong network")
 )

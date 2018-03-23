@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 
+	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
@@ -18,7 +19,7 @@ type WalletClient struct {
 	wsvc pb.WalletServiceClient
 }
 
-func ConenctToWallet(walletHost string, walletCert string) (*WalletClient, error) {
+func ConnectToWallet(walletHost string, walletCert string) (*WalletClient, error) {
 	creds, err := credentials.NewClientTLSFromFile(walletCert, "localhost")
 	if err != nil {
 		return nil, err
@@ -41,6 +42,20 @@ func ConenctToWallet(walletHost string, walletCert string) (*WalletClient, error
 
 func (wc *WalletClient) Close() error {
 	return wc.conn.Close()
+}
+
+func (wc *WalletClient) CheckNetwork(ctx context.Context, chainParams *chaincfg.Params) error {
+	req := &pb.NetworkRequest{}
+	resp, err := wc.wsvc.Network(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if resp.ActiveNetwork != uint32(chainParams.Net) {
+		return ErrWalletOnWrongNetwork
+	}
+
+	return nil
 }
 
 func (wc *WalletClient) GenerateOutputs(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {

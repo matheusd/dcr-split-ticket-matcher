@@ -3,24 +3,10 @@ package buyer
 import (
 	"context"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 )
-
-type BuyerConfig struct {
-	WalletCertFile string
-	WalletHost     string
-	MatcherHost    string
-	MaxAmount      dcrutil.Amount
-	SourceAccount  uint32
-	SStxFeeLimits  uint16
-	ChainParams    *chaincfg.Params
-	VoteAddress    string
-	PoolAddress    string
-	Passphrase     []byte
-}
 
 type BuyerSession struct {
 	ID      matcher.ParticipantID
@@ -67,14 +53,24 @@ func BuySplitTicket(ctx context.Context, cfg *BuyerConfig) error {
 	defer mc.Close()
 
 	rep.reportStage(ctx, StageConnectingToWallet, nil, cfg)
-	wc, err := ConenctToWallet(cfg.WalletHost, cfg.WalletCertFile)
+	wc, err := ConnectToWallet(cfg.WalletHost, cfg.WalletCertFile)
 	if err != nil {
 		return err
 	}
 	defer wc.Close()
 
+	err = wc.CheckNetwork(ctx, cfg.ChainParams)
+	if err != nil {
+		return err
+	}
+
+	maxAmount, err := dcrutil.NewAmount(cfg.MaxAmount)
+	if err != nil {
+		return err
+	}
+
 	rep.reportStage(ctx, StageFindingMatches, nil, cfg)
-	session, err := mc.Participate(ctx, cfg.MaxAmount)
+	session, err := mc.Participate(ctx, maxAmount)
 	if err != nil {
 		return err
 	}
