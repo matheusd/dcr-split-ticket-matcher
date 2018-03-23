@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 
-	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
@@ -45,7 +44,9 @@ func (wc *WalletClient) Close() error {
 }
 
 func (wc *WalletClient) GenerateOutputs(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
-	splitOutAddr, ticketOutAdd, err := wc.generateOutputAddresses(ctx, session, cfg)
+	splitOutAddr, splitChangeAddr, ticketOutAdd, err := wc.generateOutputAddresses(ctx, session, cfg)
+	session.ticketOutputAddress = ticketOutAdd
+	session.splitOutputAddress = splitOutAddr
 
 	zeroed := [20]byte{}
 	addrZeroed, err := dcrutil.NewAddressPubKeyHash(zeroed[:], cfg.ChainParams, 0)
@@ -69,15 +70,21 @@ func (wc *WalletClient) GenerateOutputs(ctx context.Context, session *BuyerSessi
 		return err
 	}
 
+	splitChangeScript, err := txscript.PayToAddrScript(splitChangeAddr)
+	if err != nil {
+		return err
+	}
+
 	session.ticketOutput = wire.NewTxOut(0, ticketCommitScript)
 	session.ticketChange = wire.NewTxOut(0, ticketChangeScript)
 	session.splitOutput = wire.NewTxOut(int64(session.Amount+session.Fee), splitOutScript)
+	session.splitChange = wire.NewTxOut(0, splitChangeScript)
 
 	return wc.generateSplitTxInputs(ctx, session, cfg)
 }
 
 func (wc *WalletClient) generateOutputAddresses(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) (
-	splitOut, ticketOut dcrutil.Address, err error) {
+	splitOut, splitChange, ticketOut dcrutil.Address, err error) {
 
 	var req *pb.NextAddressRequest
 	var resp *pb.NextAddressResponse
@@ -111,44 +118,86 @@ func (wc *WalletClient) generateOutputAddresses(ctx context.Context, session *Bu
 		return
 	}
 
+	// vvvvv split change vvvv
+	req.Kind = pb.NextAddressRequest_BIP0044_INTERNAL
+	resp, err = wc.wsvc.NextAddress(ctx, req)
+	if err != nil {
+		return
+	}
+	splitChange, err = dcrutil.DecodeAddress(resp.Address)
+	if err != nil {
+		return
+	}
+
 	return
 }
 
 func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
 
-	// FIXME probably missing the split tx fee
-	fundAmount := int64(session.Amount + session.Fee + session.PoolFee)
 	rep := reporterFromContext(ctx)
 
-	req := &pb.FundTransactionRequest{
-		Account:                  cfg.SourceAccount,
-		TargetAmount:             fundAmount,
-		RequiredConfirmations:    1,
-		IncludeImmatureCoinbases: false,
-		IncludeChangeScript:      true,
+	outputs := make([]*pb.ConstructTransactionRequest_Output, 2)
+	outputs[0] = &pb.ConstructTransactionRequest_Output{
+		Amount: session.splitOutput.Value,
+		Destination: &pb.ConstructTransactionRequest_OutputDestination{
+			Script:        session.splitOutput.PkScript,
+			ScriptVersion: uint32(session.splitOutput.Version),
+		},
+	}
+
+	// add a dummy pool fee output, so that we account for our share of the pool fee
+	// when grabbing funds for the split tx
+	zeroed := [20]byte{}
+	addrZeroed, err := dcrutil.NewAddressPubKeyHash(zeroed[:], cfg.ChainParams, 0)
+	if err != nil {
+		return err
+	}
+	outputs[1] = &pb.ConstructTransactionRequest_Output{
+		Amount: int64(session.PoolFee),
+		Destination: &pb.ConstructTransactionRequest_OutputDestination{
+			Address: addrZeroed.String(),
+		},
+	}
+
+	splitChangeDest := &pb.ConstructTransactionRequest_OutputDestination{
+		Script:        session.splitChange.PkScript,
+		ScriptVersion: uint32(session.splitChange.Version),
+	}
+
+	req := &pb.ConstructTransactionRequest{
+		FeePerKb:              0, // whatever is the default wallet fee
+		RequiredConfirmations: 1,
+		SourceAccount:         cfg.SourceAccount,
+		NonChangeOutputs:      outputs,
+		ChangeDestination:     splitChangeDest,
 	}
 
 	rep.reportStage(ctx, StageGenerateSplitInputs, session, cfg)
-	resp, err := wc.wsvc.FundTransaction(ctx, req)
+	resp, err := wc.wsvc.ConstructTransaction(ctx, req)
 	if err != nil {
 		return err
 	}
 
-	if resp.TotalAmount < req.TargetAmount {
-		return ErrNotEnoughFundsFundSplit
+	tx := wire.NewMsgTx()
+	err = tx.FromBytes(resp.UnsignedTransaction)
+	if err != nil {
+		return err
 	}
 
-	changeAmount := resp.TotalAmount - req.TargetAmount
-	session.splitChange = wire.NewTxOut(changeAmount, resp.ChangePkScript)
-
-	session.splitInputs = make([]*wire.TxIn, len(resp.SelectedOutputs))
-	for i, o := range resp.SelectedOutputs {
-		hash, err := chainhash.NewHash(o.TransactionHash)
-		if err != nil {
-			return err
+	foundChangeOut := false
+	for _, out := range tx.TxOut {
+		if bytes.Equal(out.PkScript, splitChangeDest.Script) {
+			foundChangeOut = true
+			session.splitChange.Value = out.Value
 		}
+	}
+	if !foundChangeOut {
+		return ErrSplitChangeOutputNotFoundOnConstruct
+	}
 
-		outp := wire.NewOutPoint(hash, o.OutputIndex, int8(o.Tree))
+	session.splitInputs = make([]*wire.TxIn, len(tx.TxIn))
+	for i, in := range tx.TxIn {
+		outp := wire.NewOutPoint(&in.PreviousOutPoint.Hash, in.PreviousOutPoint.Index, in.PreviousOutPoint.Tree)
 		session.splitInputs[i] = wire.NewTxIn(outp, nil)
 	}
 

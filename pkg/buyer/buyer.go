@@ -28,11 +28,13 @@ type BuyerSession struct {
 	Fee     dcrutil.Amount
 	PoolFee dcrutil.Amount
 
-	ticketOutput *wire.TxOut
-	ticketChange *wire.TxOut
-	splitOutput  *wire.TxOut
-	splitChange  *wire.TxOut
-	splitInputs  []*wire.TxIn
+	splitOutputAddress  dcrutil.Address
+	ticketOutputAddress dcrutil.Address
+	ticketOutput        *wire.TxOut
+	ticketChange        *wire.TxOut
+	splitOutput         *wire.TxOut
+	splitChange         *wire.TxOut
+	splitInputs         []*wire.TxIn
 
 	ticket     *wire.MsgTx
 	splitTx    *wire.MsgTx
