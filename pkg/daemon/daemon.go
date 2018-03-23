@@ -55,7 +55,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		VoteAddrProvider:         voteProvider,
 		SignPoolSplitOutProvider: util.NewBrokenInsecureSplitOutSigner(net),
 		ChainParams:              net,
-		PoolFee:                  0.4,
+		PoolFee:                  7.5,
 	}
 	d.matcher = matcher.NewMatcher(mcfg)
 

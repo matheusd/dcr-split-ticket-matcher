@@ -567,6 +567,8 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 		}
 	}
 
+	matcher.log.Noticef("Session %s successfully finished", sess.Session.ID)
+
 	return nil
 }
 
