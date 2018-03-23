@@ -1,6 +1,8 @@
 package matcher
 
 import (
+	"context"
+
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
 )
@@ -37,6 +39,7 @@ type (
 
 type (
 	addParticipantRequest struct {
+		ctx       context.Context
 		maxAmount uint64
 		resp      chan addParticipantResponse
 	}

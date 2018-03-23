@@ -71,6 +71,24 @@ func MustRandInt16() int16 {
 	return r
 }
 
+func NewRandUInt16() (uint16, error) {
+	var b [2]byte
+	_, err := rand.Read(b[:])
+	if err != nil {
+		return 0, err
+	}
+
+	return uint16(uint32(b[0]) | uint32(b[1])<<8), nil
+}
+
+func MustRandUInt16() uint16 {
+	r, err := NewRandUInt16()
+	if err != nil {
+		panic(err)
+	}
+	return r
+}
+
 // createUnsignedRevocation creates an unsigned revocation transaction that
 // revokes a missed or expired ticket.  Revocations must carry a relay fee and
 // this function can error if the revocation contains no suitable output to

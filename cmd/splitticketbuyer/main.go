@@ -22,7 +22,6 @@ func main() {
 		fmt.Printf("Error loading config file: %v\n", err)
 		return
 	}
-
 	defer func() { zeroBytes(cfg.Passphrase) }()
 
 	err = buyer.BuySplitTicket(ctx, cfg)

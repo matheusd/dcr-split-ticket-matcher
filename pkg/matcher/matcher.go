@@ -1,6 +1,7 @@
 package matcher
 
 import (
+	"context"
 	"fmt"
 	"math"
 
@@ -14,11 +15,11 @@ import (
 )
 
 // ParticipantID is the unique ID of a participant of a session
-type ParticipantID int32
+type ParticipantID uint32
 
 func (id ParticipantID) String() string {
 	upper := uint32(id) >> 16
-	lower := int32(id) & 0xffff
+	lower := uint32(id) & 0xffff
 	return fmt.Sprintf("%.4x.%.4x", upper, lower)
 }
 
@@ -47,7 +48,7 @@ type SessionParticipant struct {
 }
 
 // SessionID stores the unique id for an in-progress ticket buying session
-type SessionID int16
+type SessionID uint16
 
 func (id SessionID) String() string {
 	return fmt.Sprintf("%.4x", uint16(id))
@@ -237,6 +238,7 @@ type Matcher struct {
 	cfg                 *Config
 	log                 *logging.Logger
 
+	cancelWaitingParticipant      chan addParticipantRequest
 	addParticipantRequests        chan addParticipantRequest
 	setParticipantOutputsRequests chan setParticipantOutputsRequest
 	fundTicketRequests            chan fundTicketRequest
@@ -250,6 +252,7 @@ func NewMatcher(cfg *Config) *Matcher {
 		sessions:                      make(map[SessionID]*Session),
 		participants:                  make(map[ParticipantID]*SessionParticipant),
 		addParticipantRequests:        make(chan addParticipantRequest),
+		cancelWaitingParticipant:      make(chan addParticipantRequest),
 		setParticipantOutputsRequests: make(chan setParticipantOutputsRequest),
 		fundTicketRequests:            make(chan fundTicketRequest),
 		fundSplitTxRequests:           make(chan fundSplitTxRequest),
@@ -266,10 +269,19 @@ func (matcher *Matcher) Run() error {
 	for {
 		select {
 		case req := <-matcher.addParticipantRequests:
-			matcher.log.Infof("Adding participant for amount %s", dcrutil.Amount(req.maxAmount))
-			matcher.waitingParticipants = append(matcher.waitingParticipants, &req)
-			if matcher.enoughForNewSession() {
-				matcher.startNewSession()
+			err := matcher.addParticipant(&req)
+			if err != nil {
+				req.resp <- addParticipantResponse{
+					err: err,
+				}
+			}
+		case cancelReq := <-matcher.cancelWaitingParticipant:
+			waiting := matcher.waitingParticipants
+			for i, p := range waiting {
+				if *p == cancelReq {
+					matcher.log.Infof("Dropping waiting participant for %s", dcrutil.Amount(p.maxAmount))
+					matcher.waitingParticipants = append(waiting[:i], waiting[i+1:]...)
+				}
 			}
 		case req := <-matcher.setParticipantOutputsRequests:
 			err := matcher.setParticipantsOutputs(&req)
@@ -294,6 +306,23 @@ func (matcher *Matcher) Run() error {
 			}
 		}
 	}
+}
+
+func (matcher *Matcher) addParticipant(req *addParticipantRequest) error {
+	matcher.log.Infof("Adding participant for amount %s", dcrutil.Amount(req.maxAmount))
+	matcher.waitingParticipants = append(matcher.waitingParticipants, req)
+	if matcher.enoughForNewSession() {
+		matcher.startNewSession()
+	} else {
+		go func(r *addParticipantRequest) {
+			<-req.ctx.Done()
+			if r.ctx.Err() != nil {
+				matcher.cancelWaitingParticipant <- *r
+			}
+		}(req)
+	}
+
+	return nil
 }
 
 func (matcher *Matcher) enoughForNewSession() bool {
@@ -383,19 +412,19 @@ func (matcher *Matcher) startNewSession() {
 
 func (matcher *Matcher) newSessionID() SessionID {
 	// TODO: rw lock matcher.sessions here
-	id := SessionID(MustRandInt16())
+	id := SessionID(MustRandUInt16())
 	for _, has := matcher.sessions[id]; has; {
-		id = SessionID(MustRandInt16())
+		id = SessionID(MustRandUInt16())
 	}
 	return id
 }
 
 func (matcher *Matcher) newParticipantID(sessionID SessionID) ParticipantID {
 	// TODO rw lock matcher.participants
-	upper := ParticipantID(int32(sessionID) << 16)
-	id := upper | ParticipantID(uint16(MustRandInt16()))
+	upper := ParticipantID(uint32(sessionID) << 16)
+	id := upper | ParticipantID(MustRandUInt16())
 	for _, has := matcher.participants[id]; has; {
-		id = upper | ParticipantID(MustRandInt16())
+		id = upper | ParticipantID(MustRandUInt16())
 	}
 	return id
 }
@@ -572,7 +601,7 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 	return nil
 }
 
-func (matcher *Matcher) AddParticipant(maxAmount uint64) (*SessionParticipant, error) {
+func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64) (*SessionParticipant, error) {
 	if maxAmount < matcher.cfg.MinAmount {
 		return nil, ErrLowAmount
 	}
@@ -585,6 +614,7 @@ func (matcher *Matcher) AddParticipant(maxAmount uint64) (*SessionParticipant, e
 	}
 
 	req := addParticipantRequest{
+		ctx:       ctx,
 		maxAmount: maxAmount,
 		resp:      make(chan addParticipantResponse),
 	}

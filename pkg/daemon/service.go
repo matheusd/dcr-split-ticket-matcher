@@ -23,7 +23,7 @@ func NewSplitTicketMatcherService(matcher *matcher.Matcher) *SplitTicketMatcherS
 }
 
 func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.FindMatchesRequest) (*pb.FindMatchesResponse, error) {
-	sess, err := svc.matcher.AddParticipant(req.Amount)
+	sess, err := svc.matcher.AddParticipant(ctx, req.Amount)
 	if err != nil {
 		return nil, err
 	}

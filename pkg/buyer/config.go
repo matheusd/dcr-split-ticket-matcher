@@ -71,7 +71,11 @@ func LoadConfig() (*BuyerConfig, error) {
 
 	parser := flags.NewParser(cfg, flags.Default)
 	err = flags.NewIniParser(parser).ParseFile(configFilePath)
+	if err != nil {
+		return nil, err
+	}
 
+	_, err = parser.Parse()
 	if err != nil {
 		return nil, err
 	}

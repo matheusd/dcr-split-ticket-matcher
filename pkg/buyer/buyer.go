@@ -2,6 +2,7 @@ package buyer
 
 import (
 	"context"
+	"time"
 
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
@@ -36,6 +37,21 @@ type Reporter interface {
 }
 
 func BuySplitTicket(ctx context.Context, cfg *BuyerConfig) error {
+	ctx, _ = context.WithTimeout(ctx, 30*time.Second)
+	reschan := make(chan error)
+	go func() { reschan <- buySplitTicket(ctx, cfg) }()
+
+	select {
+	case <-ctx.Done():
+		<-reschan // Wait for f to return.
+		return ctx.Err()
+	case err := <-reschan:
+		return err
+	}
+}
+
+func buySplitTicket(ctx context.Context, cfg *BuyerConfig) error {
+
 	repVal := ctx.Value(ReporterCtxKey)
 	if repVal == nil {
 		return ErrNoReporterSpecified
