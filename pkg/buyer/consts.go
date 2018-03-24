@@ -5,9 +5,10 @@ import (
 )
 
 type BuyerStage int32
+type reporterCtxKey int
 
 const (
-	ReporterCtxKey = iota
+	ReporterCtxKey = reporterCtxKey(1)
 )
 
 const (

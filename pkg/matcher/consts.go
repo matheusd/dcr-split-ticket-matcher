@@ -56,6 +56,9 @@ var (
 	ErrNoVoteAddress                = merry.New("Vote Address not specified for session")
 	ErrNoPoolAddress                = merry.New("Pool address was not specified")
 	ErrNoRevocationScriptSig        = merry.New("Revocation Script not specified")
+	ErrSessionMaxTimeExpired        = merry.New("Maximum time for finishing session has expired")
+	ErrParticipantDisconnected      = merry.New("Participant disconnected from session")
+	ErrTicketScriptSigNotProvided   = merry.New("Ticket scriptSig not provided")
 )
 
 // SessionParticipantFee returns the fee that a single participant of a ticket

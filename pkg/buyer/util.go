@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+
+	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/txscript"
 )
 
 // StdOutReporter implements the BuyerReporter interface by generating descriptive
@@ -103,4 +107,31 @@ func reporterFromContext(ctx context.Context) Reporter {
 	}
 
 	return NullReporter{}
+}
+
+func dummyScriptSigner(net *chaincfg.Params) (pkScript []byte, scriptSig []byte) {
+	var err error
+
+	script := []byte{txscript.OP_NOP}
+
+	scriptAddr, err := dcrutil.NewAddressScriptHash(script, net)
+	if err != nil {
+		panic(err)
+	}
+
+	pkScript, err = txscript.PayToAddrScript(scriptAddr)
+	if err != nil {
+		panic(err)
+	}
+
+	b := txscript.NewScriptBuilder()
+	b.AddOp(txscript.OP_TRUE)
+	b.AddData(script)
+
+	scriptSig, err = b.Script()
+	if err != nil {
+		panic(err)
+	}
+
+	return
 }

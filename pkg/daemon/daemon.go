@@ -3,6 +3,7 @@ package daemon
 import (
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
@@ -58,6 +59,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		SignPoolSplitOutProvider: d.wallet,
 		ChainParams:              net,
 		PoolFee:                  7.5,
+		MaxSessionDuration:       30 * time.Second,
 	}
 	d.matcher = matcher.NewMatcher(mcfg)
 

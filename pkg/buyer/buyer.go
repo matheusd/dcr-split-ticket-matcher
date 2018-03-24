@@ -37,7 +37,7 @@ type Reporter interface {
 }
 
 func BuySplitTicket(ctx context.Context, cfg *BuyerConfig) error {
-	ctx, _ = context.WithTimeout(ctx, 30*time.Second)
+	ctx, _ = context.WithTimeout(ctx, time.Second*time.Duration(cfg.MaxTime))
 	reschan := make(chan error)
 	go func() { reschan <- buySplitTicket(ctx, cfg) }()
 
@@ -92,6 +92,8 @@ func buySplitTicket(ctx context.Context, cfg *BuyerConfig) error {
 	}
 
 	rep.reportStage(ctx, StageMatchesFound, session, cfg)
+
+	time.Sleep(5 * time.Second)
 
 	rep.reportStage(ctx, StageGeneratingOutputs, session, cfg)
 	err = wc.GenerateOutputs(ctx, session, cfg)

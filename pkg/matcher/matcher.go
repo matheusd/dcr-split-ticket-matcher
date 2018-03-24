@@ -2,8 +2,8 @@ package matcher
 
 import (
 	"context"
-	"fmt"
 	"math"
+	"time"
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
@@ -13,195 +13,6 @@ import (
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/util"
 	logging "github.com/op/go-logging"
 )
-
-// ParticipantID is the unique ID of a participant of a session
-type ParticipantID uint32
-
-func (id ParticipantID) String() string {
-	upper := uint32(id) >> 16
-	lower := uint32(id) & 0xffff
-	return fmt.Sprintf("%.4x.%.4x", upper, lower)
-}
-
-// SessionParticipant is a participant of a split in a given session
-type SessionParticipant struct {
-	ID                  ParticipantID
-	CommitAmount        dcrutil.Amount
-	Fee                 dcrutil.Amount
-	PoolFee             dcrutil.Amount
-	CommitmentTxOut     *wire.TxOut
-	ChangeTxOut         *wire.TxOut
-	SplitTxOut          *wire.TxOut
-	SplitTxChange       *wire.TxOut
-	SplitTxInputs       []*wire.TxIn
-	TicketScriptSig     []byte
-	RevocationScriptSig []byte
-	SplitTxOutputIndex  int
-	Session             *Session
-	VoteAddress         *dcrutil.Address
-	PoolAddress         *dcrutil.Address
-	Index               int
-
-	chanSetOutputsResponse  chan setParticipantOutputsResponse
-	chanFundTicketResponse  chan fundTicketResponse
-	chanFundSplitTxResponse chan fundSplitTxResponse
-}
-
-// SessionID stores the unique id for an in-progress ticket buying session
-type SessionID uint16
-
-func (id SessionID) String() string {
-	return fmt.Sprintf("%.4x", uint16(id))
-}
-
-// Session is a particular ticket being built
-type Session struct {
-	ID             SessionID
-	Participants   []*SessionParticipant
-	TicketPrice    dcrutil.Amount
-	VoterIndex     int
-	PoolFee        dcrutil.Amount
-	ChainParams    *chaincfg.Params
-	SplitTxPoolOut *wire.TxOut
-	TicketPoolIn   *wire.TxIn
-}
-
-// AllOutputsFilled returns true if all commitment and change outputs for all
-// participants have been filled
-func (sess *Session) AllOutputsFilled() bool {
-	for _, p := range sess.Participants {
-		if p.ChangeTxOut == nil || p.CommitmentTxOut == nil || p.SplitTxOut == nil ||
-			len(p.SplitTxInputs) == 0 {
-
-			return false
-		}
-	}
-	return true
-}
-
-// TicketIsFunded returns true if all ticket inputs have been filled.
-func (sess *Session) TicketIsFunded() bool {
-	for _, p := range sess.Participants {
-		if p.TicketScriptSig == nil {
-			return false
-		}
-	}
-	return true
-}
-
-// SplitTxIsFunded returns true if the split tx is funded
-func (sess *Session) SplitTxIsFunded() bool {
-	for _, p := range sess.Participants {
-		for _, in := range p.SplitTxInputs {
-			if len(in.SignatureScript) == 0 {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-func (sess *Session) addCommonTicketOutputs(ticket *wire.MsgTx) error {
-	voter := sess.Participants[sess.VoterIndex]
-
-	if voter.VoteAddress == nil {
-		return ErrNoVoteAddress
-	}
-
-	if voter.PoolAddress == nil {
-		return ErrNoPoolAddress
-	}
-
-	voteScript, err := txscript.PayToSStx(*voter.VoteAddress)
-	if err != nil {
-		return err
-	}
-
-	limits := uint16(0x5800)
-	commitScript, err := txscript.GenerateSStxAddrPush(*voter.PoolAddress,
-		sess.PoolFee, limits)
-	if err != nil {
-		return err
-	}
-
-	zeroed := [20]byte{}
-	addrZeroed, err := dcrutil.NewAddressPubKeyHash(zeroed[:], sess.ChainParams, 0)
-	if err != nil {
-		return err
-	}
-	changeScript, err := txscript.PayToSStxChange(addrZeroed)
-	if err != nil {
-		return err
-	}
-
-	ticket.AddTxIn(sess.TicketPoolIn)
-	ticket.AddTxOut(wire.NewTxOut(int64(sess.TicketPrice), voteScript))
-	ticket.AddTxOut(wire.NewTxOut(0, commitScript))
-	ticket.AddTxOut(wire.NewTxOut(0, changeScript))
-
-	return nil
-}
-
-// CreateTransactions creates the ticket and split tx transactions with all the
-// currently available information
-func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, *wire.MsgTx, error) {
-	var spOutIndex uint32 = 0
-	var err error
-
-	ticket := wire.NewMsgTx()
-	splitTx := wire.NewMsgTx()
-	revocation := wire.NewMsgTx()
-
-	sess.addCommonTicketOutputs(ticket)
-
-	splitTx.AddTxOut(sess.SplitTxPoolOut)
-	spOutIndex++
-	for _, p := range sess.Participants {
-		if p.SplitTxOut != nil {
-			ticket.AddTxIn(wire.NewTxIn(&wire.OutPoint{Index: spOutIndex}, p.TicketScriptSig))
-			splitTx.AddTxOut(p.SplitTxOut)
-			spOutIndex++
-		}
-
-		if p.SplitTxChange != nil {
-			splitTx.AddTxOut(p.SplitTxChange)
-			spOutIndex++
-		}
-
-		if p.CommitmentTxOut != nil {
-			ticket.AddTxOut(p.CommitmentTxOut)
-		}
-
-		if p.ChangeTxOut != nil {
-			ticket.AddTxOut(p.ChangeTxOut)
-		}
-
-		for _, in := range p.SplitTxInputs {
-			splitTx.AddTxIn(in)
-		}
-	}
-
-	// back-fill the ticket input's outpoints with the split tx hash
-	splitHash := splitTx.TxHash()
-	for _, in := range ticket.TxIn {
-		in.PreviousOutPoint.Hash = splitHash
-	}
-
-	revocationFee, _ := dcrutil.NewAmount(0.001) // FIXME parametrize
-
-	ticketHash := ticket.TxHash()
-	revocation, err = createUnsignedRevocation(&ticketHash, ticket, revocationFee)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	voter := sess.Participants[sess.VoterIndex]
-	if voter.RevocationScriptSig != nil {
-		revocation.TxIn[0].SignatureScript = voter.RevocationScriptSig
-	}
-
-	return ticket, splitTx, revocation, nil
-}
 
 type TicketPriceProvider interface {
 	CurrentTicketPrice() uint64
@@ -228,6 +39,12 @@ type Config struct {
 	LogLevel                 logging.Level
 	ChainParams              *chaincfg.Params
 	PoolFee                  float64
+	MaxSessionDuration       time.Duration
+}
+
+type cancelSessionChanReq struct {
+	session *Session
+	err     error
 }
 
 // Matcher is the main engine for matching operations
@@ -243,6 +60,7 @@ type Matcher struct {
 	setParticipantOutputsRequests chan setParticipantOutputsRequest
 	fundTicketRequests            chan fundTicketRequest
 	fundSplitTxRequests           chan fundSplitTxRequest
+	cancelSessionChan             chan cancelSessionChanReq
 }
 
 func NewMatcher(cfg *Config) *Matcher {
@@ -256,6 +74,7 @@ func NewMatcher(cfg *Config) *Matcher {
 		setParticipantOutputsRequests: make(chan setParticipantOutputsRequest),
 		fundTicketRequests:            make(chan fundTicketRequest),
 		fundSplitTxRequests:           make(chan fundSplitTxRequest),
+		cancelSessionChan:             make(chan cancelSessionChanReq),
 	}
 	util.SetLoggerBackend(true, "", "", cfg.LogLevel, m.log)
 
@@ -304,7 +123,12 @@ func (matcher *Matcher) Run() error {
 					err: err,
 				}
 			}
+		case cancelReq := <-matcher.cancelSessionChan:
+			matcher.log.Infof("Cancelling session %s", cancelReq.session.ID)
+			cancelReq.session.Canceled = true
+			matcher.removeSession(cancelReq.session, cancelReq.err)
 		}
+
 	}
 }
 
@@ -315,7 +139,7 @@ func (matcher *Matcher) addParticipant(req *addParticipantRequest) error {
 		matcher.startNewSession()
 	} else {
 		go func(r *addParticipantRequest) {
-			<-req.ctx.Done()
+			<-r.ctx.Done()
 			if r.ctx.Err() != nil {
 				matcher.cancelWaitingParticipant <- *r
 			}
@@ -351,7 +175,7 @@ func (matcher *Matcher) startNewSession() {
 	poolFeePart := dcrutil.Amount(math.Ceil(float64(poolFee) / float64(numParts)))
 	sessID := matcher.newSessionID()
 
-	matcher.log.Infof("Starting new session %s: Ticket Price=%s Fees=%s Participants=%d PoolFee=%d",
+	matcher.log.Noticef("Starting new session %s: Ticket Price=%s Fees=%s Participants=%d PoolFee=%d",
 		sessID, ticketPrice, ticketTxFee, numParts, poolFee)
 
 	splitPoolOutAddr := matcher.cfg.SignPoolSplitOutProvider.PoolFeeAddress()
@@ -369,6 +193,7 @@ func (matcher *Matcher) startNewSession() {
 		TicketPoolIn:   wire.NewTxIn(&wire.OutPoint{Index: 0}, nil),
 		SplitTxPoolOut: wire.NewTxOut(int64(poolFee), splitPoolOutScript),
 		ID:             sessID,
+		StartTime:      time.Now(),
 	}
 	matcher.sessions[sessID] = sess
 
@@ -406,6 +231,15 @@ func (matcher *Matcher) startNewSession() {
 	sess.VoterIndex = ChooseVoter(contributions)
 	voter := sess.Participants[sess.VoterIndex]
 	matcher.log.Infof("Chosen as voter %s", voter.ID)
+
+	go func(s *Session) {
+		sessTimer := time.NewTimer(matcher.cfg.MaxSessionDuration)
+		<-sessTimer.C
+		if !s.Done && !s.Canceled {
+			matcher.log.Warningf("Session %s lasted more than MaxSessionDuration", s.ID)
+			matcher.cancelSessionChan <- cancelSessionChanReq{session: s, err: ErrSessionMaxTimeExpired}
+		}
+	}(sess)
 
 	matcher.waitingParticipants = nil
 }
@@ -504,16 +338,16 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 		}
 
 		for _, p := range sess.Session.Participants {
-			p.chanSetOutputsResponse <- setParticipantOutputsResponse{
+			p.sendSetOutputsResponse(setParticipantOutputsResponse{
 				ticket:     ticket,
 				splitTx:    splitTx,
 				revocation: revocation,
 				err:        err,
-			}
+			})
 		}
-	}
 
-	matcher.log.Infof("Notified participants of created txs")
+		matcher.log.Infof("Notified participants of created txs for session %s", sess.Session.ID)
+	}
 
 	return nil
 }
@@ -536,11 +370,17 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 		return ErrNoRevocationScriptSig
 	}
 
+	if req.ticketInputScriptSig == nil {
+		return ErrTicketScriptSigNotProvided
+	}
+
 	// TODO: check if revocationScriptSig actually successfully signs the
 	// revocation transaction
 
 	// TODO: check if ticketInputScriptSig actually commits to the ticket's outputs
 	// and is of the correct sigHashType
+
+	matcher.log.Infof("Participant %s sent ticket input sigs", req.sessionID)
 
 	sess.TicketScriptSig = req.ticketInputScriptSig
 	sess.chanFundTicketResponse = req.resp
@@ -552,13 +392,14 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 		ticket, _, revocation, err := sess.Session.CreateTransactions()
 
 		for _, p := range sess.Session.Participants {
-			p.chanFundTicketResponse <- fundTicketResponse{
+			p.sendFundTicketResponse(fundTicketResponse{
 				ticket:     ticket,
 				revocation: revocation,
 				err:        err,
-			}
-			matcher.log.Infof("Alerted participant %s of funded ticked", p.ID)
+			})
 		}
+
+		matcher.log.Infof("Alerted participants of funded ticked on session %s", sess.Session.ID)
 	}
 
 	return nil
@@ -582,23 +423,50 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 	}
 	sess.chanFundSplitTxResponse = req.resp
 
+	matcher.log.Infof("Participant %s sent split tx input sigs", req.sessionID)
+
 	if sess.Session.SplitTxIsFunded() {
+		sess.Session.Done = true
+
 		matcher.log.Infof("All inputs for split tx received. Creating split tx.")
 
 		_, splitTx, _, err := sess.Session.CreateTransactions()
 
 		for _, p := range sess.Session.Participants {
-			p.chanFundSplitTxResponse <- fundSplitTxResponse{
+			p.sendFundSplitTxResponse(fundSplitTxResponse{
 				splitTx: splitTx,
 				err:     err,
-			}
-			matcher.log.Infof("Alerted participant %s of funded split tx", p.ID)
+			})
 		}
+
+		matcher.log.Noticef("Session %s successfully finished", sess.Session.ID)
+		matcher.removeSession(sess.Session, nil)
 	}
 
-	matcher.log.Noticef("Session %s successfully finished", sess.Session.ID)
-
 	return nil
+}
+
+func (matcher *Matcher) cancelSessionOnContextDone(ctx context.Context, sessPart *SessionParticipant) {
+	go func() {
+		<-ctx.Done()
+		sess := sessPart.Session
+		if (ctx.Err() != nil) && (!sess.Canceled) && (!sess.Done) {
+			matcher.log.Warningf("Cancelling session %s due to context error on participant %s: %v", sess.ID, sessPart.ID, ctx.Err())
+			matcher.cancelSessionChan <- cancelSessionChanReq{session: sessPart.Session, err: ErrParticipantDisconnected}
+		}
+	}()
+}
+
+func (matcher *Matcher) removeSession(sess *Session, err error) {
+	delete(matcher.sessions, sess.ID)
+	for _, p := range sess.Participants {
+		if _, has := matcher.participants[p.ID]; has {
+			delete(matcher.participants, p.ID)
+		}
+		if err != nil {
+			p.sessionCanceled(err)
+		}
+	}
 }
 
 func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64) (*SessionParticipant, error) {
@@ -628,7 +496,7 @@ func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64) (*
 // for the provided outputs, waits for all participants to provide their own
 // outputs, then generates the ticket tx and returns the index of the input
 // that should receive this participants funds
-func (matcher *Matcher) SetParticipantsOutputs(sessionID ParticipantID, commitmentOutput,
+func (matcher *Matcher) SetParticipantsOutputs(ctx context.Context, sessionID ParticipantID, commitmentOutput,
 	changeOutput wire.TxOut, voteAddress dcrutil.Address, splitTxChange wire.TxOut,
 	splitTxOutput wire.TxOut, splitTxOutPoints []*wire.OutPoint, poolAddress dcrutil.Address) (*wire.MsgTx, *wire.MsgTx, *wire.MsgTx, error) {
 
@@ -638,6 +506,7 @@ func (matcher *Matcher) SetParticipantsOutputs(sessionID ParticipantID, commitme
 	}
 
 	req := setParticipantOutputsRequest{
+		ctx:              ctx,
 		sessionID:        sessionID,
 		commitmentOutput: &commitmentOutput,
 		changeOutput:     &changeOutput,
@@ -654,9 +523,10 @@ func (matcher *Matcher) SetParticipantsOutputs(sessionID ParticipantID, commitme
 	return resp.ticket, resp.splitTx, resp.revocation, resp.err
 }
 
-func (matcher *Matcher) FundTicket(sessionID ParticipantID, inputScriptSig []byte, revocationScriptSig []byte) (*wire.MsgTx, *wire.MsgTx, error) {
+func (matcher *Matcher) FundTicket(ctx context.Context, sessionID ParticipantID, inputScriptSig []byte, revocationScriptSig []byte) (*wire.MsgTx, *wire.MsgTx, error) {
 
 	req := fundTicketRequest{
+		ctx:                  ctx,
 		sessionID:            sessionID,
 		ticketInputScriptSig: inputScriptSig,
 		revocationScriptSig:  revocationScriptSig,
@@ -668,9 +538,10 @@ func (matcher *Matcher) FundTicket(sessionID ParticipantID, inputScriptSig []byt
 	return resp.ticket, resp.revocation, resp.err
 }
 
-func (matcher *Matcher) FundSplit(sessionID ParticipantID, inputScriptSigs [][]byte) (*wire.MsgTx, error) {
+func (matcher *Matcher) FundSplit(ctx context.Context, sessionID ParticipantID, inputScriptSigs [][]byte) (*wire.MsgTx, error) {
 
 	req := fundSplitTxRequest{
+		ctx:             ctx,
 		sessionID:       sessionID,
 		inputScriptSigs: inputScriptSigs,
 		resp:            make(chan fundSplitTxResponse),

@@ -55,6 +55,12 @@ func (wc *WalletClient) CheckNetwork(ctx context.Context, chainParams *chaincfg.
 		return ErrWalletOnWrongNetwork
 	}
 
+	req2 := &pb.RescanRequest{}
+	_, err = wc.wsvc.Rescan(context.Background(), req2)
+	if err != nil {
+		panic(err)
+	}
+
 	return nil
 }
 
@@ -255,7 +261,7 @@ func (wc *WalletClient) SignTicket(ctx context.Context, session *BuyerSession, c
 	for i, in := range signed.TxIn {
 		// FIXME not really great to get the signed input by checking if (i > 0)
 		// ideally we should get the ticket output index by the matcher
-		if (in.SignatureScript != nil) && (i > 0) {
+		if (in.SignatureScript != nil) && (len(in.SignatureScript) > 0) && (i > 0) {
 			session.ticketScriptSig = in.SignatureScript
 			return nil
 		}
@@ -304,9 +310,44 @@ func (wc *WalletClient) SignRevocation(ctx context.Context, session *BuyerSessio
 	return nil
 }
 
+func (wc *WalletClient) fixNonWalletSplitInputs(splitCopy *wire.MsgTx, session *BuyerSession, cfg *BuyerConfig) []*pb.SignTransactionRequest_AdditionalScript {
+	walletSplitInputs := make(map[wire.OutPoint]bool)
+	for _, in := range session.splitInputs {
+		walletSplitInputs[in.PreviousOutPoint] = true
+	}
+
+	dummyScripts := make([]*pb.SignTransactionRequest_AdditionalScript, 0, len(splitCopy.TxIn)-len(session.splitInputs))
+	pkScript, scriptSig := dummyScriptSigner(cfg.ChainParams)
+	for _, in := range splitCopy.TxIn {
+		if _, fromWallet := walletSplitInputs[in.PreviousOutPoint]; fromWallet {
+			continue
+		}
+
+		sc := &pb.SignTransactionRequest_AdditionalScript{
+			TransactionHash: in.PreviousOutPoint.Hash[:],
+			OutputIndex:     in.PreviousOutPoint.Index,
+			Tree:            int32(in.PreviousOutPoint.Tree),
+			PkScript:        pkScript,
+		}
+		dummyScripts = append(dummyScripts, sc)
+		in.SignatureScript = scriptSig
+	}
+
+	return dummyScripts
+
+}
+
 func (wc *WalletClient) SignSplit(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
 
-	splitBytes, err := session.splitTx.Bytes()
+	splitCopy := session.splitTx.Copy()
+
+	// fix the inputs that are not from this wallet, so that the wallet doesn't
+	// error out saying it couldn't find the given pkscript. Not the ideal way
+	// to go about this (ideally we should retrieve the actual pkscripts from the
+	// network and let the wallet error out on signing)
+	dummyScripts := wc.fixNonWalletSplitInputs(splitCopy, session, cfg)
+
+	splitBytes, err := splitCopy.Bytes()
 	if err != nil {
 		return err
 	}
@@ -314,6 +355,7 @@ func (wc *WalletClient) SignSplit(ctx context.Context, session *BuyerSession, cf
 	req := &pb.SignTransactionRequest{
 		Passphrase:            cfg.Passphrase,
 		SerializedTransaction: splitBytes,
+		AdditionalScripts:     dummyScripts,
 	}
 
 	resp, err := wc.wsvc.SignTransaction(ctx, req)

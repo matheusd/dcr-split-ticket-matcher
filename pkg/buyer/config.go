@@ -37,6 +37,7 @@ type BuyerConfig struct {
 	VoteAddress    string  `long:"voteaddress" description:"Voting address of the stakepool"`
 	PoolAddress    string  `long:"pooladdress" description:"Pool fee address of the stakepool"`
 	TestNet        bool    `long:"testnet" description:"Whether this is connecting to a testnet wallet/matcher service"`
+	MaxTime        int     `long:"maxtime" description:"Maximum amount of time (in seconds) to wait for the completion of the split buy"`
 
 	Passphrase  []byte
 	ChainParams *chaincfg.Params
@@ -67,6 +68,7 @@ func LoadConfig() (*BuyerConfig, error) {
 		ChainParams:    &chaincfg.MainNetParams,
 		WalletCertFile: filepath.Join(dcrutil.AppDataDir("dcrwallet", false), "rpc.cert"),
 		SourceAccount:  0,
+		MaxTime:        30,
 	}
 
 	parser := flags.NewParser(cfg, flags.Default)

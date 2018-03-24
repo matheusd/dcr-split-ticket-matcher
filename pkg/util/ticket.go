@@ -133,7 +133,6 @@ func NewBrokenInsecureSplitOutSigner(net *chaincfg.Params) *BrokenInsecureSplitO
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(sig)
 
 	return &BrokenInsecureSplitOutSigner{
 		Script:        script,

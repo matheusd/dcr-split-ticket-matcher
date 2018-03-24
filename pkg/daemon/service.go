@@ -66,7 +66,7 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 		splitOutpoints[i] = wire.NewOutPoint(hash, uint32(in.PrevIndex), int8(in.Tree))
 	}
 
-	ticket, split, revocation, err := svc.matcher.SetParticipantsOutputs(matcher.ParticipantID(req.SessionId),
+	ticket, split, revocation, err := svc.matcher.SetParticipantsOutputs(ctx, matcher.ParticipantID(req.SessionId),
 		*commitTxout, *changeTxout, voteAddr, *splitChange, *splitTxout, splitOutpoints, poolAddr)
 	if err != nil {
 		return nil, err
@@ -103,7 +103,7 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 }
 
 func (svc *SplitTicketMatcherService) FundTicket(ctx context.Context, req *pb.FundTicketRequest) (*pb.FundTicketResponse, error) {
-	ticket, revocation, err := svc.matcher.FundTicket(matcher.ParticipantID(req.SessionId), req.TicketInputScriptsig, req.RevocationScriptSig)
+	ticket, revocation, err := svc.matcher.FundTicket(ctx, matcher.ParticipantID(req.SessionId), req.TicketInputScriptsig, req.RevocationScriptSig)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func (svc *SplitTicketMatcherService) FundTicket(ctx context.Context, req *pb.Fu
 }
 
 func (svc *SplitTicketMatcherService) FundSplitTx(ctx context.Context, req *pb.FundSplitTxRequest) (*pb.FundSplitTxResponse, error) {
-	split, err := svc.matcher.FundSplit(matcher.ParticipantID(req.SessionId),
+	split, err := svc.matcher.FundSplit(ctx, matcher.ParticipantID(req.SessionId),
 		req.SplitTxScriptsigs)
 	if err != nil {
 		return nil, err
