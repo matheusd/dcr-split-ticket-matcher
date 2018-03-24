@@ -1,7 +1,12 @@
 package buyer
 
 import (
+	"bufio"
 	"context"
+	"encoding/hex"
+	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/decred/dcrd/dcrutil"
@@ -147,6 +152,80 @@ func buySplitTicket(ctx context.Context, cfg *BuyerConfig) error {
 		return err
 	}
 	rep.reportStage(ctx, StageSplitTxFunded, session, cfg)
+
+	return saveSession(session, cfg)
+}
+
+func saveSession(session *BuyerSession, cfg *BuyerConfig) error {
+
+	sessionDir := filepath.Join(cfg.DataDir, "sessions")
+
+	_, err := os.Stat(sessionDir)
+
+	if os.IsNotExist(err) {
+		err := os.MkdirAll(sessionDir, 0700)
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+
+	ticketHash := session.ticket.TxHash()
+	ticketHashHex := hex.EncodeToString(ticketHash[:])
+	ticketBytes, err := session.ticket.Bytes()
+	if err != nil {
+		return err
+	}
+
+	fname := filepath.Join(sessionDir, ticketHashHex)
+
+	f, err := os.Create(fname)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	splitHash := session.splitTx.TxHash()
+	splitBytes, err := session.splitTx.Bytes()
+	if err != nil {
+		return err
+	}
+
+	revocationHash := session.revocation.TxHash()
+	revocationBytes, err := session.revocation.Bytes()
+	if err != nil {
+		return err
+	}
+
+	w := bufio.NewWriter(f)
+	hexWriter := hex.NewEncoder(w)
+	w.WriteString("Split ticket session ")
+	w.WriteString(time.Now().String())
+	w.WriteString(fmt.Sprintf("\nIsVoter = %t\n", session.isVoter))
+	w.WriteString(fmt.Sprintf("Amount = %s\n", session.Amount))
+	w.WriteString("\n")
+
+	w.WriteString("Split Transaction hash: ")
+	hexWriter.Write(splitHash[:])
+	w.WriteString("\nSplit Transaction:\n")
+	hexWriter.Write(splitBytes)
+	w.WriteString("\n\n")
+
+	w.WriteString("Ticket hash: ")
+	hexWriter.Write(ticketHash[:])
+	w.WriteString("\nTicket:\n")
+	hexWriter.Write(ticketBytes)
+	w.WriteString("\n\n")
+
+	w.WriteString("Revocation hash: ")
+	hexWriter.Write(revocationHash[:])
+	w.WriteString("\nRevocation:\n")
+	hexWriter.Write(revocationBytes)
+	w.WriteString("\n\n")
+
+	w.Flush()
+	f.Sync()
 
 	return nil
 }
