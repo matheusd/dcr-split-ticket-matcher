@@ -55,12 +55,6 @@ func (wc *WalletClient) CheckNetwork(ctx context.Context, chainParams *chaincfg.
 		return ErrWalletOnWrongNetwork
 	}
 
-	req2 := &pb.RescanRequest{}
-	_, err = wc.wsvc.Rescan(context.Background(), req2)
-	if err != nil {
-		panic(err)
-	}
-
 	return nil
 }
 
