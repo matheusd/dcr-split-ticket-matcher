@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 
@@ -187,9 +186,11 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 	return nil
 }
 
-// FIXME: this really should receive a watcher parameter instead of continually
-// writing to stdout
-func (mc *MatcherClient) WatchWaitingList(ctx context.Context) error {
+type waitingListWatcher interface {
+	ListChanged([]dcrutil.Amount)
+}
+
+func (mc *MatcherClient) WatchWaitingList(ctx context.Context, watcher waitingListWatcher) error {
 	req := &pb.WatchWaitingListRequest{}
 	cli, err := mc.client.WatchWaitingList(ctx, req)
 	if err != nil {
@@ -204,11 +205,11 @@ func (mc *MatcherClient) WatchWaitingList(ctx context.Context) error {
 				}
 				return
 			} else {
-				amnts := make([]string, len(resp.Amounts))
+				amnts := make([]dcrutil.Amount, len(resp.Amounts))
 				for i, a := range resp.Amounts {
-					amnts[i] = dcrutil.Amount(a).String()
+					amnts[i] = dcrutil.Amount(a)
 				}
-				fmt.Printf("Waiting participants: [%s]\n", strings.Join(amnts, ", "))
+				watcher.ListChanged(amnts)
 			}
 		}
 	}()

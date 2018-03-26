@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/decred/dcrd/dcrutil"
@@ -39,6 +40,16 @@ type BuyerSession struct {
 
 type Reporter interface {
 	reportStage(context.Context, BuyerStage, *BuyerSession, *BuyerConfig)
+}
+
+type stdoutListWatcher struct{}
+
+func (w stdoutListWatcher) ListChanged(amounts []dcrutil.Amount) {
+	strs := make([]string, len(amounts))
+	for i, a := range amounts {
+		strs[i] = a.String()
+	}
+	fmt.Printf("Waiting participants: [%s]\n", strings.Join(strs, ", "))
 }
 
 func BuySplitTicket(ctx context.Context, cfg *BuyerConfig) error {
@@ -85,7 +96,7 @@ func buySplitTicket(ctx context.Context, cfg *BuyerConfig) error {
 		return err
 	}
 
-	err = mc.WatchWaitingList(ctx)
+	err = mc.WatchWaitingList(ctx, stdoutListWatcher{})
 	if err != nil {
 		return err
 	}
