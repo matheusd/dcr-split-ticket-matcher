@@ -37,7 +37,6 @@ func main() {
 	}
 
 	fmt.Println("Starting to watch waiting list")
-	for {
-
-	}
+	<-ctx.Done()
+	fmt.Println("Done waiting. %v", ctx.Err())
 }

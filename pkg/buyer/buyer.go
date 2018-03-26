@@ -52,70 +52,93 @@ func (w stdoutListWatcher) ListChanged(amounts []dcrutil.Amount) {
 	fmt.Printf("Waiting participants: [%s]\n", strings.Join(strs, ", "))
 }
 
+type sessionWaiterResponse struct {
+	mc      *MatcherClient
+	wc      *WalletClient
+	session *BuyerSession
+	err     error
+}
+
 func BuySplitTicket(ctx context.Context, cfg *BuyerConfig) error {
-	ctx, _ = context.WithTimeout(ctx, time.Second*time.Duration(cfg.MaxTime))
-	reschan := make(chan error)
-	go func() { reschan <- buySplitTicket(ctx, cfg) }()
+	ctxWait, _ := context.WithTimeout(ctx, time.Second*time.Duration(cfg.MaxWaitTime))
+	var resp sessionWaiterResponse
+	reschan := make(chan sessionWaiterResponse)
+	go func() { reschan <- waitForSession(ctxWait, cfg) }()
 
 	select {
 	case <-ctx.Done():
 		<-reschan // Wait for f to return.
 		return ctx.Err()
-	case err := <-reschan:
+	case resp = <-reschan:
+		if resp.err != nil {
+			return resp.err
+		}
+	}
+
+	defer func() {
+		resp.mc.Close()
+		resp.wc.Close()
+	}()
+
+	ctxBuy, _ := context.WithTimeout(ctx, time.Second*time.Duration(cfg.MaxTime))
+	reschan2 := make(chan error)
+	go func() { reschan2 <- buySplitTicket(ctxBuy, cfg, resp.mc, resp.wc, resp.session) }()
+
+	select {
+	case <-ctx.Done():
+		<-reschan2 // Wait for f to return.
+		return ctx.Err()
+	case err := <-reschan2:
 		return err
 	}
+
 }
 
-func buySplitTicket(ctx context.Context, cfg *BuyerConfig) error {
-
-	repVal := ctx.Value(ReporterCtxKey)
-	if repVal == nil {
-		return ErrNoReporterSpecified
-	}
-	rep, is := repVal.(Reporter)
-	if !is {
-		return ErrNoReporterSpecified
-	}
+func waitForSession(ctx context.Context, cfg *BuyerConfig) sessionWaiterResponse {
+	rep := reporterFromContext(ctx)
 
 	rep.reportStage(ctx, StageConnectingToMatcher, nil, cfg)
 	mc, err := ConnectToMatcherService(cfg.MatcherHost)
 	if err != nil {
-		return err
+		return sessionWaiterResponse{nil, nil, nil, err}
 	}
-	defer mc.Close()
 
 	rep.reportStage(ctx, StageConnectingToWallet, nil, cfg)
 	wc, err := ConnectToWallet(cfg.WalletHost, cfg.WalletCertFile)
 	if err != nil {
-		return err
+		return sessionWaiterResponse{nil, nil, nil, err}
 	}
-	defer wc.Close()
 
 	err = wc.CheckNetwork(ctx, cfg.ChainParams)
 	if err != nil {
-		return err
+		return sessionWaiterResponse{nil, nil, nil, err}
 	}
 
 	err = mc.WatchWaitingList(ctx, stdoutListWatcher{})
 	if err != nil {
-		return err
+		return sessionWaiterResponse{nil, nil, nil, err}
 	}
 	time.Sleep(150 * time.Millisecond)
 
 	maxAmount, err := dcrutil.NewAmount(cfg.MaxAmount)
 	if err != nil {
-		return err
+		return sessionWaiterResponse{nil, nil, nil, err}
 	}
 
 	rep.reportStage(ctx, StageFindingMatches, nil, cfg)
 	session, err := mc.Participate(ctx, maxAmount)
 	if err != nil {
-		return err
+		return sessionWaiterResponse{nil, nil, nil, err}
 	}
-
 	rep.reportStage(ctx, StageMatchesFound, session, cfg)
 
-	time.Sleep(5 * time.Second)
+	return sessionWaiterResponse{mc, wc, session, nil}
+}
+
+func buySplitTicket(ctx context.Context, cfg *BuyerConfig, mc *MatcherClient, wc *WalletClient, session *BuyerSession) error {
+
+	rep := reporterFromContext(ctx)
+	var err error
 
 	rep.reportStage(ctx, StageGeneratingOutputs, session, cfg)
 	err = wc.GenerateOutputs(ctx, session, cfg)
