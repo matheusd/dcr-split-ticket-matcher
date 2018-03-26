@@ -3,6 +3,7 @@ package matcher
 import (
 	"context"
 	"math"
+	"sort"
 	"time"
 
 	"github.com/decred/dcrd/chaincfg"
@@ -174,9 +175,11 @@ func (matcher *Matcher) startNewSession() {
 		poolFeePerc, matcher.cfg.ChainParams)
 	poolFeePart := dcrutil.Amount(math.Ceil(float64(poolFee) / float64(numParts)))
 	sessID := matcher.newSessionID()
+	parts := matcher.waitingParticipants
+	matcher.waitingParticipants = nil
 
-	matcher.log.Noticef("Starting new session %s: Ticket Price=%s Fees=%s Participants=%d PoolFee=%d",
-		sessID, ticketPrice, ticketTxFee, numParts, poolFee)
+	matcher.log.Noticef("Starting new session %s: Ticket Price=%s Fees=%s Participants=%d PoolFee=%s",
+		sessID, ticketPrice, ticketTxFee, numParts, dcrutil.Amount(poolFee))
 
 	splitPoolOutAddr := matcher.cfg.SignPoolSplitOutProvider.PoolFeeAddress()
 	splitPoolOutScript, err := txscript.PayToAddrScript(splitPoolOutAddr)
@@ -197,17 +200,21 @@ func (matcher *Matcher) startNewSession() {
 	}
 	matcher.sessions[sessID] = sess
 
-	contributions := make([]dcrutil.Amount, numParts)
-	commitLeft := ticketPrice - poolFee
-	for i, r := range matcher.waitingParticipants {
-		commitAmount := dcrutil.Amount(r.maxAmount) - partFee - poolFeePart
-		if commitAmount > commitLeft {
-			commitAmount = commitLeft
-		}
+	sort.Sort(addParticipantRequestsByAmount(parts))
+	maxAmounts := make([]dcrutil.Amount, len(parts))
+	for i, p := range parts {
+		maxAmounts[i] = dcrutil.Amount(p.maxAmount)
+	}
+	commitments, err := SelectContributionAmounts(maxAmounts, ticketPrice, partFee, poolFeePart)
+	if err != nil {
+		matcher.log.Errorf("Error selecting contribution amounts: %v", err)
+		panic(err)
+	}
 
+	for i, r := range parts {
 		id := matcher.newParticipantID(sessID)
 		sessPart := &SessionParticipant{
-			CommitAmount: commitAmount,
+			CommitAmount: commitments[i],
 			PoolFee:      poolFeePart,
 			Fee:          partFee,
 			Session:      sess,
@@ -215,20 +222,16 @@ func (matcher *Matcher) startNewSession() {
 			ID:           id,
 		}
 		sess.Participants[i] = sessPart
-		contributions[i] = commitAmount
-
 		matcher.participants[id] = sessPart
 
 		r.resp <- addParticipantResponse{
 			participant: sessPart,
 		}
 
-		commitLeft -= commitAmount
-
-		matcher.log.Infof("Participant %s contributing with %s", id, commitAmount)
+		matcher.log.Infof("Participant %s contributing with %s", id, commitments[i])
 	}
 
-	sess.VoterIndex = ChooseVoter(contributions)
+	sess.VoterIndex = ChooseVoter(commitments)
 	voter := sess.Participants[sess.VoterIndex]
 	matcher.log.Infof("Chosen as voter %s", voter.ID)
 
@@ -240,8 +243,6 @@ func (matcher *Matcher) startNewSession() {
 			matcher.cancelSessionChan <- cancelSessionChanReq{session: s, err: ErrSessionMaxTimeExpired}
 		}
 	}(sess)
-
-	matcher.waitingParticipants = nil
 }
 
 func (matcher *Matcher) newSessionID() SessionID {

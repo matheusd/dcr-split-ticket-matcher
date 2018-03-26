@@ -72,3 +72,9 @@ type (
 		resp            chan fundSplitTxResponse
 	}
 )
+
+type addParticipantRequestsByAmount []*addParticipantRequest
+
+func (a addParticipantRequestsByAmount) Len() int           { return len(a) }
+func (a addParticipantRequestsByAmount) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a addParticipantRequestsByAmount) Less(i, j int) bool { return a[i].maxAmount < a[j].maxAmount }

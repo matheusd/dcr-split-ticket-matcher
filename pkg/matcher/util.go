@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/decred/dcrd/blockchain/stake"
@@ -174,4 +176,85 @@ func ChooseVoter(contributions []dcrutil.Amount) int {
 
 	// we shouldn't really get here, as rand.Int() returns [0, total)
 	return len(contributions) - 1
+}
+
+// SelectContributionAmounts decides how to split the ticket priced at ticketPrice
+// such that each ith participant contributes at most maxAmount[i], pays
+// a participation fee partFee and contributes poolPartFee into the common
+// pool fee input.
+//
+// In order to call this function sum(maxAmounts) must be > (ticketPrice + sum(partFee))
+// and the maxAmounts **MUST** be ordered in ascending order of amount.
+//
+// The algorithm tries to split the purchasing amounts between the participants
+// in such a way as to average the contribution % of the participants, while
+// ensuring that the ticket can be bought.
+//
+// This function returns the corresponding commitment amounts for each participant
+// (ie, what the sstxcommitment output will be for each participant).
+func SelectContributionAmounts(maxAmounts []dcrutil.Amount, ticketPrice, partFee, poolPartFee dcrutil.Amount) ([]dcrutil.Amount, error) {
+
+	nparts := len(maxAmounts)
+	totalAvailable := dcrutil.Amount(0)
+	prev := dcrutil.Amount(0)
+	remainingMax := make([]dcrutil.Amount, nparts)
+	for i, a := range maxAmounts {
+		if a < prev {
+			return nil, fmt.Errorf("Invalid Argument: maxAmounts must be in ascending order")
+		}
+		totalAvailable += a
+		prev = a
+
+		// remainingMax already considers the partFee and poolPartFee contributions
+		// as payed by the participant
+		remainingMax[i] = a - partFee - poolPartFee
+	}
+
+	// notice that while the partFee is an "additional" amount needed by each participant,
+	// the pool fee is simply a part of the ticket price placed into the first sstx
+	// output, therefore it is already accounted as needed in the ticketPrice amount
+	neededAmount := ticketPrice + partFee*dcrutil.Amount(nparts)
+	if totalAvailable < neededAmount {
+		return nil, fmt.Errorf("Invalid Argument: total available %s less than needed %s",
+			totalAvailable, neededAmount)
+	}
+
+	// totalLeft is the remaining part of the ticket that needs to be distributed
+	// among the participants. It already considers the poolPartFee and partFee
+	// as payed by each participant.
+	totalLeft := ticketPrice - partFee*dcrutil.Amount(nparts) - poolPartFee*dcrutil.Amount(nparts)
+
+	// Algorithm sketch: loop starting from lowest amount to highest
+	// if all participants starting at the current one can fill the ticket, then
+	// average the contribution of the remaining participants.
+	// Otherwise, all participants contribute at least the amount of the current
+	// one and we continue trying to split the remaining ticket amount left
+	contribs := make([]dcrutil.Amount, nparts)
+	for i, max := range remainingMax {
+		remainingParts := dcrutil.Amount(nparts - i)
+		if remainingParts*max > totalLeft {
+			// average the remaining total among the remaining participants
+			perPart := dcrutil.Amount(math.Ceil(float64(totalLeft) / float64(remainingParts)))
+			for j := i; (j < nparts) && (totalLeft > 0); j++ {
+				if totalLeft < perPart {
+					// due to the division, some participants may contribute slightly less
+					contribs[j] += totalLeft
+					totalLeft = 0
+				} else {
+					contribs[j] += perPart
+					totalLeft -= perPart
+				}
+			}
+			break
+		} else {
+			// not enough to split the participation equally, so everyone
+			// contributes as much as this participant
+			for j := i; j < nparts; j++ {
+				contribs[j] += max
+				totalLeft -= max
+			}
+		}
+	}
+
+	return contribs, nil
 }
