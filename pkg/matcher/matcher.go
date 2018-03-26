@@ -53,6 +53,7 @@ type Matcher struct {
 	waitingParticipants []*addParticipantRequest
 	sessions            map[SessionID]*Session
 	participants        map[ParticipantID]*SessionParticipant
+	waitingListWatchers map[context.Context]chan []dcrutil.Amount
 	cfg                 *Config
 	log                 *logging.Logger
 
@@ -62,20 +63,26 @@ type Matcher struct {
 	fundTicketRequests            chan fundTicketRequest
 	fundSplitTxRequests           chan fundSplitTxRequest
 	cancelSessionChan             chan cancelSessionChanReq
+	watchWaitingListRequests      chan watchWaitingListRequest
+	cancelWaitingListWatcher      chan context.Context
 }
 
 func NewMatcher(cfg *Config) *Matcher {
 	m := &Matcher{
-		cfg:                           cfg,
-		log:                           logging.MustGetLogger("matcher"),
-		sessions:                      make(map[SessionID]*Session),
-		participants:                  make(map[ParticipantID]*SessionParticipant),
+		cfg:                 cfg,
+		log:                 logging.MustGetLogger("matcher"),
+		sessions:            make(map[SessionID]*Session),
+		participants:        make(map[ParticipantID]*SessionParticipant),
+		waitingListWatchers: make(map[context.Context]chan []dcrutil.Amount),
+
 		addParticipantRequests:        make(chan addParticipantRequest),
 		cancelWaitingParticipant:      make(chan addParticipantRequest),
 		setParticipantOutputsRequests: make(chan setParticipantOutputsRequest),
 		fundTicketRequests:            make(chan fundTicketRequest),
 		fundSplitTxRequests:           make(chan fundSplitTxRequest),
 		cancelSessionChan:             make(chan cancelSessionChanReq),
+		watchWaitingListRequests:      make(chan watchWaitingListRequest),
+		cancelWaitingListWatcher:      make(chan context.Context),
 	}
 	util.SetLoggerBackend(true, "", "", cfg.LogLevel, m.log)
 
@@ -103,6 +110,7 @@ func (matcher *Matcher) Run() error {
 					matcher.waitingParticipants = append(waiting[:i], waiting[i+1:]...)
 				}
 			}
+			matcher.notifyWaitingListWatchers()
 		case req := <-matcher.setParticipantOutputsRequests:
 			err := matcher.setParticipantsOutputs(&req)
 			if err != nil {
@@ -128,8 +136,34 @@ func (matcher *Matcher) Run() error {
 			matcher.log.Infof("Cancelling session %s", cancelReq.session.ID)
 			cancelReq.session.Canceled = true
 			matcher.removeSession(cancelReq.session, cancelReq.err)
+		case req := <-matcher.watchWaitingListRequests:
+			matcher.log.Debugf("Adding new waiting list watcher")
+			matcher.waitingListWatchers[req.ctx] = req.watcher
+			go func(c context.Context) {
+				<-c.Done()
+				matcher.cancelWaitingListWatcher <- c
+			}(req.ctx)
+		case cancelReq := <-matcher.cancelWaitingListWatcher:
+			matcher.log.Debugf("Removing waiting list watcher")
+			delete(matcher.waitingListWatchers, cancelReq)
 		}
+	}
+}
 
+func (matcher *Matcher) notifyWaitingListWatchers() {
+	amounts := make([]dcrutil.Amount, len(matcher.waitingParticipants))
+	for i, p := range matcher.waitingParticipants {
+		amounts[i] = dcrutil.Amount(p.maxAmount)
+	}
+
+	for ctx, w := range matcher.waitingListWatchers {
+		if ctx.Err() == nil {
+			select {
+			case w <- amounts:
+			default:
+				matcher.log.Warningf("Possible block when trying to send to waiting list watcher")
+			}
+		}
 	}
 }
 
@@ -146,6 +180,8 @@ func (matcher *Matcher) addParticipant(req *addParticipantRequest) error {
 			}
 		}(req)
 	}
+
+	matcher.notifyWaitingListWatchers()
 
 	return nil
 }
@@ -491,6 +527,15 @@ func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64) (*
 
 	resp := <-req.resp
 	return resp.participant, resp.err
+}
+
+func (matcher *Matcher) WatchWaitingList(ctx context.Context, watcher chan []dcrutil.Amount) {
+	req := watchWaitingListRequest{
+		ctx:     ctx,
+		watcher: watcher,
+	}
+
+	matcher.watchWaitingListRequests <- req
 }
 
 // SetParticipantsOutputs validates and sets the outputs of the given participant

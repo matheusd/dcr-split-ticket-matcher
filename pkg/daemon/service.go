@@ -22,6 +22,30 @@ func NewSplitTicketMatcherService(matcher *matcher.Matcher) *SplitTicketMatcherS
 	}
 }
 
+func (svc *SplitTicketMatcherService) WatchWaitingList(req *pb.WatchWaitingListRequest, server pb.SplitTicketMatcherService_WatchWaitingListServer) error {
+
+	watcher := make(chan []dcrutil.Amount)
+	svc.matcher.WatchWaitingList(server.Context(), watcher)
+
+	for {
+		select {
+		case <-server.Context().Done():
+			return server.Context().Err()
+		case amounts := <-watcher:
+			resp := &pb.WatchWaitingListResponse{
+				Amounts: make([]uint64, len(amounts)),
+			}
+			for i, a := range amounts {
+				resp.Amounts[i] = uint64(a)
+			}
+			err := server.Send(resp)
+			if err != nil {
+				return err
+			}
+		}
+	}
+}
+
 func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.FindMatchesRequest) (*pb.FindMatchesResponse, error) {
 	sess, err := svc.matcher.AddParticipant(ctx, req.Amount)
 	if err != nil {

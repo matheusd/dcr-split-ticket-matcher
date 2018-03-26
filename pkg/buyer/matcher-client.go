@@ -2,6 +2,9 @@ package buyer
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"strings"
 
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 
@@ -180,6 +183,35 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 	// what it should
 
 	session.splitTx = fundedSplit
+
+	return nil
+}
+
+// FIXME: this really should receive a watcher parameter instead of continually
+// writing to stdout
+func (mc *MatcherClient) WatchWaitingList(ctx context.Context) error {
+	req := &pb.WatchWaitingListRequest{}
+	cli, err := mc.client.WatchWaitingList(ctx, req)
+	if err != nil {
+		return err
+	}
+	go func() {
+		for {
+			resp, err := cli.Recv()
+			if err != nil {
+				if err != io.EOF {
+					fmt.Println("Error reading waiting list: %v", err)
+				}
+				return
+			} else {
+				amnts := make([]string, len(resp.Amounts))
+				for i, a := range resp.Amounts {
+					amnts[i] = dcrutil.Amount(a).String()
+				}
+				fmt.Printf("Waiting participants: [%s]\n", strings.Join(amnts, ", "))
+			}
+		}
+	}()
 
 	return nil
 }

@@ -3,6 +3,7 @@ syntax = "proto3";
 package dcrticketmatcher;
 
 service SplitTicketMatcherService {
+    rpc WatchWaitingList (WatchWaitingListRequest) returns (stream WatchWaitingListResponse);
     rpc FindMatches (FindMatchesRequest) returns (FindMatchesResponse);
     rpc GenerateTicket (GenerateTicketRequest) returns (GenerateTicketResponse);
     rpc FundTicket (FundTicketRequest) returns (FundTicketResponse);
@@ -25,6 +26,11 @@ message OutPoint {
     bytes prev_hash = 1;
     int32 prev_index = 2;
     int32 tree = 3;
+}
+
+message WatchWaitingListRequest {}
+message WatchWaitingListResponse {
+    repeated uint64 amounts = 1;
 }
 
 message FindMatchesRequest {

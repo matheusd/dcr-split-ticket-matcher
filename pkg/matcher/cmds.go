@@ -71,6 +71,11 @@ type (
 		inputScriptSigs [][]byte
 		resp            chan fundSplitTxResponse
 	}
+
+	watchWaitingListRequest struct {
+		ctx     context.Context
+		watcher chan []dcrutil.Amount
+	}
 )
 
 type addParticipantRequestsByAmount []*addParticipantRequest

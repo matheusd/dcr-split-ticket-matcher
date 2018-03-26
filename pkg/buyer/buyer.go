@@ -85,6 +85,12 @@ func buySplitTicket(ctx context.Context, cfg *BuyerConfig) error {
 		return err
 	}
 
+	err = mc.WatchWaitingList(ctx)
+	if err != nil {
+		return err
+	}
+	time.Sleep(150 * time.Millisecond)
+
 	maxAmount, err := dcrutil.NewAmount(cfg.MaxAmount)
 	if err != nil {
 		return err
