@@ -12,6 +12,7 @@ import (
 	"github.com/decred/dcrd/wire"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 type MatcherClient struct {
@@ -19,8 +20,19 @@ type MatcherClient struct {
 	conn   *grpc.ClientConn
 }
 
-func ConnectToMatcherService(matcherHost string) (*MatcherClient, error) {
-	conn, err := grpc.Dial(matcherHost, grpc.WithInsecure())
+func ConnectToMatcherService(matcherHost string, certFile string) (*MatcherClient, error) {
+
+	opt := grpc.WithInsecure()
+	if certFile != "" {
+		creds, err := credentials.NewClientTLSFromFile(certFile, "localhost")
+		if err != nil {
+			return nil, err
+		}
+
+		opt = grpc.WithTransportCredentials(creds)
+	}
+
+	conn, err := grpc.Dial(matcherHost, opt)
 	if err != nil {
 		return nil, err
 	}

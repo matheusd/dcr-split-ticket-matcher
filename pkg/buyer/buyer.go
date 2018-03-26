@@ -98,7 +98,7 @@ func waitForSession(ctx context.Context, cfg *BuyerConfig) sessionWaiterResponse
 	rep := reporterFromContext(ctx)
 
 	rep.reportStage(ctx, StageConnectingToMatcher, nil, cfg)
-	mc, err := ConnectToMatcherService(cfg.MatcherHost)
+	mc, err := ConnectToMatcherService(cfg.MatcherHost, cfg.MatcherCertFile)
 	if err != nil {
 		return sessionWaiterResponse{nil, nil, nil, err}
 	}

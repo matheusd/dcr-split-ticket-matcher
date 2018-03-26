@@ -26,20 +26,21 @@ var (
 )
 
 type BuyerConfig struct {
-	ConfigFile     string  `short:"C" long:"configfile" description:"Path to config file"`
-	WalletCertFile string  `long:"wallet.certfile" description:"Path Wallet rpc.cert file"`
-	WalletHost     string  `long:"wallet.host" description:"Address of the wallet"`
-	Pass           string  `short:"P" long:"pass" description:"Passphrase to unlock the wallet"`
-	MatcherHost    string  `long:"matcher.host" description:"Address of the matcher host"`
-	MaxAmount      float64 `long:"maxamount" description:"Maximum participation amount"`
-	SourceAccount  uint32  `long:"sourceaccount" description:"Source account of funds for purchase"`
-	SStxFeeLimits  uint16  `long:"sstxfeelimits" description:"Fee limit allowance for sstx purchases"`
-	VoteAddress    string  `long:"voteaddress" description:"Voting address of the stakepool"`
-	PoolAddress    string  `long:"pooladdress" description:"Pool fee address of the stakepool"`
-	TestNet        bool    `long:"testnet" description:"Whether this is connecting to a testnet wallet/matcher service"`
-	MaxTime        int     `long:"maxtime" description:"Maximum amount of time (in seconds) to wait for the completion of the split buy"`
-	MaxWaitTime    int     `long:"maxwaittime" description:"Maximum amount of time (in seconds) to wait until a new split ticket session is initiated"`
-	DataDir        string  `long:"datadir" description:"Directory where session data files are stored"`
+	ConfigFile      string  `short:"C" long:"configfile" description:"Path to config file"`
+	WalletCertFile  string  `long:"wallet.certfile" description:"Path Wallet rpc.cert file"`
+	WalletHost      string  `long:"wallet.host" description:"Address of the wallet"`
+	Pass            string  `short:"P" long:"pass" description:"Passphrase to unlock the wallet"`
+	MatcherHost     string  `long:"matcher.host" description:"Address of the matcher host"`
+	MaxAmount       float64 `long:"maxamount" description:"Maximum participation amount"`
+	SourceAccount   uint32  `long:"sourceaccount" description:"Source account of funds for purchase"`
+	SStxFeeLimits   uint16  `long:"sstxfeelimits" description:"Fee limit allowance for sstx purchases"`
+	VoteAddress     string  `long:"voteaddress" description:"Voting address of the stakepool"`
+	PoolAddress     string  `long:"pooladdress" description:"Pool fee address of the stakepool"`
+	TestNet         bool    `long:"testnet" description:"Whether this is connecting to a testnet wallet/matcher service"`
+	MaxTime         int     `long:"maxtime" description:"Maximum amount of time (in seconds) to wait for the completion of the split buy"`
+	MaxWaitTime     int     `long:"maxwaittime" description:"Maximum amount of time (in seconds) to wait until a new split ticket session is initiated"`
+	DataDir         string  `long:"datadir" description:"Directory where session data files are stored"`
+	MatcherCertFile string  `long:"matchercertfile" description:"Location of the certificate file for connecting to the grpc matcher service"`
 
 	Passphrase  []byte
 	ChainParams *chaincfg.Params
@@ -65,14 +66,15 @@ func LoadConfig() (*BuyerConfig, error) {
 	configFilePath := preCfg.ConfigFile
 
 	cfg := &BuyerConfig{
-		MatcherHost:    "localhost:8475",
-		SStxFeeLimits:  uint16(0x5800),
-		ChainParams:    &chaincfg.MainNetParams,
-		WalletCertFile: filepath.Join(dcrutil.AppDataDir("dcrwallet", false), "rpc.cert"),
-		SourceAccount:  0,
-		MaxTime:        30,
-		MaxWaitTime:    120,
-		DataDir:        defaultDataDir,
+		MatcherHost:     "localhost:8475",
+		SStxFeeLimits:   uint16(0x5800),
+		ChainParams:     &chaincfg.MainNetParams,
+		WalletCertFile:  filepath.Join(dcrutil.AppDataDir("dcrwallet", false), "rpc.cert"),
+		SourceAccount:   0,
+		MaxTime:         30,
+		MaxWaitTime:     120,
+		DataDir:         defaultDataDir,
+		MatcherCertFile: filepath.Join(defaultDataDir, "matcher.cert"),
 	}
 
 	parser := flags.NewParser(cfg, flags.Default)

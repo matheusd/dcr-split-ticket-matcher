@@ -1,8 +1,10 @@
 package daemon
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/decred/dcrd/chaincfg"
@@ -13,6 +15,7 @@ import (
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/util"
 	"github.com/op/go-logging"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 // Daemon is the main instance of a running dcr split ticket matcher daemon
@@ -21,6 +24,7 @@ type Daemon struct {
 	log     *logging.Logger
 	matcher *matcher.Matcher
 	wallet  *WalletClient
+	rpcKeys *tls.Certificate
 }
 
 // NewDaemon returns a new daemon instance and prepares it to listen to
@@ -49,6 +53,22 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	}
 
 	d.log.Infof("Using voting address %s", voteProvider.VotingAddress().String())
+
+	if cfg.KeyFile != "" {
+		if _, err = os.Stat(cfg.KeyFile); os.IsNotExist(err) {
+			err = util.GenerateRPCKeyPair(cfg.KeyFile, cfg.CertFile)
+			if err != nil {
+				panic(err)
+			}
+		}
+
+		cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
+		if err != nil {
+			panic(err)
+		}
+
+		d.rpcKeys = &cert
+	}
 
 	mcfg := &matcher.Config{
 		LogLevel:                 cfg.LogLevel,
@@ -80,7 +100,14 @@ func (daemon *Daemon) ListenAndServe() error {
 	daemon.log.Noticef("Running matching engine")
 	go daemon.matcher.Run()
 
-	server := grpc.NewServer()
+	var server *grpc.Server
+	if daemon.rpcKeys != nil {
+		creds := credentials.NewServerTLSFromCert(daemon.rpcKeys)
+		server = grpc.NewServer(grpc.Creds(creds))
+	} else {
+		server = grpc.NewServer()
+	}
+
 	pb.RegisterSplitTicketMatcherServiceServer(server, NewSplitTicketMatcherService(daemon.matcher))
 
 	daemon.log.Noticef("Listening on %s", intf)
