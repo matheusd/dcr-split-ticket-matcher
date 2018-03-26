@@ -38,6 +38,7 @@ type Config struct {
 	VoteAddrProvider         VoteAddressProvider
 	SignPoolSplitOutProvider SignPoolSplitOutputProvider
 	LogLevel                 logging.Level
+	LogDir                   string
 	ChainParams              *chaincfg.Params
 	PoolFee                  float64
 	MaxSessionDuration       time.Duration
@@ -84,7 +85,7 @@ func NewMatcher(cfg *Config) *Matcher {
 		watchWaitingListRequests:      make(chan watchWaitingListRequest),
 		cancelWaitingListWatcher:      make(chan context.Context),
 	}
-	util.SetLoggerBackend(true, "", "", cfg.LogLevel, m.log)
+	util.SetLoggerBackend(true, cfg.LogDir, "dcrstmd-{date}-{time}.log", cfg.LogLevel, m.log)
 
 	m.addParticipantRequests = make(chan addParticipantRequest, cfg.MaxOnlineParticipants)
 

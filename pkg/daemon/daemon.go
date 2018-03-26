@@ -60,6 +60,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		ChainParams:              net,
 		PoolFee:                  7.5,
 		MaxSessionDuration:       30 * time.Second,
+		LogDir:                   cfg.LogDir,
 	}
 	d.matcher = matcher.NewMatcher(mcfg)
 

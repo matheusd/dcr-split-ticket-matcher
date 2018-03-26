@@ -13,12 +13,12 @@ import (
 // ColoredLogFormatter is a formatter that outputs strings with color information
 // (usefull for debugging on console)
 var ColoredLogFormatter = logging.MustStringFormatter(
-	`%{color}%{time:15:04:05.000} %{id:03x} %{shortfunc:20s} ▶ %{level:.4s}%{color:reset} %{message}`,
+	`%{color}%{time:2006-01-02 15:04:05.000} %{id:03x} %{shortfunc:20s} ▶ %{level:.4s}%{color:reset} %{message}`,
 )
 
 // DefaultLogFormatter is the default formatter to be used on lablock projects
 var DefaultLogFormatter = logging.MustStringFormatter(
-	`%{time:15:04:05.000} %{id:03x} %{shortfunc} ▶ %{level:.4s} %{message}`,
+	`%{time:2006-01-02 15:04:05.000} %{id:03x} %{shortfunc} ▶ %{level:.4s} %{message}`,
 )
 
 // LogFileName returns a new non-existant log filename that can be used as a new
@@ -32,7 +32,8 @@ func LogFileName(dir string, baseName string) string {
 
 	i := 0
 	fname := path.Join(dir, baseName)
-	for _, err := os.Stat(fname); !os.IsNotExist(err); i++ {
+	for _, err := os.Stat(fname); (err != nil) && !os.IsNotExist(err); i++ {
+		fmt.Println(fname, err)
 		fname = path.Join(dir, fmt.Sprintf(baseName+"-%3d", i))
 	}
 
