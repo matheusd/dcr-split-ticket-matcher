@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/buyer"
 )
 
@@ -14,6 +15,8 @@ func zeroBytes(b []byte) {
 }
 
 func main() {
+	fmt.Printf("Split ticket buyer version %s\n", pkg.Version)
+
 	reporter := &buyer.StdOutReporter{}
 	ctx := context.WithValue(context.Background(), buyer.ReporterCtxKey, reporter)
 

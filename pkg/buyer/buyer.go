@@ -244,6 +244,7 @@ func saveSession(session *BuyerSession, cfg *BuyerConfig) error {
 	w.WriteString(time.Now().String())
 	w.WriteString(fmt.Sprintf("\nIsVoter = %t\n", session.isVoter))
 	w.WriteString(fmt.Sprintf("Amount = %s\n", session.Amount))
+	w.WriteString(fmt.Sprintf("Session ID = %s\n", session.ID))
 	w.WriteString("\n")
 
 	w.WriteString("Split Transaction hash: ")

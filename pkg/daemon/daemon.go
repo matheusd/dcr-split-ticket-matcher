@@ -84,7 +84,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		PoolFee:                   7.5,
 		MaxSessionDuration:        30 * time.Second,
 		LogBackend:                logBackend,
-		StakeDiffChangeStopWindow: 20,
+		StakeDiffChangeStopWindow: 5,
 	}
 	d.matcher = matcher.NewMatcher(mcfg)
 
