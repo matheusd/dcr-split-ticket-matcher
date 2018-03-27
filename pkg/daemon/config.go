@@ -68,7 +68,7 @@ func LoadConfig() (*Config, error) {
 		DcrdPass: "PASSWORD",
 		DcrdCert: filepath.Join(dcrutil.AppDataDir("dcrd", false), "rpc.cert"),
 
-		DcrwHost: "localhost:19111",
+		DcrwHost: "localhost:19110",
 		DcrwUser: "USER",
 		DcrwPass: "PASSWORD",
 		DcrwCert: filepath.Join(dcrutil.AppDataDir("dcrwallet", false), "rpc.cert"),
