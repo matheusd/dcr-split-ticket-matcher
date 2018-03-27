@@ -101,7 +101,10 @@ func (net *DecredNetwork) onBlockConnected(blockHeader []byte, transactions [][]
 	header.FromBytes(blockHeader)
 	net.ticketPrice = uint64(header.SBits)
 	net.blockHeight = int32(header.Height)
-	net.log.Infof("Block connected. Height=%d StakeDiff=%s", header.Height, dcrutil.Amount(net.ticketPrice))
+	stakeDiffChangeDistance := int32(net.chainParams.WorkDiffWindowSize) -
+		(net.blockHeight % int32(net.chainParams.WorkDiffWindowSize))
+	net.log.Infof("Block connected. Height=%d StakeDiff=%s WindowChangeDist=%d",
+		header.Height, dcrutil.Amount(net.ticketPrice), stakeDiffChangeDistance)
 }
 
 func (net *DecredNetwork) onBlockDisconnected(blockHeader []byte) {

@@ -59,6 +59,7 @@ var (
 	ErrSessionMaxTimeExpired        = merry.New("Maximum time for finishing session has expired")
 	ErrParticipantDisconnected      = merry.New("Participant disconnected from session")
 	ErrTicketScriptSigNotProvided   = merry.New("Ticket scriptSig not provided")
+	ErrStakeDiffTooCloseToChange    = merry.New("Stake difficulty window too close to change")
 )
 
 // SessionParticipantFee returns the fee that a single participant of a ticket

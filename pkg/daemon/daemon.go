@@ -31,6 +31,8 @@ type Daemon struct {
 // NewDaemon returns a new daemon instance and prepares it to listen to
 // requests.
 func NewDaemon(cfg *Config) (*Daemon, error) {
+	net := &chaincfg.TestNet2Params
+
 	d := &Daemon{
 		cfg:    cfg,
 		log:    logging.MustGetLogger("dcr-split-ticket-matcher"),
@@ -41,19 +43,18 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	d.log.SetBackend(logBackend)
 
 	dcfg := &DecredNetworkConfig{
-		Host:       cfg.DcrdHost,
-		Pass:       cfg.DcrdPass,
-		CertFile:   cfg.DcrdCert,
-		User:       cfg.DcrdUser,
-		logBackend: logBackend,
+		Host:        cfg.DcrdHost,
+		Pass:        cfg.DcrdPass,
+		CertFile:    cfg.DcrdCert,
+		User:        cfg.DcrdUser,
+		logBackend:  logBackend,
+		chainParams: net,
 	}
 	dcrd, err := ConnectToDecredNode(dcfg)
 	if err != nil {
 		panic(err)
 	}
 	d.dcrd = dcrd
-
-	net := &chaincfg.TestNet2Params
 
 	//voteAddr, err := dcrutil.DecodeAddress("TsbDGCuLMuVpZeP2HwgUKFm8ucGTCxmbatA") // online voting wallet
 	voteAddr, err := dcrutil.DecodeAddress("Tse7wS9P6V5JCyy4pNEZxW3D39935MB83jX") // non-online wallet
@@ -86,16 +87,17 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	}
 
 	mcfg := &matcher.Config{
-		LogLevel:                 cfg.LogLevel,
-		MinAmount:                2,
-		MaxOnlineParticipants:    10,
-		PriceProvider:            d.dcrd,
-		VoteAddrProvider:         voteProvider,
-		SignPoolSplitOutProvider: d.wallet,
-		ChainParams:              net,
-		PoolFee:                  7.5,
-		MaxSessionDuration:       30 * time.Second,
-		LogBackend:               logBackend,
+		LogLevel:                  cfg.LogLevel,
+		MinAmount:                 2,
+		MaxOnlineParticipants:     10,
+		PriceProvider:             d.dcrd,
+		VoteAddrProvider:          voteProvider,
+		SignPoolSplitOutProvider:  d.wallet,
+		ChainParams:               net,
+		PoolFee:                   7.5,
+		MaxSessionDuration:        30 * time.Second,
+		LogBackend:                logBackend,
+		StakeDiffChangeStopWindow: 20,
 	}
 	d.matcher = matcher.NewMatcher(mcfg)
 

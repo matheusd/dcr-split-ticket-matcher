@@ -31,16 +31,17 @@ type VoteAddressProvider interface {
 
 // Config stores the parameters for the matcher engine
 type Config struct {
-	MinAmount                uint64
-	MaxOnlineParticipants    int
-	PriceProvider            TicketPriceProvider
-	VoteAddrProvider         VoteAddressProvider
-	SignPoolSplitOutProvider SignPoolSplitOutputProvider
-	LogLevel                 logging.Level
-	LogBackend               logging.LeveledBackend
-	ChainParams              *chaincfg.Params
-	PoolFee                  float64
-	MaxSessionDuration       time.Duration
+	MinAmount                 uint64
+	MaxOnlineParticipants     int
+	PriceProvider             TicketPriceProvider
+	VoteAddrProvider          VoteAddressProvider
+	SignPoolSplitOutProvider  SignPoolSplitOutputProvider
+	LogLevel                  logging.Level
+	LogBackend                logging.LeveledBackend
+	ChainParams               *chaincfg.Params
+	PoolFee                   float64
+	MaxSessionDuration        time.Duration
+	StakeDiffChangeStopWindow int32
 }
 
 type cancelSessionChanReq struct {
@@ -516,6 +517,13 @@ func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64) (*
 	// ticket fee + max amount of commitments in an SSTX)
 	if len(matcher.waitingParticipants) >= matcher.cfg.MaxOnlineParticipants {
 		return nil, ErrTooManyParticipants
+	}
+
+	blockHeight := matcher.cfg.PriceProvider.CurrentBlockHeight()
+	stakeDiffChangeDistance := blockHeight % int32(matcher.cfg.ChainParams.WorkDiffWindowSize)
+	if (stakeDiffChangeDistance < matcher.cfg.StakeDiffChangeStopWindow) ||
+		(stakeDiffChangeDistance > int32(matcher.cfg.ChainParams.WorkDiffWindowSize)-matcher.cfg.StakeDiffChangeStopWindow) {
+		return nil, ErrStakeDiffTooCloseToChange
 	}
 
 	req := addParticipantRequest{
