@@ -31,13 +31,19 @@ $ go build ./cmd/watcher
 
 ## Running the Service
 
-Just run the executable. Easiest to do the following during development:
+Copy the configuration file to the respective dir and configure it:
+
+```
+$ mkdir -p ~/.dcrstmd
+$ cp samples/dcrstmd.conf ~/.dcrstmd
+```
+
+Run the executable. During development, it is easier to do the following:
 
 ```
 $ go run cmd/dcrstmd/main.go
 ```
 
-This is still in alpha, so the service doesn't have config files yet. It will create a `./data` subdir with the tls key and cert files, plus log dir.
 
 ## Running the Buyer
 

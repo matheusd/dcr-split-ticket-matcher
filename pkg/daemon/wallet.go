@@ -4,15 +4,22 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
-	"path/filepath"
 
 	"github.com/decred/dcrd/dcrjson"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/rpcclient"
 	"github.com/decred/dcrd/wire"
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/util"
 	logging "github.com/op/go-logging"
 )
+
+type WalletConfig struct {
+	Host     string
+	User     string
+	Pass     string
+	CertFile string
+
+	logBackend logging.LeveledBackend
+}
 
 type WalletClient struct {
 	log            *logging.Logger
@@ -20,48 +27,44 @@ type WalletClient struct {
 	poolFeeAddress dcrutil.Address
 }
 
-func NewWalletClient() *WalletClient {
+func ConnectToDcrWallet(cfg *WalletConfig) (*WalletClient, error) {
 
 	w := &WalletClient{
 		log: logging.MustGetLogger("dcrwallet client"),
 	}
 
-	util.SetLoggerBackend(true, "", "", logging.INFO, w.log)
+	w.log.SetBackend(cfg.logBackend)
 
-	w.connectToDcrWallet()
-
-	return w
-}
-
-func (wallet *WalletClient) connectToDcrWallet() {
-	dcrwalletHomeDir := dcrutil.AppDataDir("dcrwallet", false)
-	certs, err := ioutil.ReadFile(filepath.Join(dcrwalletHomeDir, "ticket-split-wallet", "rpc.cert"))
+	certs, err := ioutil.ReadFile(cfg.CertFile)
 	if err != nil {
-		wallet.log.Fatalf("Error reading dcrwallet cert: %v", err)
+		return nil, err
 	}
+
 	connCfg := &rpcclient.ConnConfig{
-		Host:         "localhost:19229",
+		Host:         cfg.Host,
 		Endpoint:     "ws",
-		User:         "USER",
-		Pass:         "PASSWORD",
+		User:         cfg.User,
+		Pass:         cfg.Pass,
 		Certificates: certs,
 	}
 
 	// TODO: handle client not connecting to daemon
 	client, err := rpcclient.New(connCfg, nil)
 	if err != nil {
-		wallet.log.Fatalf("Error creating new rpc client: %v", err)
+		return nil, err
 	}
 
 	addr, err := client.GetAccountAddress("default")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	wallet.client = client
+	w.client = client
 
-	wallet.log.Infof("Account address %s", addr)
-	wallet.poolFeeAddress = addr
+	w.log.Infof("Account address %s", addr)
+	w.poolFeeAddress = addr
+
+	return w, nil
 }
 
 func (wallet *WalletClient) SignRevocation(ticket, revocation *wire.MsgTx) (*wire.MsgTx, error) {

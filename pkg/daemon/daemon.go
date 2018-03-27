@@ -34,9 +34,8 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	net := &chaincfg.TestNet2Params
 
 	d := &Daemon{
-		cfg:    cfg,
-		log:    logging.MustGetLogger("dcr-split-ticket-matcher"),
-		wallet: NewWalletClient(),
+		cfg: cfg,
+		log: logging.MustGetLogger("dcr-split-ticket-matcher"),
 	}
 
 	logBackend := util.StandardLogBackend(true, cfg.LogDir, "dcrstmd-{date}-{time}.log", cfg.LogLevel)
@@ -58,18 +57,35 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	}
 	d.dcrd = dcrd
 
+	dcrwcfg := &WalletConfig{
+		Host:       cfg.DcrwHost,
+		User:       cfg.DcrwUser,
+		Pass:       cfg.DcrwPass,
+		CertFile:   cfg.DcrwCert,
+		logBackend: logBackend,
+	}
+	dcrw, err := ConnectToDcrWallet(dcrwcfg)
+	if err != nil {
+		panic(err)
+	}
+	d.wallet = dcrw
+
 	if cfg.KeyFile != "" {
 		if _, err = os.Stat(cfg.KeyFile); os.IsNotExist(err) {
 			err = util.GenerateRPCKeyPair(cfg.KeyFile, cfg.CertFile)
 			if err != nil {
 				panic(err)
 			}
+			d.log.Noticef("Generated key (%s) and cert (%s) files",
+				cfg.KeyFile, cfg.CertFile)
 		}
 
 		cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
 		if err != nil {
 			panic(err)
 		}
+
+		d.log.Noticef("Loaded key file at %s", cfg.KeyFile)
 
 		d.rpcKeys = &cert
 	}
