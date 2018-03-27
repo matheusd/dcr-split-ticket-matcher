@@ -1,0 +1,126 @@
+package daemon
+
+import (
+	"io/ioutil"
+
+	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/rpcclient"
+	"github.com/decred/dcrd/wire"
+	logging "github.com/op/go-logging"
+)
+
+type DecredNetworkConfig struct {
+	Host        string
+	User        string
+	Pass        string
+	CertFile    string
+	logBackend  logging.LeveledBackend
+	chainParams *chaincfg.Params
+}
+
+type DecredNetwork struct {
+	client      *rpcclient.Client
+	blockHeight int32
+	log         *logging.Logger
+	ticketPrice uint64
+	chainParams *chaincfg.Params
+}
+
+func ConnectToDecredNode(cfg *DecredNetworkConfig) (*DecredNetwork, error) {
+
+	log := logging.MustGetLogger("decred-network")
+	log.SetBackend(cfg.logBackend)
+
+	net := &DecredNetwork{
+		log:         log,
+		chainParams: cfg.chainParams,
+	}
+
+	// Connect to local dcrd RPC server using websockets.
+	certs, err := ioutil.ReadFile(cfg.CertFile)
+	if err != nil {
+		return nil, err
+	}
+	connCfg := &rpcclient.ConnConfig{
+		Host:         cfg.Host,
+		Endpoint:     "ws",
+		User:         cfg.User,
+		Pass:         cfg.Pass,
+		Certificates: certs,
+	}
+	client, err := rpcclient.New(connCfg, net.notificationHandlers())
+	if err != nil {
+		return nil, err
+	}
+	net.client = client
+
+	// Register for block connect and disconnect notifications.
+	if err := client.NotifyBlocks(); err != nil {
+		return nil, err
+	}
+
+	err = net.updateFromBestBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	net.log.Noticef("Connected to the decred network. Height=%d StakeDiff=%s", net.blockHeight, dcrutil.Amount(net.ticketPrice))
+
+	return net, nil
+}
+
+func (net *DecredNetwork) updateFromBestBlock() error {
+	bestBlockHash, blockHeight, err := net.client.GetBestBlock()
+	if err != nil {
+		return err
+	}
+
+	bestBlock, err := net.client.GetBlock(bestBlockHash)
+	if err != nil {
+		return err
+	}
+
+	net.ticketPrice = uint64(bestBlock.Header.SBits)
+	net.blockHeight = int32(blockHeight)
+
+	return nil
+}
+
+func (net *DecredNetwork) notificationHandlers() *rpcclient.NotificationHandlers {
+	return &rpcclient.NotificationHandlers{
+		OnBlockConnected:    net.onBlockConnected,
+		OnBlockDisconnected: net.onBlockDisconnected,
+		OnReorganization:    net.onReorganization,
+	}
+}
+
+func (net *DecredNetwork) onBlockConnected(blockHeader []byte, transactions [][]byte) {
+	header := &wire.BlockHeader{}
+	header.FromBytes(blockHeader)
+	net.ticketPrice = uint64(header.SBits)
+	net.blockHeight = int32(header.Height)
+	net.log.Infof("Block connected. Height=%d StakeDiff=%s", header.Height, dcrutil.Amount(net.ticketPrice))
+}
+
+func (net *DecredNetwork) onBlockDisconnected(blockHeader []byte) {
+	header := &wire.BlockHeader{}
+	header.FromBytes(blockHeader)
+	net.log.Infof("Block disconnected. Height=%d", header.Height)
+	net.updateFromBestBlock()
+}
+
+func (net *DecredNetwork) onReorganization(oldHash *chainhash.Hash, oldHeight int32,
+	newHash *chainhash.Hash, newHeight int32) {
+	net.log.Info("Chain reorg. OldHeight=%d NewHeight=%d", oldHeight, newHeight)
+	net.updateFromBestBlock()
+}
+
+func (net *DecredNetwork) CurrentTicketPrice() uint64 {
+	return net.ticketPrice
+}
+
+func (net *DecredNetwork) CurrentBlockHeight() int32 {
+	return net.blockHeight
+}

@@ -54,11 +54,9 @@ func LogFileBackend(dir string, baseName string) logging.Backend {
 	return fmtd
 }
 
-// SetLoggerBackend sets the backends of the given logger, respecting the
-// desired config parameters
-func SetLoggerBackend(toStdErr bool, dir string, baseName string, logLevel logging.Level,
-	logger *logging.Logger) {
-
+// StandardLogBackend returns a standard backend that can output to stderr and
+// to a file
+func StandardLogBackend(toStdErr bool, dir string, baseName string, logLevel logging.Level) logging.LeveledBackend {
 	var backends []logging.Backend
 
 	if toStdErr {
@@ -81,6 +79,14 @@ func SetLoggerBackend(toStdErr bool, dir string, baseName string, logLevel loggi
 		backends = append(backends, fileBackendLvl)
 	}
 
-	multi := logging.MultiLogger(backends...)
-	logger.SetBackend(multi)
+	return logging.MultiLogger(backends...)
+}
+
+// SetLoggerBackend sets the backends of the given logger, respecting the
+// desired config parameters
+func SetLoggerBackend(toStdErr bool, dir string, baseName string, logLevel logging.Level,
+	logger *logging.Logger) {
+
+	backend := StandardLogBackend(toStdErr, dir, baseName, logLevel)
+	logger.SetBackend(backend)
 }

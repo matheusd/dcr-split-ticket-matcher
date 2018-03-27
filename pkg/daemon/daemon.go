@@ -25,6 +25,7 @@ type Daemon struct {
 	matcher *matcher.Matcher
 	wallet  *WalletClient
 	rpcKeys *tls.Certificate
+	dcrd    *DecredNetwork
 }
 
 // NewDaemon returns a new daemon instance and prepares it to listen to
@@ -36,7 +37,21 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		wallet: NewWalletClient(),
 	}
 
-	util.SetLoggerBackend(true, "", "", cfg.LogLevel, d.log)
+	logBackend := util.StandardLogBackend(true, "", "", cfg.LogLevel)
+	d.log.SetBackend(logBackend)
+
+	dcfg := &DecredNetworkConfig{
+		Host:       cfg.DcrdHost,
+		Pass:       cfg.DcrdPass,
+		CertFile:   cfg.DcrdCert,
+		User:       cfg.DcrdUser,
+		logBackend: logBackend,
+	}
+	dcrd, err := ConnectToDecredNode(dcfg)
+	if err != nil {
+		panic(err)
+	}
+	d.dcrd = dcrd
 
 	net := &chaincfg.TestNet2Params
 
@@ -74,7 +89,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		LogLevel:                 cfg.LogLevel,
 		MinAmount:                2,
 		MaxOnlineParticipants:    10,
-		PriceProvider:            &util.FixedTicketPriceProvider{TicketPrice: 51.938 * 1e8, BlockHeight: 260000},
+		PriceProvider:            d.dcrd,
 		VoteAddrProvider:         voteProvider,
 		SignPoolSplitOutProvider: d.wallet,
 		ChainParams:              net,
