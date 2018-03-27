@@ -6,7 +6,7 @@ See it in action:
 
 [video - multiple decrediton instances in split ticket](https://streamable.com/qnfsm)
 
-[Published Testnet tx](https://testnet.dcrdata.org/tx/3fef0f86d50e2f334ee10e3547ad24c2cac46b1439f1bd40ce764f07f0422cd8)
+[Published Testnet tx](https://testnet.dcrdata.org/tx/134c53c84bdf914e21b9fb04dadcbf178e4de4e2b7d225f9c2e91ec5c60787d7)
 
 ## Current Limitations
 
