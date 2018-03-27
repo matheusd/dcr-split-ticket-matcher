@@ -81,3 +81,12 @@ If a session is started, the buyer will go through the steps required to purchas
 Once a session is completed, the buyer will dump the raw transaction data for the split transaction, the ticket purchase and the future revocation transaction.
 
 The current alpha version of the service does not automatically publish the transactions to the decred network. This is being done for debugging reasons, in order to allow manual transaction conference before submitting to the network. The beta version should automatically publish the transactions.
+
+
+## Next Steps
+
+- Writeup of the general challenges of ticket splitting
+- Writeup on the different alternatives for moving on with the development
+- When Roadmap
+- ???
+- :rocket::moon:
