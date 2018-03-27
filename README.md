@@ -1,6 +1,6 @@
 # DCR Split Ticket Matcher Service
 
-POC split ticket matcher service. [Design](/docs/design.md).
+Alpha vesion of split ticket matcher service. [Design](/docs/design.md).
 
 See it in action:
 

@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/dcrutil"
 
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/util"
@@ -42,6 +42,8 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	logBackend := util.StandardLogBackend(true, cfg.LogDir, "dcrstmd-{date}-{time}.log", cfg.LogLevel)
 	d.log.SetBackend(logBackend)
 
+	d.log.Noticef("Starting dcrstmd version %s", pkg.Version)
+
 	dcfg := &DecredNetworkConfig{
 		Host:        cfg.DcrdHost,
 		Pass:        cfg.DcrdPass,
@@ -55,20 +57,6 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		panic(err)
 	}
 	d.dcrd = dcrd
-
-	//voteAddr, err := dcrutil.DecodeAddress("TsbDGCuLMuVpZeP2HwgUKFm8ucGTCxmbatA") // online voting wallet
-	voteAddr, err := dcrutil.DecodeAddress("Tse7wS9P6V5JCyy4pNEZxW3D39935MB83jX") // non-online wallet
-	if err != nil {
-		panic(err)
-	}
-
-	// voteProvider := &util.FixedVoteAddressProvider{Address: voteAddr}
-	voteProvider, err := util.NewScriptVoteAddressProvider(voteAddr, 1440, net)
-	if err != nil {
-		panic(err)
-	}
-
-	d.log.Infof("Using voting address %s", voteProvider.VotingAddress().String())
 
 	if cfg.KeyFile != "" {
 		if _, err = os.Stat(cfg.KeyFile); os.IsNotExist(err) {
@@ -91,7 +79,6 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		MinAmount:                 2,
 		MaxOnlineParticipants:     10,
 		PriceProvider:             d.dcrd,
-		VoteAddrProvider:          voteProvider,
 		SignPoolSplitOutProvider:  d.wallet,
 		ChainParams:               net,
 		PoolFee:                   7.5,

@@ -34,7 +34,6 @@ type Config struct {
 	MinAmount                 uint64
 	MaxOnlineParticipants     int
 	PriceProvider             TicketPriceProvider
-	VoteAddrProvider          VoteAddressProvider
 	SignPoolSplitOutProvider  SignPoolSplitOutputProvider
 	LogLevel                  logging.Level
 	LogBackend                logging.LeveledBackend

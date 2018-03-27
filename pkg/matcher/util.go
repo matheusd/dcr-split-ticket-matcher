@@ -220,9 +220,9 @@ func SelectContributionAmounts(maxAmounts []dcrutil.Amount, ticketPrice, partFee
 	}
 
 	// totalLeft is the remaining part of the ticket that needs to be distributed
-	// among the participants. It already considers the poolPartFee and partFee
-	// as payed by each participant.
-	totalLeft := ticketPrice - partFee*dcrutil.Amount(nparts) - poolPartFee*dcrutil.Amount(nparts)
+	// among the participants. It considers the pool fee included in output 1 as
+	// accounted for.
+	totalLeft := ticketPrice - poolPartFee*dcrutil.Amount(nparts)
 
 	// Algorithm sketch: loop starting from lowest amount to highest
 	// if all participants starting at the current one can fill the ticket, then
