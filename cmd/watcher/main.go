@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -24,8 +23,8 @@ func (w stdoutListWatcher) ListChanged(amounts []dcrutil.Amount) {
 
 func main() {
 
-	matcherHost := "localhost:8475"
-	certFile := filepath.Join(dcrutil.AppDataDir("splitticketbuyer", false), "matcher.cert")
+	matcherHost := "testnet-split-tickets.matheusd.com:8475"
+	certFile := "samples/testnet-matcher-rpc.cert"
 
 	mc, err := buyer.ConnectToMatcherService(matcherHost, certFile)
 	if err != nil {
