@@ -43,6 +43,7 @@ env GOOS=linux GOARCH=amd64 \
 if [[ $? != 0 ]] ; then exit 1 ; fi
 
 cp samples/*.conf dist/release/split-tickets
+cp samples/*.cert dist/release/split-tickets
 cp docs/release-readme.md dist/release/split-tickets/README.md
 
 ZIPFILE="dcr-split-ticket-$VERSION.zip"

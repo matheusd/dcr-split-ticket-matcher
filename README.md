@@ -59,8 +59,10 @@ Edit the config file according to your needs. At the very least, you'll need to 
 You will also need to grab the `rpc.cert` file from the service you want to connect to and put it on that same dir. If you're running the service locally:
 
 ```
-$ cp ./data/rpc.cert ~/.splitticketbuyer/rpc.cert
+$ cp ~/.dcrstmd/rpc.cert ~/.splitticketbuyer/matcher.cert
 ```
+
+If you're trying to connect to the online testnet matcher service, use the file `samples/testnet-matcher-rpc.cert` and configure the buyer to connect to `testnet-split-tickets.matheusd.com`.
 
 Run the buyer normally. If testing purchasing with multiple wallets, you can create a different a different config file and run:
 
