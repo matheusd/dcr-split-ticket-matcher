@@ -11,7 +11,6 @@ import (
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
 	"github.com/decred/dcrwallet/wallet/txrules"
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/util"
 	logging "github.com/op/go-logging"
 )
 
@@ -38,7 +37,7 @@ type Config struct {
 	VoteAddrProvider         VoteAddressProvider
 	SignPoolSplitOutProvider SignPoolSplitOutputProvider
 	LogLevel                 logging.Level
-	LogDir                   string
+	LogBackend               logging.LeveledBackend
 	ChainParams              *chaincfg.Params
 	PoolFee                  float64
 	MaxSessionDuration       time.Duration
@@ -85,7 +84,7 @@ func NewMatcher(cfg *Config) *Matcher {
 		watchWaitingListRequests:      make(chan watchWaitingListRequest),
 		cancelWaitingListWatcher:      make(chan context.Context),
 	}
-	util.SetLoggerBackend(true, cfg.LogDir, "dcrstmd-{date}-{time}.log", cfg.LogLevel, m.log)
+	m.log.SetBackend(cfg.LogBackend)
 
 	m.addParticipantRequests = make(chan addParticipantRequest, cfg.MaxOnlineParticipants)
 

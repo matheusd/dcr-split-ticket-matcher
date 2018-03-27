@@ -37,7 +37,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		wallet: NewWalletClient(),
 	}
 
-	logBackend := util.StandardLogBackend(true, "", "", cfg.LogLevel)
+	logBackend := util.StandardLogBackend(true, cfg.LogDir, "dcrstmd-{date}-{time}.log", cfg.LogLevel)
 	d.log.SetBackend(logBackend)
 
 	dcfg := &DecredNetworkConfig{
@@ -95,7 +95,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		ChainParams:              net,
 		PoolFee:                  7.5,
 		MaxSessionDuration:       30 * time.Second,
-		LogDir:                   cfg.LogDir,
+		LogBackend:               logBackend,
 	}
 	d.matcher = matcher.NewMatcher(mcfg)
 
