@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"io/ioutil"
+	"time"
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -68,7 +69,31 @@ func ConnectToDecredNode(cfg *DecredNetworkConfig) (*DecredNetwork, error) {
 
 	net.log.Noticef("Connected to the decred network. Height=%d StakeDiff=%s", net.blockHeight, dcrutil.Amount(net.ticketPrice))
 
+	go net.maintainClient()
+
 	return net, nil
+}
+
+func (net *DecredNetwork) maintainClient() {
+	for {
+		time.Sleep(30 * time.Second)
+		net.log.Debug("Attempting to ping dcrd node")
+		err := net.client.Ping()
+		if err == nil {
+			continue
+		}
+
+		net.log.Errorf("Error pinging dcrd: %v", err)
+		net.client.Disconnect()
+		err = net.updateFromBestBlock()
+		if err != nil {
+			net.log.Errorf("Error grabing dcrd best block after disconnect: %v", err)
+			continue
+		}
+
+		net.log.Infof("Reconnected and updated best block to %d StakeDiff %s",
+			net.blockHeight, dcrutil.Amount(net.ticketPrice))
+	}
 }
 
 func (net *DecredNetwork) updateFromBestBlock() error {
@@ -126,4 +151,8 @@ func (net *DecredNetwork) CurrentTicketPrice() uint64 {
 
 func (net *DecredNetwork) CurrentBlockHeight() int32 {
 	return net.blockHeight
+}
+
+func (net *DecredNetwork) ConnectedToDecredNetwork() bool {
+	return !net.client.Disconnected()
 }

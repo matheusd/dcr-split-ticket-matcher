@@ -60,6 +60,7 @@ var (
 	ErrParticipantDisconnected      = merry.New("Participant disconnected from session")
 	ErrTicketScriptSigNotProvided   = merry.New("Ticket scriptSig not provided")
 	ErrStakeDiffTooCloseToChange    = merry.New("Stake difficulty window too close to change")
+	ErrNotConnectedToDecredNet = merry.New("Not connected to the decred network")
 )
 
 // SessionParticipantFee returns the fee that a single participant of a ticket

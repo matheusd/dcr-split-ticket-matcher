@@ -14,11 +14,12 @@ import (
 type Config struct {
 	ConfigFile string `short:"C" long:"configfile" description:"Path to config file"`
 
-	Port     int `long:"port" description:"Port to run the service on"`
-	LogLevel logging.Level
-	LogDir   string
-	KeyFile  string
-	CertFile string
+	Port         int `long:"port" description:"Port to run the service on"`
+	LogLevel     logging.Level
+	LogLevelName string `long:"loglevel" description:"Log Level (CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG)"`
+	LogDir       string
+	KeyFile      string
+	CertFile     string
 
 	DcrdHost string `long:"dcrdhost" description:"Address of the dcrd daemon"`
 	DcrdUser string `long:"dcrduser" description:"Username of the rpc connection to dcrd"`
@@ -58,10 +59,11 @@ func LoadConfig() (*Config, error) {
 	configFilePath := preCfg.ConfigFile
 
 	cfg := &Config{
-		Port:      8475,
-		MinAmount: 2.0,
-		LogLevel:  logging.INFO,
-		LogDir:    filepath.Join(defaultDataDir, "logs"),
+		Port:         8475,
+		MinAmount:    2.0,
+		LogLevel:     logging.INFO,
+		LogLevelName: logging.INFO.String(),
+		LogDir:       filepath.Join(defaultDataDir, "logs"),
 
 		KeyFile:  filepath.Join(defaultDataDir, "rpc.key"),
 		CertFile: filepath.Join(defaultDataDir, "rpc.cert"),
@@ -87,6 +89,12 @@ func LoadConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	logLvl, err := logging.LogLevel(cfg.LogLevelName)
+	if err != nil {
+		return nil, err
+	}
+	cfg.LogLevel = logLvl
 
 	return cfg, nil
 }

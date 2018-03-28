@@ -17,6 +17,7 @@ import (
 type TicketPriceProvider interface {
 	CurrentTicketPrice() uint64
 	CurrentBlockHeight() int32
+	ConnectedToDecredNetwork() bool
 }
 
 type SignPoolSplitOutputProvider interface {
@@ -513,6 +514,10 @@ func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64) (*
 	if (stakeDiffChangeDistance < matcher.cfg.StakeDiffChangeStopWindow) ||
 		(stakeDiffChangeDistance > int32(matcher.cfg.ChainParams.WorkDiffWindowSize)-matcher.cfg.StakeDiffChangeStopWindow) {
 		return nil, ErrStakeDiffTooCloseToChange
+	}
+
+	if !matcher.cfg.PriceProvider.ConnectedToDecredNetwork() {
+		return nil, ErrNotConnectedToDecredNet
 	}
 
 	req := addParticipantRequest{
