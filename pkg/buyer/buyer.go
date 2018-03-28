@@ -276,5 +276,7 @@ func saveSession(session *BuyerSession, cfg *BuyerConfig) error {
 	w.Flush()
 	f.Sync()
 
+	fmt.Printf("\n\nSaved session at %s\n", fname)
+
 	return nil
 }

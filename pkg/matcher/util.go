@@ -252,6 +252,7 @@ func SelectContributionAmounts(maxAmounts []dcrutil.Amount, ticketPrice, partFee
 			for j := i; j < nparts; j++ {
 				contribs[j] += max
 				totalLeft -= max
+				remainingMax[j] -= max
 			}
 		}
 	}
