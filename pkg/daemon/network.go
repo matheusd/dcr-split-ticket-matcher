@@ -75,12 +75,28 @@ func ConnectToDecredNode(cfg *DecredNetworkConfig) (*DecredNetwork, error) {
 }
 
 func (net *DecredNetwork) maintainClient() {
+	pingResChan := make(chan error)
+	var sleepTime time.Duration = 30
+
+	go func() {
+		for {
+			net.log.Debug("Attempting to ping dcrd node")
+			pingResChan <- net.client.Ping()
+			time.Sleep(sleepTime * time.Second)
+		}
+	}()
+
+	var err error
+
 	for {
-		time.Sleep(30 * time.Second)
-		net.log.Debug("Attempting to ping dcrd node")
-		err := net.client.Ping()
-		if err == nil {
-			continue
+		timeout := time.NewTimer((sleepTime + 5) * time.Second)
+		select {
+		case err = <-pingResChan:
+			if err == nil {
+				continue
+			}
+		case <-timeout.C:
+			err = ErrDcrdPingTimeout
 		}
 
 		net.log.Errorf("Error pinging dcrd: %v", err)
@@ -115,10 +131,15 @@ func (net *DecredNetwork) updateFromBestBlock() error {
 
 func (net *DecredNetwork) notificationHandlers() *rpcclient.NotificationHandlers {
 	return &rpcclient.NotificationHandlers{
+		OnClientConnected:   net.onClientConnected,
 		OnBlockConnected:    net.onBlockConnected,
 		OnBlockDisconnected: net.onBlockDisconnected,
 		OnReorganization:    net.onReorganization,
 	}
+}
+
+func (net *DecredNetwork) onClientConnected() {
+	net.log.Infof("Connected to the dcrd daemon")
 }
 
 func (net *DecredNetwork) onBlockConnected(blockHeader []byte, transactions [][]byte) {
