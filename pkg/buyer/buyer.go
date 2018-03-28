@@ -12,6 +12,7 @@ import (
 
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
+	pbm "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 )
 
@@ -40,6 +41,7 @@ type BuyerSession struct {
 
 type Reporter interface {
 	reportStage(context.Context, BuyerStage, *BuyerSession, *BuyerConfig)
+	reportMatcherStatus(*pbm.StatusResponse)
 }
 
 type stdoutListWatcher struct{}
@@ -102,6 +104,12 @@ func waitForSession(ctx context.Context, cfg *BuyerConfig) sessionWaiterResponse
 	if err != nil {
 		return sessionWaiterResponse{nil, nil, nil, err}
 	}
+
+	status, err := mc.Status(ctx)
+	if err != nil {
+		return sessionWaiterResponse{nil, nil, nil, err}
+	}
+	rep.reportMatcherStatus(status)
 
 	rep.reportStage(ctx, StageConnectingToWallet, nil, cfg)
 	wc, err := ConnectToWallet(cfg.WalletHost, cfg.WalletCertFile)

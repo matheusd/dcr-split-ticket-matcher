@@ -46,6 +46,11 @@ func ConnectToMatcherService(matcherHost string, certFile string) (*MatcherClien
 	return mc, err
 }
 
+func (mc *MatcherClient) Status(ctx context.Context) (*pb.StatusResponse, error) {
+	req := &pb.StatusRequest{}
+	return mc.client.Status(ctx, req)
+}
+
 func (mc *MatcherClient) Participate(ctx context.Context, maxAmount dcrutil.Amount) (*BuyerSession, error) {
 	req := &pb.FindMatchesRequest{Amount: uint64(maxAmount)}
 	resp, err := mc.client.FindMatches(ctx, req)

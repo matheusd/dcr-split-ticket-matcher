@@ -29,6 +29,8 @@ type Config struct {
 	DcrwUser string `long:"dcrwuser" description:"Username of the rpc connection to dcrwallet"`
 	DcrwPass string `long:"dcrwpass" description:"Password of the rpc connection to dcrwallet"`
 	DcrwCert string `long:"dcrwcert" description:"Location of the rpc.cert file of dcrwallet"`
+
+	MinAmount float64 `long:"minamount" description:"Minimum amount to participate on a split ticket (in DCR)"`
 }
 
 var (
@@ -56,9 +58,10 @@ func LoadConfig() (*Config, error) {
 	configFilePath := preCfg.ConfigFile
 
 	cfg := &Config{
-		Port:     8475,
-		LogLevel: logging.INFO,
-		LogDir:   filepath.Join(defaultDataDir, "logs"),
+		Port:      8475,
+		MinAmount: 2.0,
+		LogLevel:  logging.INFO,
+		LogDir:    filepath.Join(defaultDataDir, "logs"),
 
 		KeyFile:  filepath.Join(defaultDataDir, "rpc.key"),
 		CertFile: filepath.Join(defaultDataDir, "rpc.cert"),

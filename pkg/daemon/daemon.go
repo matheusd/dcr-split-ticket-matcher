@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/dcrutil"
 
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
@@ -90,10 +91,15 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		d.rpcKeys = &cert
 	}
 
+	minAmount, err := dcrutil.NewAmount(cfg.MinAmount)
+	if err != nil {
+		panic(err)
+	}
+	d.log.Infof("Minimum participation amount %s", minAmount)
+
 	mcfg := &matcher.Config{
 		LogLevel:                  cfg.LogLevel,
-		MinAmount:                 2,
-		MaxOnlineParticipants:     10,
+		MinAmount:                 uint64(minAmount),
 		PriceProvider:             d.dcrd,
 		SignPoolSplitOutProvider:  d.wallet,
 		ChainParams:               net,
@@ -128,7 +134,8 @@ func (daemon *Daemon) ListenAndServe() error {
 		server = grpc.NewServer()
 	}
 
-	pb.RegisterSplitTicketMatcherServiceServer(server, NewSplitTicketMatcherService(daemon.matcher))
+	svc := NewSplitTicketMatcherService(daemon.matcher, daemon.dcrd)
+	pb.RegisterSplitTicketMatcherServiceServer(server, svc)
 
 	daemon.log.Noticef("Listening on %s", intf)
 	server.Serve(lis)

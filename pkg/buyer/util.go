@@ -8,11 +8,17 @@ import (
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
+	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 )
 
 // StdOutReporter implements the BuyerReporter interface by generating descriptive
 // messages to stdout
 type StdOutReporter struct {
+}
+
+func (rep *StdOutReporter) reportMatcherStatus(status *pb.StatusResponse) {
+	price := dcrutil.Amount(status.TicketPrice)
+	fmt.Printf("Matcher ticket price: %s\n", price)
 }
 
 func (rep *StdOutReporter) reportStage(ctx context.Context, stage BuyerStage, session *BuyerSession, cfg *BuyerConfig) {
@@ -98,6 +104,9 @@ func (rep *StdOutReporter) reportStage(ctx context.Context, stage BuyerStage, se
 type NullReporter struct{}
 
 func (rep NullReporter) reportStage(ctx context.Context, stage BuyerStage, session *BuyerSession, cfg *BuyerConfig) {
+}
+
+func (rep NullReporter) reportMatcherStatus(status *pb.StatusResponse) {
 }
 
 func reporterFromContext(ctx context.Context) Reporter {

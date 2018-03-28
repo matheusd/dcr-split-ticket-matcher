@@ -13,12 +13,14 @@ import (
 )
 
 type SplitTicketMatcherService struct {
-	matcher *matcher.Matcher
+	matcher       *matcher.Matcher
+	priceProvider matcher.TicketPriceProvider
 }
 
-func NewSplitTicketMatcherService(matcher *matcher.Matcher) *SplitTicketMatcherService {
+func NewSplitTicketMatcherService(matcher *matcher.Matcher, priceProvider matcher.TicketPriceProvider) *SplitTicketMatcherService {
 	return &SplitTicketMatcherService{
-		matcher: matcher,
+		matcher:       matcher,
+		priceProvider: priceProvider,
 	}
 }
 
@@ -175,6 +177,6 @@ func (svc *SplitTicketMatcherService) FundSplitTx(ctx context.Context, req *pb.F
 
 func (svc *SplitTicketMatcherService) Status(context.Context, *pb.StatusRequest) (*pb.StatusResponse, error) {
 	return &pb.StatusResponse{
-		TicketPrice: 666,
+		TicketPrice: svc.priceProvider.CurrentTicketPrice(),
 	}, nil
 }

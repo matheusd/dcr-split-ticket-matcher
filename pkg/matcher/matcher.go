@@ -32,7 +32,6 @@ type VoteAddressProvider interface {
 // Config stores the parameters for the matcher engine
 type Config struct {
 	MinAmount                 uint64
-	MaxOnlineParticipants     int
 	PriceProvider             TicketPriceProvider
 	SignPoolSplitOutProvider  SignPoolSplitOutputProvider
 	LogLevel                  logging.Level
@@ -85,8 +84,6 @@ func NewMatcher(cfg *Config) *Matcher {
 		cancelWaitingListWatcher:      make(chan context.Context),
 	}
 	m.log.SetBackend(cfg.LogBackend)
-
-	m.addParticipantRequests = make(chan addParticipantRequest, cfg.MaxOnlineParticipants)
 
 	return m
 }
@@ -509,13 +506,6 @@ func (matcher *Matcher) removeSession(sess *Session, err error) {
 func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64) (*SessionParticipant, error) {
 	if maxAmount < matcher.cfg.MinAmount {
 		return nil, ErrLowAmount
-	}
-
-	// TODO: not really great. Should be automatically calc'd by the ticket
-	// fee + minimum amount for each participant (which is determined by
-	// ticket fee + max amount of commitments in an SSTX)
-	if len(matcher.waitingParticipants) >= matcher.cfg.MaxOnlineParticipants {
-		return nil, ErrTooManyParticipants
 	}
 
 	blockHeight := matcher.cfg.PriceProvider.CurrentBlockHeight()
