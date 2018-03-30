@@ -24,10 +24,10 @@ The voter selection algorithm uses a round of communication injected at the star
   2. Participants send the hash of the secret to the matcher service; the service replies with the hashes of all participants;
   3. The participants reveal their secret numbers to the matcher; the matcher replies with the secret numbers of all participants;
   4. The matcher and each participant can now discover the voting participant by the following subroutine:
-    1. The secret numbers are concatenated into a single bit string;
-    2. The hash of this bit string is calculated;
-    3. The coin selected to vote is calculated as the previous hash modulo the ticket price;
-    4. The voting participant is the owner of the coin with the index indicated by the previous step
+      1. The secret numbers are concatenated into a single bit string;
+      2. The hash of this bit string is calculated;
+      3. The coin selected to vote is calculated as the previous hash modulo the ticket price;
+      4. The voting participant is the owner of the coin with the index indicated by the previous step
 
 There are many fine points to address in the algorithm implementation, but the high level overview is that participants pre-commit to a given voter before knowing who exactly is the voter.
 
