@@ -58,9 +58,10 @@ var (
 	ErrNoRevocationScriptSig        = merry.New("Revocation Script not specified")
 	ErrSessionMaxTimeExpired        = merry.New("Maximum time for finishing session has expired")
 	ErrParticipantDisconnected      = merry.New("Participant disconnected from session")
-	ErrTicketScriptSigNotProvided   = merry.New("Ticket scriptSig not provided")
+	ErrTicketScriptSigLenMismatch   = merry.New("Number of input script sigs != number of participants")
 	ErrStakeDiffTooCloseToChange    = merry.New("Stake difficulty window too close to change")
-	ErrNotConnectedToDecredNet = merry.New("Not connected to the decred network")
+	ErrNotConnectedToDecredNet      = merry.New("Not connected to the decred network")
+	ErrSecretNbHashMismatch         = merry.New("Secret number does not hash to previously sent hash")
 )
 
 // SessionParticipantFee returns the fee that a single participant of a ticket

@@ -14,21 +14,25 @@ type (
 	}
 
 	setParticipantOutputsResponse struct {
-		ticket     *wire.MsgTx
-		splitTx    *wire.MsgTx
-		revocation *wire.MsgTx
-		err        error
+		ticket       *wire.MsgTx
+		splitTx      *wire.MsgTx
+		revocation   *wire.MsgTx
+		participants []*ParticipantTicketOutput
+		err          error
 	}
 
 	fundTicketResponse struct {
-		ticket     *wire.MsgTx
-		revocation *wire.MsgTx
-		err        error
+		tickets     [][]byte
+		revocations [][]byte
+		err         error
 	}
 
 	fundSplitTxResponse struct {
-		splitTx *wire.MsgTx
-		err     error
+		selectedTicket []byte
+		revocation     []byte
+		splitTx        []byte
+		secrets        SecretNumbers
+		err            error
 	}
 
 	publishTicketResponse struct {
@@ -52,23 +56,25 @@ type (
 		splitTxOutput    *wire.TxOut
 		splitTxChange    *wire.TxOut
 		splitTxOutPoints []*wire.OutPoint
-		voteAddress      *dcrutil.Address
-		poolAddress      *dcrutil.Address
+		voteAddress      dcrutil.Address
+		poolAddress      dcrutil.Address
+		secretHash       SecretNumberHash
 		resp             chan setParticipantOutputsResponse
 	}
 
 	fundTicketRequest struct {
-		ctx                  context.Context
-		sessionID            ParticipantID
-		ticketInputScriptSig []byte
-		revocationScriptSig  []byte
-		resp                 chan fundTicketResponse
+		ctx                   context.Context
+		sessionID             ParticipantID
+		ticketsInputScriptSig [][]byte
+		revocationScriptSig   []byte
+		resp                  chan fundTicketResponse
 	}
 
 	fundSplitTxRequest struct {
 		ctx             context.Context
 		sessionID       ParticipantID
 		inputScriptSigs [][]byte
+		secretNb        SecretNumber
 		resp            chan fundSplitTxResponse
 	}
 

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
@@ -30,13 +31,17 @@ type SessionParticipant struct {
 	SplitTxOut          *wire.TxOut
 	SplitTxChange       *wire.TxOut
 	SplitTxInputs       []*wire.TxIn
-	TicketScriptSig     []byte
+	TicketsScriptSig    [][]byte
 	RevocationScriptSig []byte
 	SplitTxOutputIndex  int
 	Session             *Session
-	VoteAddress         *dcrutil.Address
-	PoolAddress         *dcrutil.Address
+	VoteAddress         dcrutil.Address
+	PoolAddress         dcrutil.Address
+	VotePkScript        []byte
+	PoolPkScript        []byte
 	Index               int
+	SecretHash          SecretNumberHash
+	SecretNb            SecretNumber
 
 	chanSetOutputsResponse  chan setParticipantOutputsResponse
 	chanFundTicketResponse  chan fundTicketResponse
@@ -73,6 +78,48 @@ func (part *SessionParticipant) sessionCanceled(err error) {
 	}
 }
 
+// createTicketOutputs creates the voteTxOut and poolTxOut after the voteAddress
+// and poolAddress have been filled.
+func (part *SessionParticipant) createTicketOutputs() error {
+	if part.VoteAddress == nil {
+		return ErrNoVoteAddress
+	}
+
+	if part.PoolAddress == nil {
+		return ErrNoPoolAddress
+	}
+
+	voteScript, err := txscript.PayToSStx(part.VoteAddress)
+	if err != nil {
+		return err
+	}
+
+	limits := uint16(0x5800)
+	poolScript, err := txscript.GenerateSStxAddrPush(part.PoolAddress,
+		part.Session.PoolFee, limits)
+	if err != nil {
+		return err
+	}
+
+	part.VotePkScript = voteScript
+	part.PoolPkScript = poolScript
+	return nil
+}
+
+func (part *SessionParticipant) replaceTicketIOs(ticket *wire.MsgTx) {
+	ticket.TxOut[0].PkScript = part.VotePkScript
+	ticket.TxOut[1].PkScript = part.PoolPkScript
+	for i, p := range part.Session.Participants {
+		ticket.TxIn[i].SignatureScript = p.TicketsScriptSig[i]
+	}
+}
+
+func (part *SessionParticipant) replaceRevocationInput(ticket, revocation *wire.MsgTx) {
+	ticketHash := ticket.TxHash()
+	revocation.TxIn[0].SignatureScript = part.RevocationScriptSig
+	revocation.TxIn[0].PreviousOutPoint.Hash = ticketHash
+}
+
 // SessionID stores the unique id for an in-progress ticket buying session
 type SessionID uint16
 
@@ -85,6 +132,7 @@ type Session struct {
 	ID             SessionID
 	Participants   []*SessionParticipant
 	TicketPrice    dcrutil.Amount
+	MainchainHash  chainhash.Hash
 	VoterIndex     int
 	PoolFee        dcrutil.Amount
 	ChainParams    *chaincfg.Params
@@ -111,7 +159,7 @@ func (sess *Session) AllOutputsFilled() bool {
 // TicketIsFunded returns true if all ticket inputs have been filled.
 func (sess *Session) TicketIsFunded() bool {
 	for _, p := range sess.Participants {
-		if p.TicketScriptSig == nil {
+		if len(p.TicketsScriptSig) != len(sess.Participants) {
 			return false
 		}
 	}
@@ -131,33 +179,24 @@ func (sess *Session) SplitTxIsFunded() bool {
 }
 
 func (sess *Session) addCommonTicketOutputs(ticket *wire.MsgTx) error {
-	voter := sess.Participants[sess.VoterIndex]
-
-	if voter.VoteAddress == nil {
-		return ErrNoVoteAddress
-	}
-
-	if voter.PoolAddress == nil {
-		return ErrNoPoolAddress
-	}
-
-	voteScript, err := txscript.PayToSStx(*voter.VoteAddress)
-	if err != nil {
-		return err
-	}
-
-	limits := uint16(0x5800)
-	commitScript, err := txscript.GenerateSStxAddrPush(*voter.PoolAddress,
-		sess.PoolFee, limits)
-	if err != nil {
-		return err
-	}
 
 	zeroed := [20]byte{}
 	addrZeroed, err := dcrutil.NewAddressPubKeyHash(zeroed[:], sess.ChainParams, 0)
 	if err != nil {
 		return err
 	}
+
+	voteScript, err := txscript.PayToSStx(addrZeroed)
+	if err != nil {
+		return err
+	}
+
+	limits := uint16(0x5800)
+	commitScript, err := txscript.GenerateSStxAddrPush(addrZeroed, sess.PoolFee, limits)
+	if err != nil {
+		return err
+	}
+
 	changeScript, err := txscript.PayToSStxChange(addrZeroed)
 	if err != nil {
 		return err
@@ -183,11 +222,17 @@ func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, *wire.MsgTx
 
 	sess.addCommonTicketOutputs(ticket)
 
+	// FIXME: add OP_RETURN with the concatenated hash of secret numbers hashes
+	// so that all participants agree to the same voter
+
+	// this is the output that will correspond to the pool fee commitment
 	splitTx.AddTxOut(sess.SplitTxPoolOut)
 	spOutIndex++
+
 	for _, p := range sess.Participants {
 		if p.SplitTxOut != nil {
-			ticket.AddTxIn(wire.NewTxIn(&wire.OutPoint{Index: spOutIndex}, p.TicketScriptSig))
+			var scriptSig []byte
+			ticket.AddTxIn(wire.NewTxIn(&wire.OutPoint{Index: spOutIndex}, scriptSig))
 			splitTx.AddTxOut(p.SplitTxOut)
 			spOutIndex++
 		}
@@ -219,15 +264,56 @@ func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, *wire.MsgTx
 	revocationFee, _ := dcrutil.NewAmount(0.001) // FIXME parametrize
 
 	ticketHash := ticket.TxHash()
-	revocation, err = createUnsignedRevocation(&ticketHash, ticket, revocationFee)
+	revocation, err = CreateUnsignedRevocation(&ticketHash, ticket, revocationFee)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	voter := sess.Participants[sess.VoterIndex]
-	if voter.RevocationScriptSig != nil {
-		revocation.TxIn[0].SignatureScript = voter.RevocationScriptSig
+	return ticket, splitTx, revocation, nil
+}
+
+// ParticipantTicketOutputs returns an array with information on the outputs of
+// of the ticket built for each voting participant. Only safe to be called after
+// all participants have sent their outputs.
+func (sess *Session) ParticipantTicketOutputs() []*ParticipantTicketOutput {
+	res := make([]*ParticipantTicketOutput, len(sess.Participants))
+	for i, p := range sess.Participants {
+		res[i] = &ParticipantTicketOutput{
+			Amount:       p.CommitAmount,
+			SecretHash:   &p.SecretHash,
+			PoolPkScript: p.PoolPkScript,
+			VotePkScript: p.VotePkScript,
+		}
+	}
+	return res
+}
+
+// SecretNumbers returns an array of the secret number of all participants
+func (sess *Session) SecretNumbers() SecretNumbers {
+	res := SecretNumbers(make([]SecretNumber, len(sess.Participants)))
+	for i, p := range sess.Participants {
+		res[i] = p.SecretNb
+	}
+	return res
+}
+
+// FindVoterIndex finds the index of the voter, given the current setup of
+// the session.
+func (sess *Session) FindVoterIndex() int {
+	var totalCommitment, sum uint64
+	for _, p := range sess.Participants {
+		totalCommitment += uint64(p.CommitAmount)
 	}
 
-	return ticket, splitTx, revocation, nil
+	nbs := sess.SecretNumbers()
+	nbsHash := nbs.Hash(sess.MainchainHash)
+	coinIdx := nbsHash.SelectedCoin(totalCommitment)
+	for i, p := range sess.Participants {
+		sum += uint64(p.CommitAmount)
+		if coinIdx < sum {
+			return i
+		}
+	}
+
+	panic("Should never get here")
 }

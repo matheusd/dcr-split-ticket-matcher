@@ -24,6 +24,7 @@ type DecredNetworkConfig struct {
 type DecredNetwork struct {
 	client      *rpcclient.Client
 	blockHeight int32
+	blockHash   chainhash.Hash
 	log         *logging.Logger
 	ticketPrice uint64
 	chainParams *chaincfg.Params
@@ -125,6 +126,7 @@ func (net *DecredNetwork) updateFromBestBlock() error {
 
 	net.ticketPrice = uint64(bestBlock.Header.SBits)
 	net.blockHeight = int32(blockHeight)
+	net.blockHash = *bestBlockHash
 
 	return nil
 }
@@ -147,6 +149,7 @@ func (net *DecredNetwork) onBlockConnected(blockHeader []byte, transactions [][]
 	header.FromBytes(blockHeader)
 	net.ticketPrice = uint64(header.SBits)
 	net.blockHeight = int32(header.Height)
+	net.blockHash = header.BlockHash()
 	stakeDiffChangeDistance := int32(net.chainParams.WorkDiffWindowSize) -
 		(net.blockHeight % int32(net.chainParams.WorkDiffWindowSize))
 	net.log.Infof("Block connected. Height=%d StakeDiff=%s WindowChangeDist=%d",
@@ -172,6 +175,10 @@ func (net *DecredNetwork) CurrentTicketPrice() uint64 {
 
 func (net *DecredNetwork) CurrentBlockHeight() int32 {
 	return net.blockHeight
+}
+
+func (net *DecredNetwork) CurrentBlockHash() chainhash.Hash {
+	return net.blockHash
 }
 
 func (net *DecredNetwork) ConnectedToDecredNetwork() bool {

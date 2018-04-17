@@ -1,6 +1,7 @@
 package matcher
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"math"
 	"math/big"
 
+	"github.com/dchest/blake256"
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
@@ -95,7 +97,7 @@ func MustRandUInt16() uint16 {
 // revokes a missed or expired ticket.  Revocations must carry a relay fee and
 // this function can error if the revocation contains no suitable output to
 // decrease the estimated relay fee from.
-func createUnsignedRevocation(ticketHash *chainhash.Hash, ticketPurchase *wire.MsgTx, feePerKB dcrutil.Amount) (*wire.MsgTx, error) {
+func CreateUnsignedRevocation(ticketHash *chainhash.Hash, ticketPurchase *wire.MsgTx, feePerKB dcrutil.Amount) (*wire.MsgTx, error) {
 	// Parse the ticket purchase transaction to determine the required output
 	// destinations for vote rewards or revocations.
 	ticketPayKinds, ticketHash160s, ticketValues, _, _, _ :=
@@ -258,4 +260,64 @@ func SelectContributionAmounts(maxAmounts []dcrutil.Amount, ticketPrice, partFee
 	}
 
 	return contribs, nil
+}
+
+const SecretNbHashSize = 32
+
+type SecretNumberHash [SecretNbHashSize]byte
+
+func (h SecretNumberHash) Equals(other SecretNumberHash) bool {
+	return bytes.Compare(h[:], other[:]) == 0
+}
+
+type SecretNumber uint64
+
+func (nb SecretNumber) Hash(mainchainHash chainhash.Hash) SecretNumberHash {
+	var res SecretNumberHash
+	var data [8]byte
+	var calculated []byte
+
+	binary.LittleEndian.PutUint64(data[:], uint64(nb))
+
+	// note that block hashes are reversed, so the first bytes are the actual
+	// random bytes (ending bytes should be a string of 0000s)
+	h := blake256.NewSalt(mainchainHash[:16])
+	calculated = h.Sum(data[:])
+	copy(res[:], calculated)
+
+	return res
+}
+
+const SecretNumbersHashSize = 32
+
+type SecretNumbersHash [SecretNumbersHashSize]byte
+
+func (h SecretNumbersHash) SelectedCoin(max uint64) uint64 {
+	res := big.NewInt(0)
+	n := big.NewInt(0)
+	n.SetBytes(h[:])
+	m := big.NewInt(int64(max))
+	res.Mod(n, m)
+	return res.Uint64()
+}
+
+type SecretNumbers []SecretNumber
+
+func (nbs SecretNumbers) Hash(mainchainHash chainhash.Hash) SecretNumbersHash {
+	var res SecretNumbersHash
+	var data [8]byte
+	var calculated []byte
+
+	// note that block hashes are reversed, so the first bytes are the actual
+	// random bytes (ending bytes should be a string of 0000s)
+	h := blake256.NewSalt(mainchainHash[:16])
+
+	for _, nb := range nbs {
+		binary.LittleEndian.PutUint64(data[:], uint64(nb))
+		calculated = h.Sum(data[:])
+	}
+
+	copy(res[:], calculated)
+
+	return res
 }

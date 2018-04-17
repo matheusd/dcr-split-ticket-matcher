@@ -42,6 +42,8 @@ message FindMatchesResponse {
     uint64 amount = 2;
     uint64 fee = 3;
     uint64 pool_fee = 4;
+    bytes mainchain_hash = 5;
+    uint64 ticket_price = 6;
 }
 
 message GenerateTicketRequest {
@@ -53,32 +55,53 @@ message GenerateTicketRequest {
     repeated OutPoint split_tx_inputs = 6;
     string vote_address = 7;
     string pool_address = 8;
+    bytes secretnb_hash = 9;
 }
 
 message GenerateTicketResponse {
-    bytes ticket = 1;
-    bytes split_tx = 2;
-    bytes revocation = 3;
+    message Participant {
+        uint64 amount = 1;
+        bytes secretnb_hash = 2;
+        bytes vote_pk_script = 3;
+        bytes pool_pk_script = 4;
+    }
+    bytes split_tx = 1;
+    bytes ticket_template = 2;
+    bytes revocation_template = 3;
+    repeated Participant participants = 4;
 }
 
 message FundTicketRequest {
+    message FundedParticipantTicket {
+        bytes ticket_input_scriptsig = 1;
+    }
     int32 session_id = 1;
-    bytes ticket_input_scriptsig = 2;
+    repeated FundedParticipantTicket tickets = 2;
     bytes revocation_script_sig = 3;
 }
 
 message FundTicketResponse {
-    bytes ticket = 1;
-    bytes revocation = 2;
+    message FundedParticipantTicket {
+        bytes ticket = 1;
+        bytes revocation_script_sig = 2;
+    }
+    repeated FundedParticipantTicket tickets = 1;
 }
 
 message FundSplitTxRequest {
     int32 session_id = 1;
     repeated bytes split_tx_scriptsigs = 2;
+    uint64 secretnb = 3;
 }
 
 message FundSplitTxResponse {
+    message ParticipantSecret {
+        uint64 secretnb = 4;
+    }
     bytes split_tx = 1;
+    bytes selected_ticket = 2;
+    bytes revocation = 3;
+    repeated ParticipantSecret secrets = 4;
 }
 
 message StatusRequest { }

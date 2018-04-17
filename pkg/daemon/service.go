@@ -1,8 +1,6 @@
 package daemon
 
 import (
-	"bytes"
-
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
@@ -55,10 +53,12 @@ func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.F
 	}
 
 	res := &pb.FindMatchesResponse{
-		Amount:    uint64(sess.CommitAmount),
-		Fee:       uint64(sess.Fee),
-		SessionId: int32(sess.ID),
-		PoolFee:   uint64(sess.PoolFee),
+		Amount:        uint64(sess.CommitAmount),
+		Fee:           uint64(sess.Fee),
+		SessionId:     int32(sess.ID),
+		PoolFee:       uint64(sess.PoolFee),
+		MainchainHash: sess.Session.MainchainHash[:],
+		TicketPrice:   uint64(sess.Session.TicketPrice),
 	}
 	return res, nil
 }
@@ -92,85 +92,100 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 		splitOutpoints[i] = wire.NewOutPoint(hash, uint32(in.PrevIndex), int8(in.Tree))
 	}
 
-	ticket, split, revocation, err := svc.matcher.SetParticipantsOutputs(ctx, matcher.ParticipantID(req.SessionId),
-		*commitTxout, *changeTxout, voteAddr, *splitChange, *splitTxout, splitOutpoints, poolAddr)
+	if len(req.SecretnbHash) < matcher.SecretNbHashSize {
+		return nil, ErrSecretNbSizeError
+	}
+	var secretNbHash matcher.SecretNumberHash
+	copy(secretNbHash[:], req.SecretnbHash)
+
+	split, ticketTempl, revocationTempl, parts, err := svc.matcher.SetParticipantsOutputs(ctx, matcher.ParticipantID(req.SessionId),
+		*commitTxout, *changeTxout, voteAddr, *splitChange, *splitTxout, splitOutpoints, poolAddr, secretNbHash)
 	if err != nil {
 		return nil, err
 	}
 
-	buffTicket := bytes.NewBuffer(nil)
-	buffTicket.Grow(ticket.SerializeSize())
-	err = ticket.BtcEncode(buffTicket, 0)
+	buffTicket, err := ticketTempl.Bytes()
 	if err != nil {
 		return nil, err
 	}
 
-	buffSplit := bytes.NewBuffer(nil)
-	buffSplit.Grow(split.SerializeSize())
-	err = split.BtcEncode(buffSplit, 0)
+	buffSplit, err := split.Bytes()
 	if err != nil {
 		return nil, err
 	}
 
-	buffRevoke := bytes.NewBuffer(nil)
-	buffRevoke.Grow(revocation.SerializeSize())
-	err = revocation.BtcEncode(buffRevoke, 0)
+	buffRevoke, err := revocationTempl.Bytes()
 	if err != nil {
 		return nil, err
+	}
+
+	partsResp := make([]*pb.GenerateTicketResponse_Participant, len(parts))
+	for i, p := range parts {
+		partsResp[i] = &pb.GenerateTicketResponse_Participant{
+			SecretnbHash: p.SecretHash[:],
+			VotePkScript: p.VotePkScript,
+			PoolPkScript: p.PoolPkScript,
+			Amount:       uint64(p.Amount),
+		}
 	}
 
 	resp := &pb.GenerateTicketResponse{
-		Ticket:     buffTicket.Bytes(),
-		SplitTx:    buffSplit.Bytes(),
-		Revocation: buffRevoke.Bytes(),
+		SplitTx:            buffSplit,
+		TicketTemplate:     buffTicket,
+		RevocationTemplate: buffRevoke,
+		Participants:       partsResp,
 	}
 
 	return resp, nil
 }
 
 func (svc *SplitTicketMatcherService) FundTicket(ctx context.Context, req *pb.FundTicketRequest) (*pb.FundTicketResponse, error) {
-	ticket, revocation, err := svc.matcher.FundTicket(ctx, matcher.ParticipantID(req.SessionId), req.TicketInputScriptsig, req.RevocationScriptSig)
+
+	ticketsInput := make([][]byte, len(req.Tickets))
+	for i, t := range req.Tickets {
+		ticketsInput[i] = t.TicketInputScriptsig
+	}
+
+	tickets, revocations, err := svc.matcher.FundTicket(ctx, matcher.ParticipantID(req.SessionId),
+		ticketsInput, req.RevocationScriptSig)
 	if err != nil {
 		return nil, err
 	}
 
-	buffTicket := bytes.NewBuffer(nil)
-	buffTicket.Grow(ticket.SerializeSize())
-	err = ticket.BtcEncode(buffTicket, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	buffRevocation := bytes.NewBuffer(nil)
-	buffRevocation.Grow(ticket.SerializeSize())
-	err = revocation.BtcEncode(buffRevocation, 0)
-	if err != nil {
-		return nil, err
+	respTickets := make([]*pb.FundTicketResponse_FundedParticipantTicket, len(tickets))
+	for i := range tickets {
+		respTickets[i] = &pb.FundTicketResponse_FundedParticipantTicket{
+			Ticket:     tickets[i],
+			Revocation: revocations[i],
+		}
 	}
 
 	resp := &pb.FundTicketResponse{
-		Ticket:     buffTicket.Bytes(),
-		Revocation: buffRevocation.Bytes(),
+		Tickets: respTickets,
 	}
 	return resp, nil
 }
 
 func (svc *SplitTicketMatcherService) FundSplitTx(ctx context.Context, req *pb.FundSplitTxRequest) (*pb.FundSplitTxResponse, error) {
-	split, err := svc.matcher.FundSplit(ctx, matcher.ParticipantID(req.SessionId),
-		req.SplitTxScriptsigs)
+	split, ticket, revocation, secrets, err := svc.matcher.FundSplit(ctx,
+		matcher.ParticipantID(req.SessionId),
+		req.SplitTxScriptsigs, matcher.SecretNumber(req.Secretnb))
 	if err != nil {
 		return nil, err
 	}
 
-	buffSplit := bytes.NewBuffer(nil)
-	buffSplit.Grow(split.SerializeSize())
-	err = split.BtcEncode(buffSplit, 0)
-	if err != nil {
-		return nil, err
+	respSecrets := make([]*pb.FundSplitTxResponse_ParticipantSecret, len(secrets))
+	for i, s := range secrets {
+		respSecrets[i] = &pb.FundSplitTxResponse_ParticipantSecret{
+			Secretnb: uint64(s),
+		}
 	}
 
 	resp := &pb.FundSplitTxResponse{
-		SplitTx: buffSplit.Bytes(),
+		SplitTx:        split,
+		SelectedTicket: ticket,
+		Revocation:     revocation,
+		Secrets:        respSecrets,
 	}
 	return resp, nil
 }

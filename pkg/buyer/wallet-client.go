@@ -8,6 +8,7 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
 	"google.golang.org/grpc"
@@ -219,18 +220,13 @@ func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *Buye
 	return nil
 }
 
-func (wc *WalletClient) SignTicket(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
-
-	ticketBytes, err := session.ticket.Bytes()
-	if err != nil {
-		return err
-	}
+func (wc *WalletClient) SignTickets(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
 
 	splitTxHash := session.splitTx.TxHash()
 
-	splitScripts := make([]*pb.SignTransactionRequest_AdditionalScript, len(session.splitTx.TxOut))
+	splitScripts := make([]*pb.SignTransactionsRequest_AdditionalScript, len(session.splitTx.TxOut))
 	for i, out := range session.splitTx.TxOut {
-		splitScripts[i] = &pb.SignTransactionRequest_AdditionalScript{
+		splitScripts[i] = &pb.SignTransactionsRequest_AdditionalScript{
 			OutputIndex:     uint32(i),
 			PkScript:        out.PkScript,
 			TransactionHash: splitTxHash[:],
@@ -238,45 +234,85 @@ func (wc *WalletClient) SignTicket(ctx context.Context, session *BuyerSession, c
 		}
 	}
 
-	req := &pb.SignTransactionRequest{
-		Passphrase:            cfg.Passphrase,
-		SerializedTransaction: ticketBytes,
-		AdditionalScripts:     splitScripts,
+	ticket := session.ticketTemplate.Copy()
+
+	tickets := make([]*pb.SignTransactionsRequest_UnsignedTransaction, len(session.participants))
+	for i, p := range session.participants {
+		ticket.TxOut[0].PkScript = p.votePkScript
+		ticket.TxOut[1].PkScript = p.poolPkScript
+		bytes, err := ticket.Bytes()
+		if err != nil {
+			return err
+		}
+
+		tickets[i] = &pb.SignTransactionsRequest_UnsignedTransaction{
+			SerializedTransaction: bytes,
+		}
 	}
 
-	resp, err := wc.wsvc.SignTransaction(ctx, req)
+	req := &pb.SignTransactionsRequest{
+		Passphrase:        cfg.Passphrase,
+		AdditionalScripts: splitScripts,
+		Transactions:      tickets,
+	}
+
+	resp, err := wc.wsvc.SignTransactions(ctx, req)
 	if err != nil {
 		return err
 	}
 
 	signed := wire.NewMsgTx()
-	signed.FromBytes(resp.Transaction)
 
-	for i, in := range signed.TxIn {
-		// FIXME not really great to get the signed input by checking if (i > 0)
-		// ideally we should get the ticket output index by the matcher
-		if (in.SignatureScript != nil) && (len(in.SignatureScript) > 0) && (i > 0) {
-			session.ticketScriptSig = in.SignatureScript
-			return nil
+	for _, t := range resp.Transactions {
+
+		err := signed.FromBytes(t.Transaction)
+		if err != nil {
+			return err
+		}
+
+		for i, in := range signed.TxIn {
+			// FIXME not really great to get the signed input by checking if (i > 0)
+			// ideally we should get the ticket output index by the matcher
+			if (in.SignatureScript != nil) && (len(in.SignatureScript) > 0) && (i > 0) {
+				// TODO: instead of appending, size it once before the loop.
+				session.ticketsScriptSig = append(session.ticketsScriptSig, in.SignatureScript)
+				break
+			}
 		}
 	}
 
-	return ErrNoInputSignedOnTicket
+	if len(session.ticketsScriptSig) != len(session.participants) {
+		return ErrNoInputSignedOnTicket
+	}
+
+	return nil
 }
 
 func (wc *WalletClient) SignRevocation(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
 
-	revocationBytes, err := session.revocation.Bytes()
+	// create the ticket assuming I'm the one voting, then create a revocation
+	// based on it, then sign it.
+	myTicket := session.ticketTemplate.Copy()
+	myTicket.TxOut[0].PkScript = session.votePkScript
+	myTicket.TxOut[1].PkScript = session.poolPkScript
+
+	ticketHash := myTicket.TxHash()
+
+	revocationFee, _ := dcrutil.NewAmount(0.001) // TODO: parametrize
+	revocation, err := matcher.CreateUnsignedRevocation(&ticketHash, myTicket, revocationFee)
 	if err != nil {
 		return err
 	}
 
-	ticketHash := session.ticket.TxHash()
+	revocationBytes, err := revocation.Bytes()
+	if err != nil {
+		return err
+	}
 
 	ticketScripts := make([]*pb.SignTransactionRequest_AdditionalScript, 1)
 	ticketScripts[0] = &pb.SignTransactionRequest_AdditionalScript{
 		OutputIndex:     0,
-		PkScript:        session.ticket.TxOut[0].PkScript,
+		PkScript:        myTicket.TxOut[0].PkScript,
 		TransactionHash: ticketHash[:],
 		Tree:            int32(wire.TxTreeStake),
 	}

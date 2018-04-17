@@ -10,33 +10,81 @@ import (
 	"strings"
 	"time"
 
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
 	pbm "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 )
 
+type buyerSessionParticipant struct {
+	secretHash   matcher.SecretNumberHash
+	secretNb     matcher.SecretNumber
+	votePkScript []byte
+	poolPkScript []byte
+	amount       dcrutil.Amount
+	ticket       *wire.MsgTx
+	revocation   *wire.MsgTx
+}
+
 type BuyerSession struct {
-	ID      matcher.ParticipantID
-	Amount  dcrutil.Amount
-	Fee     dcrutil.Amount
-	PoolFee dcrutil.Amount
+	ID           matcher.ParticipantID
+	Amount       dcrutil.Amount
+	Fee          dcrutil.Amount
+	PoolFee      dcrutil.Amount
+	TotalPoolFee dcrutil.Amount
+
+	mainchainHash *chainhash.Hash
+	secretNb      matcher.SecretNumber
+	secretNbHash  matcher.SecretNumberHash
 
 	splitOutputAddress  dcrutil.Address
 	ticketOutputAddress dcrutil.Address
+	votePkScript        []byte
+	poolPkScript        []byte
 	ticketOutput        *wire.TxOut
 	ticketChange        *wire.TxOut
 	splitOutput         *wire.TxOut
 	splitChange         *wire.TxOut
 	splitInputs         []*wire.TxIn
+	participants        []buyerSessionParticipant
 
-	ticket     *wire.MsgTx
-	splitTx    *wire.MsgTx
-	revocation *wire.MsgTx
-	isVoter    bool
+	ticketTemplate *wire.MsgTx
+	splitTx        *wire.MsgTx
+	revocation     *wire.MsgTx
 
-	ticketScriptSig     []byte
+	ticketsScriptSig    [][]byte // one for each participant
 	revocationScriptSig []byte
+
+	selectedTicket     *wire.MsgTx
+	fundedSplitTx      *wire.MsgTx
+	selectedRevocation *wire.MsgTx
+	voterIndex         int
+}
+
+func (session *BuyerSession) selectedCoin() uint64 {
+	var totalCommitment uint64
+	nbs := make(matcher.SecretNumbers, len(session.participants))
+	for i, p := range session.participants {
+		totalCommitment += uint64(p.amount)
+		nbs[i] = p.secretNb
+	}
+
+	nbsHash := nbs.Hash(*session.mainchainHash)
+	return nbsHash.SelectedCoin(totalCommitment)
+}
+
+func (session *BuyerSession) findVoterIndex() int {
+	var sum uint64
+	coinIdx := session.selectedCoin()
+	for i, p := range session.participants {
+		sum += uint64(p.amount)
+		if coinIdx < sum {
+			return i
+		}
+	}
+
+	return -1
 }
 
 type Reporter interface {
@@ -165,20 +213,18 @@ func buySplitTicket(ctx context.Context, cfg *BuyerConfig, mc *MatcherClient, wc
 	// FIXME: make the client-side checks to ensure the ticket is valid
 
 	rep.reportStage(ctx, StageSigningTicket, session, cfg)
-	err = wc.SignTicket(ctx, session, cfg)
+	err = wc.SignTickets(ctx, session, cfg)
 	if err != nil {
 		return err
 	}
 	rep.reportStage(ctx, StageTicketSigned, session, cfg)
 
-	if session.isVoter {
-		rep.reportStage(ctx, StageSigningRevocation, session, cfg)
-		err = wc.SignRevocation(ctx, session, cfg)
-		if err != nil {
-			return err
-		}
-		rep.reportStage(ctx, StageRevocationSigned, session, cfg)
+	rep.reportStage(ctx, StageSigningRevocation, session, cfg)
+	err = wc.SignRevocation(ctx, session, cfg)
+	if err != nil {
+		return err
 	}
+	rep.reportStage(ctx, StageRevocationSigned, session, cfg)
 
 	rep.reportStage(ctx, StageFundingTicket, session, cfg)
 	err = mc.FundTicket(ctx, session, cfg)
@@ -219,9 +265,9 @@ func saveSession(session *BuyerSession, cfg *BuyerConfig) error {
 		return err
 	}
 
-	ticketHash := session.ticket.TxHash()
+	ticketHash := session.selectedTicket.TxHash()
 	ticketHashHex := hex.EncodeToString(ticketHash[:])
-	ticketBytes, err := session.ticket.Bytes()
+	ticketBytes, err := session.selectedTicket.Bytes()
 	if err != nil {
 		return err
 	}
@@ -234,14 +280,14 @@ func saveSession(session *BuyerSession, cfg *BuyerConfig) error {
 	}
 	defer f.Close()
 
-	splitHash := session.splitTx.TxHash()
-	splitBytes, err := session.splitTx.Bytes()
+	splitHash := session.fundedSplitTx.TxHash()
+	splitBytes, err := session.fundedSplitTx.Bytes()
 	if err != nil {
 		return err
 	}
 
-	revocationHash := session.revocation.TxHash()
-	revocationBytes, err := session.revocation.Bytes()
+	revocationHash := session.selectedRevocation.TxHash()
+	revocationBytes, err := session.selectedRevocation.Bytes()
 	if err != nil {
 		return err
 	}
@@ -250,7 +296,6 @@ func saveSession(session *BuyerSession, cfg *BuyerConfig) error {
 	hexWriter := hex.NewEncoder(w)
 	w.WriteString("Split ticket session ")
 	w.WriteString(time.Now().String())
-	w.WriteString(fmt.Sprintf("\nIsVoter = %t\n", session.isVoter))
 	w.WriteString(fmt.Sprintf("Amount = %s\n", session.Amount))
 	w.WriteString(fmt.Sprintf("Session ID = %s\n", session.ID))
 	w.WriteString("\n")

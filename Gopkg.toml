@@ -42,8 +42,9 @@
   branch = "master"
 
 [[constraint]]
+  source = "https://github.com/dnldd/dcrwallet"
   name = "github.com/decred/dcrwallet"
-  branch = "master"
+  branch = "signtransactions"
 
 [[constraint]]
   name = "github.com/ansel1/merry"

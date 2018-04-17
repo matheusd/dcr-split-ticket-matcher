@@ -52,10 +52,16 @@ func (rep *StdOutReporter) reportStage(ctx context.Context, stage BuyerStage, se
 		fmt.Printf("Generating outputs from wallet\n")
 	case StageOutputsGenerated:
 		fmt.Printf("Outputs generated!\n")
+		fmt.Printf("Voting address: %s\n", cfg.VoteAddress)
+		fmt.Printf("Pool subsidy address: %s\n", cfg.PoolAddress)
+		fmt.Printf("Ticket commitment address: %s\n", session.ticketOutputAddress.String())
+		fmt.Printf("Split tx output address: %s\n", session.splitOutputAddress.String())
 	case StageGeneratingTicket:
 		fmt.Printf("Generating ticket...\n")
 	case StageTicketGenerated:
-		fmt.Printf("Ticket Generated (isVoter = %t)!\n", session.isVoter)
+		fmt.Printf("Ticket Generated\n")
+		fmt.Printf("Secret Number: %d\n", session.secretNb)
+		fmt.Printf("Secret Number Hash: %s\n", hex.EncodeToString(session.secretNbHash[:]))
 	case StageGenerateSplitOutputAddr:
 		fmt.Printf("Generating split output address\n")
 	case StageGenerateTicketCommitmentAddr:
@@ -83,17 +89,27 @@ func (rep *StdOutReporter) reportStage(ctx context.Context, stage BuyerStage, se
 	case StageSplitTxFunded:
 		fmt.Printf("Split tx funded\n")
 
-		bts, _ := session.splitTx.Bytes()
+		bts, _ := session.fundedSplitTx.Bytes()
 		fmt.Println("\nFunded Split Tx:")
 		fmt.Println(hex.EncodeToString(bts))
 
-		bts, _ = session.ticket.Bytes()
+		bts, _ = session.selectedTicket.Bytes()
 		fmt.Println("\nFunded Ticket:")
 		fmt.Println(hex.EncodeToString(bts))
 
-		bts, _ = session.revocation.Bytes()
+		bts, _ = session.selectedRevocation.Bytes()
 		fmt.Println("\nFunded Revocation:")
 		fmt.Println(hex.EncodeToString(bts))
+
+		fmt.Println("")
+		fmt.Printf("Selected coin: %s\n", dcrutil.Amount(session.selectedCoin()))
+		fmt.Printf("Selected voter index: %d\n", session.voterIndex)
+		var sum dcrutil.Amount
+		for i, p := range session.participants {
+			sum += p.amount
+			fmt.Printf("Participant %d: cum_amount=%s secret=%d secret_hash=%s...\n",
+				i, sum, p.secretNb, hex.EncodeToString(p.secretHash[:10]))
+		}
 
 	default:
 		fmt.Printf("Unknown stage: %d\n", stage)

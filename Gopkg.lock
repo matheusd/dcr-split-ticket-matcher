@@ -24,6 +24,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/btcsuite/go-flags"
+  packages = ["."]
+  revision = "6c288d648c1cc1befcb90cb5511dcacf64ae8e61"
+
+[[projects]]
+  branch = "master"
   name = "github.com/btcsuite/go-socks"
   packages = ["socks"]
   revision = "4720035b7bfd2a9bb130b1c184f8bbe41b6f0d0f"
@@ -57,6 +63,7 @@
     "blockchain/stake/internal/dbnamespace",
     "blockchain/stake/internal/ticketdb",
     "blockchain/stake/internal/tickettreap",
+    "certgen",
     "chaincfg",
     "chaincfg/chainec",
     "chaincfg/chainhash",
@@ -73,7 +80,7 @@
   revision = "ddae30b5a3581b1ecbad50b4778d64b44e30b67a"
 
 [[projects]]
-  branch = "master"
+  branch = "signtransactions"
   name = "github.com/decred/dcrwallet"
   packages = [
     "internal/helpers",
@@ -81,7 +88,8 @@
     "wallet/internal/txsizes",
     "wallet/txrules"
   ]
-  revision = "53457bef94772891934219da6510ac6bbef09cee"
+  revision = "9f007ee77ae84c3e90c2fd05825dad79fb4ba410"
+  source = "https://github.com/dnldd/dcrwallet"
 
 [[projects]]
   branch = "master"
@@ -187,6 +195,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "7e9aa16490700a7f6bd0aaa8555fa72aa5d59e42fc442d56967d336a6db3adbb"
+  inputs-digest = "a18ea26d7cd0289a92c334c8022d310681996ed847c4e9c5e2ca236aa872de47"
   solver-name = "gps-cdcl"
   solver-version = 1
