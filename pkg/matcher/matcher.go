@@ -348,6 +348,8 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 		return ErrNoPoolAddress
 	}
 
+	// TODO: check if number of split inputs is < than a certain threshold (maybe 5 per part?)
+
 	// TODO: get the utxos from network and validate whether the sum(utxos) == splitTxOut + splitTxChange + SplitTxFee
 
 	sess.CommitmentTxOut = req.commitmentOutput
@@ -379,12 +381,18 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 
 		ticket, splitTx, revocation, err = sess.Session.CreateTransactions()
 		if err == nil {
-			poolTicketInSig, err = matcher.cfg.SignPoolSplitOutProvider.SignPoolSplitOutput(splitTx, ticket)
-			if err == nil {
-				sess.Session.TicketPoolIn.SignatureScript = poolTicketInSig
-			} else {
-				matcher.log.Errorf("Error signing pool split input: %v", err)
+
+			toSign := ticket.Copy()
+			for _, p := range sess.Session.Participants {
+				p.replaceTicketIOs(toSign)
+				poolTicketInSig, err = matcher.cfg.SignPoolSplitOutProvider.SignPoolSplitOutput(splitTx, toSign)
+				if err != nil {
+					matcher.log.Errorf("Error signing pool fee output: %v", err)
+					return err
+				}
+				p.PoolFeeInputScriptSig = poolTicketInSig
 			}
+
 		} else {
 			matcher.log.Errorf("Error generating session transactions: %v", err)
 		}

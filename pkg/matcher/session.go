@@ -22,26 +22,27 @@ func (id ParticipantID) String() string {
 
 // SessionParticipant is a participant of a split in a given session
 type SessionParticipant struct {
-	ID                  ParticipantID
-	CommitAmount        dcrutil.Amount
-	Fee                 dcrutil.Amount
-	PoolFee             dcrutil.Amount
-	CommitmentTxOut     *wire.TxOut
-	ChangeTxOut         *wire.TxOut
-	SplitTxOut          *wire.TxOut
-	SplitTxChange       *wire.TxOut
-	SplitTxInputs       []*wire.TxIn
-	TicketsScriptSig    [][]byte
-	RevocationScriptSig []byte
-	SplitTxOutputIndex  int
-	Session             *Session
-	VoteAddress         dcrutil.Address
-	PoolAddress         dcrutil.Address
-	VotePkScript        []byte
-	PoolPkScript        []byte
-	Index               int
-	SecretHash          SecretNumberHash
-	SecretNb            SecretNumber
+	ID                    ParticipantID
+	CommitAmount          dcrutil.Amount
+	Fee                   dcrutil.Amount
+	PoolFee               dcrutil.Amount
+	CommitmentTxOut       *wire.TxOut
+	ChangeTxOut           *wire.TxOut
+	SplitTxOut            *wire.TxOut
+	SplitTxChange         *wire.TxOut
+	SplitTxInputs         []*wire.TxIn
+	TicketsScriptSig      [][]byte
+	RevocationScriptSig   []byte
+	PoolFeeInputScriptSig []byte
+	SplitTxOutputIndex    int
+	Session               *Session
+	VoteAddress           dcrutil.Address
+	PoolAddress           dcrutil.Address
+	VotePkScript          []byte
+	PoolPkScript          []byte
+	Index                 int
+	SecretHash            SecretNumberHash
+	SecretNb              SecretNumber
 
 	chanSetOutputsResponse  chan setParticipantOutputsResponse
 	chanFundTicketResponse  chan fundTicketResponse
@@ -109,8 +110,17 @@ func (part *SessionParticipant) createTicketOutputs() error {
 func (part *SessionParticipant) replaceTicketIOs(ticket *wire.MsgTx) {
 	ticket.TxOut[0].PkScript = part.VotePkScript
 	ticket.TxOut[1].PkScript = part.PoolPkScript
+
+	ticket.TxIn[0].SignatureScript = part.PoolFeeInputScriptSig
 	for i, p := range part.Session.Participants {
-		ticket.TxIn[i].SignatureScript = p.TicketsScriptSig[i]
+		if len(p.TicketsScriptSig) > part.Index {
+			// do note the following: it's TxIn[i+1] because the first TxIn of the
+			// ticket is the pool fee (which is already signed by the matcher). Also,
+			// we need the corresponding script for the given participant, given
+			// that the selected voter participant is `part`, therefore we grab
+			// the signature `p` created for the `part.Index` ticket.
+			ticket.TxIn[i+1].SignatureScript = p.TicketsScriptSig[part.Index]
+		}
 	}
 }
 

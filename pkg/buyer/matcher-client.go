@@ -1,7 +1,9 @@
 package buyer
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"io"
 
@@ -119,6 +121,9 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("Ticket Template")
+	fmt.Println(hex.EncodeToString(resp.TicketTemplate))
 
 	session.ticketTemplate = wire.NewMsgTx()
 	err = session.ticketTemplate.FromBytes(resp.TicketTemplate)
@@ -284,11 +289,18 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 		return merry.New("Negative voter index")
 	}
 
-	// TODO: verify if the voting address for the submitted ticket actually is
-	// for the given voter index
+	// verify if the voting address for the submitted ticket actually is
+	// for the given voter index. If these are different, that means the matcher
+	// is malicious and is not honoring the deterministically selected voter.
+	// TODO: show a big red warning.
+	// TODO: check the pool fee destination output as well
+	targetVoterPkScript := session.participants[session.voterIndex].votePkScript
+	if !bytes.Equal(selectedTicket.TxOut[0].PkScript, targetVoterPkScript) {
+		return merry.Errorf("DAAAAANGER!!!! Received funded ticket is not for the deterministically selected voter (%d)", session.voterIndex)
+	}
 
 	// TODO: verify if the published ticket transaction (received from the network)
-	// actually is for the givern voter index. Probably need to alert dcrd to
+	// actually is for the given voter index. Probably need to alert dcrd to
 	// watch for transactions involving all voting addresses and alert on any
 	// published that is not for the given ticket
 

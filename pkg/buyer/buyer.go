@@ -12,6 +12,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
 	pbm "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
@@ -247,6 +248,8 @@ func buySplitTicket(ctx context.Context, cfg *BuyerConfig, mc *MatcherClient, wc
 	}
 	rep.reportStage(ctx, StageSplitTxFunded, session, cfg)
 
+	validateTransactions(session)
+
 	return saveSession(session, cfg)
 }
 
@@ -324,4 +327,36 @@ func saveSession(session *BuyerSession, cfg *BuyerConfig) error {
 	fmt.Printf("\n\nSaved session at %s\n", fname)
 
 	return nil
+}
+
+func validateTransactions(session *BuyerSession) {
+
+	ticket := session.selectedTicket
+	split := session.fundedSplitTx
+
+	scriptFlags := txscript.ScriptBip16 |
+		txscript.ScriptVerifyDERSignatures |
+		txscript.ScriptVerifyStrictEncoding |
+		txscript.ScriptVerifyMinimalData |
+		txscript.ScriptVerifyCleanStack |
+		txscript.ScriptVerifyCheckLockTimeVerify |
+		txscript.ScriptVerifyCheckSequenceVerify |
+		txscript.ScriptVerifySHA256
+
+	for i, in := range ticket.TxIn {
+		out := split.TxOut[in.PreviousOutPoint.Index]
+		engine, err := txscript.NewEngine(out.PkScript, ticket, i, scriptFlags, out.Version, nil)
+		if err != nil {
+			fmt.Printf("Parsing error on txin index %d\n", i)
+			panic(err) // TODO: handle it better
+		}
+
+		err = engine.Execute()
+		if err != nil {
+			fmt.Printf("Executing error on txin index %d\n", i)
+			panic(err) // TODO: handle it better
+		}
+
+	}
+
 }
