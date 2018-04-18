@@ -238,8 +238,8 @@ func (matcher *Matcher) startNewSession() {
 		MainchainHash:  matcher.cfg.PriceProvider.CurrentBlockHash(),
 		PoolFee:        poolFee,
 		ChainParams:    matcher.cfg.ChainParams,
-		TicketPoolIn:   wire.NewTxIn(&wire.OutPoint{Index: 0}, nil),
-		SplitTxPoolOut: wire.NewTxOut(int64(poolFee), splitPoolOutScript),
+		TicketPoolIn:   wire.NewTxIn(&wire.OutPoint{Index: 1}, nil),       // FIXME: this should probably be removed from here and moved into the session
+		SplitTxPoolOut: wire.NewTxOut(int64(poolFee), splitPoolOutScript), // ditto above
 		ID:             sessID,
 		StartTime:      time.Now(),
 		VoterIndex:     -1, // voter not decided yet

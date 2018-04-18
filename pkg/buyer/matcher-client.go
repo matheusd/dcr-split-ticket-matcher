@@ -137,6 +137,9 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 		return err
 	}
 
+	secretHashes := make([]matcher.SecretNumberHash, len(resp.Participants))
+	gotMyHash := false
+
 	session.participants = make([]buyerSessionParticipant, len(resp.Participants))
 	for i, p := range resp.Participants {
 		session.participants[i] = buyerSessionParticipant{
@@ -145,6 +148,20 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 			votePkScript: p.VotePkScript,
 		}
 		copy(session.participants[i].secretHash[:], p.SecretnbHash)
+		secretHashes[i] = session.participants[i].secretHash
+		gotMyHash = gotMyHash || secretHashes[i].Equals(session.secretNbHash)
+	}
+
+	targetVoterHash := matcher.SecretNumberHashesHash(secretHashes, *session.mainchainHash)
+	if (len(session.splitTx.TxOut) < 1) || (len(session.splitTx.TxOut[0].PkScript) < 1) || (session.splitTx.TxOut[0].PkScript[0] != txscript.OP_RETURN) {
+		return ErrSplitTxOutZeroNotOpReturn
+	}
+
+	// pick the range [2:] because the first byte is the OP_RETURN, the second
+	// is the push data op
+	splitVoterCommitment := session.splitTx.TxOut[0].PkScript[2:]
+	if !bytes.Equal(targetVoterHash, splitVoterCommitment) {
+		return ErrWrongSplitTxVoterSelCommitment
 	}
 
 	// TODO: check if the commitment amounts sum up to ticketPrice - totalPoolFee
@@ -280,6 +297,8 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 		session.participants[i].secretNb = matcher.SecretNumber(s.Secretnb)
 		sentSecretHash := session.participants[i].secretNb.Hash(*session.mainchainHash)
 		if !sentSecretHash.Equals(session.participants[i].secretHash) {
+			// TODO: show big red warning, as sending a wrong secret number
+			// is a voting manipulation attempt
 			return ErrWrongSecretNbProvided
 		}
 	}

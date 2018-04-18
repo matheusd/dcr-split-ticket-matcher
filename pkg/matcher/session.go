@@ -220,6 +220,29 @@ func (sess *Session) addCommonTicketOutputs(ticket *wire.MsgTx) error {
 	return nil
 }
 
+// addVoterSelectionData creates the OP_RETURN output on the split tx with the
+// voter hash to allow for fraud detection
+func (sess *Session) addVoterSelectionData(split *wire.MsgTx) {
+	hashes := make([]SecretNumberHash, len(sess.Participants))
+	for i, p := range sess.Participants {
+		hashes[i] = p.SecretHash
+	}
+	hash := SecretNumberHashesHash(hashes, sess.MainchainHash)
+
+	b := txscript.NewScriptBuilder()
+	b.
+		AddOp(txscript.OP_RETURN).
+		AddData(hash[:])
+
+	script, err := b.Script()
+	if err != nil {
+		panic(err) // TODO: handle this bettter
+	}
+
+	out := wire.NewTxOut(0, script)
+	split.AddTxOut(out)
+}
+
 // CreateTransactions creates the ticket and split tx transactions with all the
 // currently available information
 func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, *wire.MsgTx, error) {
@@ -231,9 +254,8 @@ func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, *wire.MsgTx
 	revocation := wire.NewMsgTx()
 
 	sess.addCommonTicketOutputs(ticket)
-
-	// FIXME: add OP_RETURN with the concatenated hash of secret numbers hashes
-	// so that all participants agree to the same voter
+	sess.addVoterSelectionData(splitTx)
+	spOutIndex++
 
 	// this is the output that will correspond to the pool fee commitment
 	splitTx.AddTxOut(sess.SplitTxPoolOut)

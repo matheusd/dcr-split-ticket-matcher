@@ -321,3 +321,17 @@ func (nbs SecretNumbers) Hash(mainchainHash chainhash.Hash) SecretNumbersHash {
 
 	return res
 }
+
+func SecretNumberHashesHash(hashes []SecretNumberHash, mainchainHash chainhash.Hash) []byte {
+	var calculated []byte
+
+	// note that block hashes are reversed, so the first bytes are the actual
+	// random bytes (ending bytes should be a string of 0000s)
+	h := blake256.NewSalt(mainchainHash[:16])
+
+	for _, hs := range hashes {
+		calculated = h.Sum(hs[:])
+	}
+
+	return calculated
+}
