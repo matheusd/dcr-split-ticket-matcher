@@ -30,11 +30,16 @@ message OutPoint {
 
 message WatchWaitingListRequest {}
 message WatchWaitingListResponse {
-    repeated uint64 amounts = 1;
+    message Queue {
+        string name = 1;
+        repeated uint64 amounts = 2;
+    }
+    repeated Queue queues = 1;
 }
 
 message FindMatchesRequest {
     uint64 amount = 1;
+    string session_name = 2;
 }
 
 message FindMatchesResponse {
@@ -83,7 +88,7 @@ message FundTicketRequest {
 message FundTicketResponse {
     message FundedParticipantTicket {
         bytes ticket = 1;
-        bytes revocation_script_sig = 2;
+        bytes revocation = 2;
     }
     repeated FundedParticipantTicket tickets = 1;
 }

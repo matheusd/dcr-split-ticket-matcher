@@ -2,6 +2,7 @@ package buyer
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 
@@ -10,6 +11,11 @@ import (
 	"github.com/decred/dcrd/txscript"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 )
+
+func encodeSessionName(name string) string {
+	hash := sha256.Sum256([]byte(name))
+	return hex.EncodeToString(hash[:])
+}
 
 // StdOutReporter implements the BuyerReporter interface by generating descriptive
 // messages to stdout
@@ -32,7 +38,9 @@ func (rep *StdOutReporter) reportStage(ctx context.Context, stage BuyerStage, se
 		fmt.Printf("Connecting to matcher service '%s'\n", cfg.MatcherHost)
 		return
 	case StageFindingMatches:
-		fmt.Printf("Finding peers to split ticket buy\n")
+		encSessName := encodeSessionName(cfg.SessionName)[:10]
+		fmt.Printf("Finding peers to split ticket buy in session '%s' (%s)\n",
+			cfg.SessionName, encSessName)
 		return
 	case StageConnectingToWallet:
 		fmt.Printf("Connecting to wallet %s\n", cfg.WalletHost)
@@ -159,4 +167,12 @@ func dummyScriptSigner(net *chaincfg.Params) (pkScript []byte, scriptSig []byte)
 	}
 
 	return
+}
+
+func uint64sToAmounts(in []uint64) []dcrutil.Amount {
+	res := make([]dcrutil.Amount, len(in))
+	for i, a := range in {
+		res[i] = dcrutil.Amount(a)
+	}
+	return res
 }

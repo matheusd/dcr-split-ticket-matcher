@@ -56,8 +56,12 @@ func (mc *MatcherClient) Status(ctx context.Context) (*pb.StatusResponse, error)
 	return mc.client.Status(ctx, req)
 }
 
-func (mc *MatcherClient) Participate(ctx context.Context, maxAmount dcrutil.Amount) (*BuyerSession, error) {
-	req := &pb.FindMatchesRequest{Amount: uint64(maxAmount)}
+func (mc *MatcherClient) Participate(ctx context.Context, maxAmount dcrutil.Amount, sessionName string) (*BuyerSession, error) {
+	req := &pb.FindMatchesRequest{
+		Amount:      uint64(maxAmount),
+		SessionName: sessionName,
+	}
+
 	resp, err := mc.client.FindMatches(ctx, req)
 	if err != nil {
 		return nil, err
@@ -331,7 +335,7 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 }
 
 type waitingListWatcher interface {
-	ListChanged([]dcrutil.Amount)
+	ListChanged([]matcher.WaitingQueue)
 }
 
 func (mc *MatcherClient) WatchWaitingList(ctx context.Context, watcher waitingListWatcher) error {
@@ -349,11 +353,14 @@ func (mc *MatcherClient) WatchWaitingList(ctx context.Context, watcher waitingLi
 				}
 				return
 			} else {
-				amnts := make([]dcrutil.Amount, len(resp.Amounts))
-				for i, a := range resp.Amounts {
-					amnts[i] = dcrutil.Amount(a)
+				queues := make([]matcher.WaitingQueue, len(resp.Queues))
+				for i, q := range resp.Queues {
+					queues[i] = matcher.WaitingQueue{
+						Name:    q.Name,
+						Amounts: uint64sToAmounts(q.Amounts),
+					}
 				}
-				watcher.ListChanged(amnts)
+				watcher.ListChanged(queues)
 			}
 		}
 	}()

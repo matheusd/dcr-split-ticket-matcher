@@ -1,6 +1,9 @@
 package daemon
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
@@ -9,6 +12,19 @@ import (
 
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 )
+
+func amountsToUint(amounts []dcrutil.Amount) []uint64 {
+	res := make([]uint64, len(amounts))
+	for i, a := range amounts {
+		res[i] = uint64(a)
+	}
+	return res
+}
+
+func encodeQueueName(name string) string {
+	hash := sha256.Sum256([]byte(name))
+	return hex.EncodeToString(hash[:])
+}
 
 type SplitTicketMatcherService struct {
 	matcher       *matcher.Matcher
@@ -24,19 +40,22 @@ func NewSplitTicketMatcherService(matcher *matcher.Matcher, priceProvider matche
 
 func (svc *SplitTicketMatcherService) WatchWaitingList(req *pb.WatchWaitingListRequest, server pb.SplitTicketMatcherService_WatchWaitingListServer) error {
 
-	watcher := make(chan []dcrutil.Amount)
+	watcher := make(chan []matcher.WaitingQueue)
 	svc.matcher.WatchWaitingList(server.Context(), watcher)
 
 	for {
 		select {
 		case <-server.Context().Done():
 			return server.Context().Err()
-		case amounts := <-watcher:
+		case queues := <-watcher:
 			resp := &pb.WatchWaitingListResponse{
-				Amounts: make([]uint64, len(amounts)),
+				Queues: make([]*pb.WatchWaitingListResponse_Queue, len(queues)),
 			}
-			for i, a := range amounts {
-				resp.Amounts[i] = uint64(a)
+			for i, q := range queues {
+				resp.Queues[i] = &pb.WatchWaitingListResponse_Queue{
+					Name:    encodeQueueName(q.Name),
+					Amounts: amountsToUint(q.Amounts),
+				}
 			}
 			err := server.Send(resp)
 			if err != nil {
@@ -47,7 +66,7 @@ func (svc *SplitTicketMatcherService) WatchWaitingList(req *pb.WatchWaitingListR
 }
 
 func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.FindMatchesRequest) (*pb.FindMatchesResponse, error) {
-	sess, err := svc.matcher.AddParticipant(ctx, req.Amount)
+	sess, err := svc.matcher.AddParticipant(ctx, req.Amount, req.SessionName)
 	if err != nil {
 		return nil, err
 	}

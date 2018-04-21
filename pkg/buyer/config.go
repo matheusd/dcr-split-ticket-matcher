@@ -41,6 +41,7 @@ type BuyerConfig struct {
 	MaxWaitTime     int     `long:"maxwaittime" description:"Maximum amount of time (in seconds) to wait until a new split ticket session is initiated"`
 	DataDir         string  `long:"datadir" description:"Directory where session data files are stored"`
 	MatcherCertFile string  `long:"matchercertfile" description:"Location of the certificate file for connecting to the grpc matcher service"`
+	SessionName     string  `long:"sessionname" description:"Name of the session to connect to. Leave blank to connect to the public matching session."`
 
 	Passphrase  []byte
 	ChainParams *chaincfg.Params

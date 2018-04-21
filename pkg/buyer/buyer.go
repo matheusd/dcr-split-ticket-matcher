@@ -95,12 +95,18 @@ type Reporter interface {
 
 type stdoutListWatcher struct{}
 
-func (w stdoutListWatcher) ListChanged(amounts []dcrutil.Amount) {
-	strs := make([]string, len(amounts))
-	for i, a := range amounts {
-		strs[i] = a.String()
+func (w stdoutListWatcher) ListChanged(queues []matcher.WaitingQueue) {
+	for _, q := range queues {
+		strs := make([]string, len(q.Amounts))
+		sessName := q.Name
+		if len(sessName) > 10 {
+			sessName = sessName[:10]
+		}
+		for i, a := range q.Amounts {
+			strs[i] = a.String()
+		}
+		fmt.Printf("Waiting participants (%s): [%s]\n", sessName, strings.Join(strs, ", "))
 	}
-	fmt.Printf("Waiting participants: [%s]\n", strings.Join(strs, ", "))
 }
 
 type sessionWaiterResponse struct {
@@ -183,7 +189,7 @@ func waitForSession(ctx context.Context, cfg *BuyerConfig) sessionWaiterResponse
 	}
 
 	rep.reportStage(ctx, StageFindingMatches, nil, cfg)
-	session, err := mc.Participate(ctx, maxAmount)
+	session, err := mc.Participate(ctx, maxAmount, cfg.SessionName)
 	if err != nil {
 		return sessionWaiterResponse{nil, nil, nil, err}
 	}

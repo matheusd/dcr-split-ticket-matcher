@@ -43,9 +43,10 @@ type (
 
 type (
 	addParticipantRequest struct {
-		ctx       context.Context
-		maxAmount uint64
-		resp      chan addParticipantResponse
+		ctx         context.Context
+		maxAmount   uint64
+		sessionName string
+		resp        chan addParticipantResponse
 	}
 
 	setParticipantOutputsRequest struct {
@@ -80,7 +81,7 @@ type (
 
 	watchWaitingListRequest struct {
 		ctx     context.Context
-		watcher chan []dcrutil.Amount
+		watcher chan []WaitingQueue
 	}
 )
 

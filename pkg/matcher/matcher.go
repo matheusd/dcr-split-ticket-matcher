@@ -58,16 +58,21 @@ type ParticipantTicketOutput struct {
 	Amount       dcrutil.Amount
 }
 
+type WaitingQueue struct {
+	Name    string
+	Amounts []dcrutil.Amount
+}
+
 // Matcher is the main engine for matching operations
 type Matcher struct {
-	waitingParticipants []*addParticipantRequest
+	queues              map[string]*splitTicketQueue
 	sessions            map[SessionID]*Session
 	participants        map[ParticipantID]*SessionParticipant
-	waitingListWatchers map[context.Context]chan []dcrutil.Amount
+	waitingListWatchers map[context.Context]chan []WaitingQueue
 	cfg                 *Config
 	log                 *logging.Logger
 
-	cancelWaitingParticipant      chan addParticipantRequest
+	cancelWaitingParticipant      chan *addParticipantRequest
 	addParticipantRequests        chan addParticipantRequest
 	setParticipantOutputsRequests chan setParticipantOutputsRequest
 	fundTicketRequests            chan fundTicketRequest
@@ -80,13 +85,14 @@ type Matcher struct {
 func NewMatcher(cfg *Config) *Matcher {
 	m := &Matcher{
 		cfg:                 cfg,
+		queues:              make(map[string]*splitTicketQueue),
 		log:                 logging.MustGetLogger("matcher"),
 		sessions:            make(map[SessionID]*Session),
 		participants:        make(map[ParticipantID]*SessionParticipant),
-		waitingListWatchers: make(map[context.Context]chan []dcrutil.Amount),
+		waitingListWatchers: make(map[context.Context]chan []WaitingQueue),
 
 		addParticipantRequests:        make(chan addParticipantRequest),
-		cancelWaitingParticipant:      make(chan addParticipantRequest),
+		cancelWaitingParticipant:      make(chan *addParticipantRequest),
 		setParticipantOutputsRequests: make(chan setParticipantOutputsRequest),
 		fundTicketRequests:            make(chan fundTicketRequest),
 		fundSplitTxRequests:           make(chan fundSplitTxRequest),
@@ -111,13 +117,16 @@ func (matcher *Matcher) Run() error {
 				}
 			}
 		case cancelReq := <-matcher.cancelWaitingParticipant:
-			waiting := matcher.waitingParticipants
-			for i, p := range waiting {
-				if *p == cancelReq {
-					matcher.log.Infof("Dropping waiting participant for %s", dcrutil.Amount(p.maxAmount))
-					matcher.waitingParticipants = append(waiting[:i], waiting[i+1:]...)
+			q, has := matcher.queues[cancelReq.sessionName]
+			if has {
+				matcher.log.Infof("Dropping waiting participant of queue '%s' for %s",
+					cancelReq.sessionName, dcrutil.Amount(cancelReq.maxAmount))
+				q.removeWaitingParticipant(cancelReq)
+				if q.empty() {
+					delete(matcher.queues, cancelReq.sessionName)
 				}
 			}
+
 			matcher.notifyWaitingListWatchers()
 		case req := <-matcher.setParticipantOutputsRequests:
 			err := matcher.setParticipantsOutputs(&req)
@@ -159,15 +168,20 @@ func (matcher *Matcher) Run() error {
 }
 
 func (matcher *Matcher) notifyWaitingListWatchers() {
-	amounts := make([]dcrutil.Amount, len(matcher.waitingParticipants))
-	for i, p := range matcher.waitingParticipants {
-		amounts[i] = dcrutil.Amount(p.maxAmount)
+	queues := make([]WaitingQueue, len(matcher.queues))
+	i := 0
+	for name, q := range matcher.queues {
+		queues[i] = WaitingQueue{
+			Name:    name,
+			Amounts: q.waitingAmounts(),
+		}
+		i++
 	}
 
 	for ctx, w := range matcher.waitingListWatchers {
 		if ctx.Err() == nil {
 			select {
-			case w <- amounts:
+			case w <- queues:
 			default:
 				matcher.log.Warningf("Possible block when trying to send to waiting list watcher")
 			}
@@ -177,14 +191,22 @@ func (matcher *Matcher) notifyWaitingListWatchers() {
 
 func (matcher *Matcher) addParticipant(req *addParticipantRequest) error {
 	matcher.log.Infof("Adding participant for amount %s", dcrutil.Amount(req.maxAmount))
-	matcher.waitingParticipants = append(matcher.waitingParticipants, req)
-	if matcher.enoughForNewSession() {
-		matcher.startNewSession()
+	q, has := matcher.queues[req.sessionName]
+	if !has {
+		q = newSplitTicketQueue(matcher.cfg.PriceProvider)
+		matcher.queues[req.sessionName] = q
+	}
+
+	q.addWaitingParticipant(req)
+
+	if q.enoughForNewSession() {
+		delete(matcher.queues, req.sessionName)
+		matcher.startNewSession(q)
 	} else {
 		go func(r *addParticipantRequest) {
 			<-r.ctx.Done()
 			if r.ctx.Err() != nil {
-				matcher.cancelWaitingParticipant <- *r
+				matcher.cancelWaitingParticipant <- r
 			}
 		}(req)
 	}
@@ -194,22 +216,8 @@ func (matcher *Matcher) addParticipant(req *addParticipantRequest) error {
 	return nil
 }
 
-func (matcher *Matcher) enoughForNewSession() bool {
-
-	ticketPrice := dcrutil.Amount(matcher.cfg.PriceProvider.CurrentTicketPrice())
-	var availableSum uint64
-
-	for _, r := range matcher.waitingParticipants {
-		availableSum += r.maxAmount
-	}
-
-	ticketFee := SessionFeeEstimate(len(matcher.waitingParticipants))
-	neededAmount := uint64(ticketPrice + ticketFee)
-	return availableSum > neededAmount
-}
-
-func (matcher *Matcher) startNewSession() {
-	numParts := len(matcher.waitingParticipants)
+func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
+	numParts := len(q.waitingParticipants)
 	partFee := SessionParticipantFee(numParts)
 	ticketTxFee := partFee * dcrutil.Amount(numParts)
 	ticketPrice := dcrutil.Amount(matcher.cfg.PriceProvider.CurrentTicketPrice())
@@ -219,8 +227,8 @@ func (matcher *Matcher) startNewSession() {
 		poolFeePerc, matcher.cfg.ChainParams)
 	poolFeePart := dcrutil.Amount(math.Ceil(float64(poolFee) / float64(numParts)))
 	sessID := matcher.newSessionID()
-	parts := matcher.waitingParticipants
-	matcher.waitingParticipants = nil
+	parts := q.waitingParticipants
+	q.waitingParticipants = nil
 
 	matcher.log.Noticef("Starting new session %s: Ticket Price=%s Fees=%s Participants=%d PoolFee=%s",
 		sessID, ticketPrice, ticketTxFee, numParts, dcrutil.Amount(poolFee))
@@ -585,7 +593,7 @@ func (matcher *Matcher) removeSession(sess *Session, err error) {
 	}
 }
 
-func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64) (*SessionParticipant, error) {
+func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64, sessionName string) (*SessionParticipant, error) {
 	if maxAmount < matcher.cfg.MinAmount {
 		return nil, ErrLowAmount
 	}
@@ -602,9 +610,10 @@ func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64) (*
 	}
 
 	req := addParticipantRequest{
-		ctx:       ctx,
-		maxAmount: maxAmount,
-		resp:      make(chan addParticipantResponse),
+		ctx:         ctx,
+		maxAmount:   maxAmount,
+		sessionName: sessionName,
+		resp:        make(chan addParticipantResponse),
 	}
 	matcher.addParticipantRequests <- req
 
@@ -612,7 +621,7 @@ func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64) (*
 	return resp.participant, resp.err
 }
 
-func (matcher *Matcher) WatchWaitingList(ctx context.Context, watcher chan []dcrutil.Amount) {
+func (matcher *Matcher) WatchWaitingList(ctx context.Context, watcher chan []WaitingQueue) {
 	req := watchWaitingListRequest{
 		ctx:     ctx,
 		watcher: watcher,
