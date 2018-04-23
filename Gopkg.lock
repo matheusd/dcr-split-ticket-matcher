@@ -116,6 +116,12 @@
   version = "v1"
 
 [[projects]]
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+  version = "v0.8.0"
+
+[[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
   packages = ["ripemd160"]
@@ -195,6 +201,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a18ea26d7cd0289a92c334c8022d310681996ed847c4e9c5e2ca236aa872de47"
+  inputs-digest = "9fb7e5a29c99648f9d19ac4a441bd60f18ede442388255cdf5c4c8c1554c9630"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -383,11 +383,11 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	if sess.Session.AllOutputsFilled() {
 		matcher.log.Infof("All outputs for session received. Creating txs.")
 
-		var ticket, splitTx, revocation *wire.MsgTx
+		var ticket, splitTx *wire.MsgTx
 		var poolTicketInSig []byte
 		var err error
 
-		ticket, splitTx, revocation, err = sess.Session.CreateTransactions()
+		ticket, splitTx, err = sess.Session.CreateTransactions()
 		if err == nil {
 
 			toSign := ticket.Copy()
@@ -411,7 +411,6 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 			p.sendSetOutputsResponse(setParticipantOutputsResponse{
 				ticket:       ticket,
 				splitTx:      splitTx,
-				revocation:   revocation,
 				participants: parts,
 				err:          err,
 			})
@@ -460,13 +459,22 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 	if sess.Session.TicketIsFunded() {
 		matcher.log.Infof("All sigscripts for ticket received. Creating funded ticket.")
 
+		var ticketHash chainhash.Hash
+
 		// create one ticket for each participant
-		ticket, _, revocation, err := sess.Session.CreateTransactions()
+		ticket, _, err := sess.Session.CreateTransactions()
 
 		tickets := make([][]byte, len(sess.Session.Participants))
 		revocations := make([][]byte, len(tickets))
 		for i, p := range sess.Session.Participants {
 			p.replaceTicketIOs(ticket)
+			ticketHash = ticket.TxHash()
+			revocation, err := CreateUnsignedRevocation(&ticketHash, ticket, dcrutil.Amount(1e5))
+			if err != nil {
+				matcher.log.Errorf("Error creating participant's revocation: %v", err)
+				return err
+			}
+
 			p.replaceRevocationInput(ticket, revocation)
 
 			buff, err := ticket.Bytes()
@@ -538,10 +546,7 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 		matcher.log.Infof("All inputs for split tx received. Creating split tx.")
 		matcher.log.Infof("Voter index selected: %d (%s)", sess.Session.VoterIndex, voter.ID)
 
-		ticket, splitTx, revocation, err := sess.Session.CreateTransactions()
-
-		voter.replaceTicketIOs(ticket)
-		voter.replaceRevocationInput(ticket, revocation)
+		ticket, splitTx, revocation, err := sess.Session.CreateVoterTransactions()
 
 		if err == nil {
 			ticketBytes, err = ticket.Bytes()

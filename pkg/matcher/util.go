@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -17,6 +16,7 @@ import (
 	"github.com/decred/dcrd/wire"
 	"github.com/decred/dcrwallet/wallet/txrules"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher/internal/txsizes"
+	"github.com/pkg/errors"
 )
 
 // NewRandUint64 returns a new uint64 or an error
@@ -115,7 +115,7 @@ func CreateUnsignedRevocation(ticketHash *chainhash.Hash, ticketPurchase *wire.M
 	// input.
 	ticketOutPoint := wire.NewOutPoint(ticketHash, 0, wire.TxTreeStake)
 	revocation.AddTxIn(wire.NewTxIn(ticketOutPoint, nil))
-	scriptSizers := []txsizes.ScriptSizer{txsizes.P2SHScriptSize}
+	scriptSizers := []txsizes.ScriptSizer{txsizes.PoolVotingP2SHScriptSize}
 
 	// All remaining outputs pay to the output destinations and amounts tagged
 	// by the ticket purchase.

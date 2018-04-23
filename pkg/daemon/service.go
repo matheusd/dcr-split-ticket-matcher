@@ -78,6 +78,7 @@ func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.F
 		PoolFee:       uint64(sess.PoolFee),
 		MainchainHash: sess.Session.MainchainHash[:],
 		TicketPrice:   uint64(sess.Session.TicketPrice),
+		TotalPoolFee:  uint64(sess.Session.PoolFee),
 	}
 	return res, nil
 }
@@ -117,7 +118,7 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 	var secretNbHash matcher.SecretNumberHash
 	copy(secretNbHash[:], req.SecretnbHash)
 
-	split, ticketTempl, revocationTempl, parts, err := svc.matcher.SetParticipantsOutputs(ctx, matcher.ParticipantID(req.SessionId),
+	split, ticketTempl, _, parts, err := svc.matcher.SetParticipantsOutputs(ctx, matcher.ParticipantID(req.SessionId),
 		*commitTxout, *changeTxout, voteAddr, *splitChange, *splitTxout, splitOutpoints, poolAddr, secretNbHash)
 	if err != nil {
 		return nil, err
@@ -133,11 +134,6 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 		return nil, err
 	}
 
-	buffRevoke, err := revocationTempl.Bytes()
-	if err != nil {
-		return nil, err
-	}
-
 	partsResp := make([]*pb.GenerateTicketResponse_Participant, len(parts))
 	for i, p := range parts {
 		partsResp[i] = &pb.GenerateTicketResponse_Participant{
@@ -149,10 +145,9 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 	}
 
 	resp := &pb.GenerateTicketResponse{
-		SplitTx:            buffSplit,
-		TicketTemplate:     buffTicket,
-		RevocationTemplate: buffRevoke,
-		Participants:       partsResp,
+		SplitTx:        buffSplit,
+		TicketTemplate: buffTicket,
+		Participants:   partsResp,
 	}
 
 	return resp, nil

@@ -49,6 +49,7 @@ message FindMatchesResponse {
     uint64 pool_fee = 4;
     bytes mainchain_hash = 5;
     uint64 ticket_price = 6;
+    uint64 total_pool_fee = 7;
 }
 
 message GenerateTicketRequest {
@@ -72,8 +73,7 @@ message GenerateTicketResponse {
     }
     bytes split_tx = 1;
     bytes ticket_template = 2;
-    bytes revocation_template = 3;
-    repeated Participant participants = 4;
+    repeated Participant participants = 3;
 }
 
 message FundTicketRequest {

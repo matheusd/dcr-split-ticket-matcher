@@ -9,6 +9,7 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
+	"github.com/pkg/errors"
 )
 
 // ParticipantID is the unique ID of a participant of a session
@@ -245,13 +246,11 @@ func (sess *Session) addVoterSelectionData(split *wire.MsgTx) {
 
 // CreateTransactions creates the ticket and split tx transactions with all the
 // currently available information
-func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, *wire.MsgTx, error) {
+func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, error) {
 	var spOutIndex uint32 = 0
-	var err error
 
 	ticket := wire.NewMsgTx()
 	splitTx := wire.NewMsgTx()
-	revocation := wire.NewMsgTx()
 
 	sess.addCommonTicketOutputs(ticket)
 	sess.addVoterSelectionData(splitTx)
@@ -293,13 +292,33 @@ func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, *wire.MsgTx
 		in.PreviousOutPoint.Hash = splitHash
 	}
 
-	revocationFee, _ := dcrutil.NewAmount(0.001) // FIXME parametrize
+	return ticket, splitTx, nil
+}
+
+// CreateVoterTransactions creates the transactions (including the revocation)
+// once the voter is known to the session.
+func (sess *Session) CreateVoterTransactions() (*wire.MsgTx, *wire.MsgTx, *wire.MsgTx, error) {
+	if sess.VoterIndex < 0 {
+		return nil, nil, nil, errors.Errorf("voter not yet known")
+	}
+
+	ticket, splitTx, err := sess.CreateTransactions()
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "error creating transaction templates")
+	}
+
+	voter := sess.Participants[sess.VoterIndex]
+
+	voter.replaceTicketIOs(ticket)
 
 	ticketHash := ticket.TxHash()
-	revocation, err = CreateUnsignedRevocation(&ticketHash, ticket, revocationFee)
+
+	revocation, err := CreateUnsignedRevocation(&ticketHash, ticket, dcrutil.Amount(1e5))
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, errors.Wrap(err, "error creating unsigned revocation")
 	}
+
+	voter.replaceRevocationInput(ticket, revocation)
 
 	return ticket, splitTx, revocation, nil
 }

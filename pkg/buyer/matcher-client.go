@@ -3,13 +3,14 @@ package buyer
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"fmt"
 	"io"
 
 	"github.com/ansel1/merry"
+	"github.com/pkg/errors"
 
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/validations"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
@@ -79,6 +80,7 @@ func (mc *MatcherClient) Participate(ctx context.Context, maxAmount dcrutil.Amou
 		Amount:        dcrutil.Amount(resp.Amount),
 		Fee:           dcrutil.Amount(resp.Fee),
 		PoolFee:       dcrutil.Amount(resp.PoolFee),
+		TotalPoolFee:  dcrutil.Amount(resp.TotalPoolFee),
 		mainchainHash: mainchainHash,
 	}
 	return sess, nil
@@ -126,9 +128,6 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 		return err
 	}
 
-	fmt.Println("Ticket Template")
-	fmt.Println(hex.EncodeToString(resp.TicketTemplate))
-
 	session.ticketTemplate = wire.NewMsgTx()
 	err = session.ticketTemplate.FromBytes(resp.TicketTemplate)
 	if err != nil {
@@ -138,6 +137,10 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 	session.splitTx = wire.NewMsgTx()
 	session.splitTx.FromBytes(resp.SplitTx)
 	if err != nil {
+		return err
+	}
+
+	if err = validations.CheckSplit(session.splitTx, cfg.ChainParams); err != nil {
 		return err
 	}
 
@@ -168,15 +171,9 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 		return ErrWrongSplitTxVoterSelCommitment
 	}
 
-	// TODO: check if the commitment amounts sum up to ticketPrice - totalPoolFee
-	// TODO: check if poolFee is valid (5%)
-	// TODO: check if poolFee is equal among participants
-	// TODO: check if split tx is correctly funded
-	// TODO: check if my vote/pool script are in the list
-	// TODO: check if limit fees (fee allowance) is correct
-	// TODO: check if split[0] has the OP_RETURN with the correct hash for voting fraud detection
-
-	session.TotalPoolFee = dcrutil.Amount(session.ticketTemplate.TxOut[1].Value)
+	// vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	// TODO: everything below this points doesn't really belong here (should be
+	// calculated when signing my ticket/revocation)
 
 	voteAddr, err := dcrutil.DecodeAddress(cfg.VoteAddress)
 	if err != nil {
@@ -202,16 +199,12 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 	session.votePkScript = voteScript
 	session.poolPkScript = poolScript
 
-	// session.revocation = wire.NewMsgTx()
-	// session.revocation.FromBytes(resp.Revocation)
-	// if err != nil {
-	// 	return err
-	// }
-
 	return nil
 }
 
 func (mc *MatcherClient) FundTicket(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
+
+	var err error
 
 	tickets := make([]*pb.FundTicketRequest_FundedParticipantTicket, len(session.ticketsScriptSig))
 	for i, s := range session.ticketsScriptSig {
@@ -235,20 +228,29 @@ func (mc *MatcherClient) FundTicket(ctx context.Context, session *BuyerSession, 
 		return fmt.Errorf("Matcher replied with different number of tickets than participants")
 	}
 
+	splitTx := session.splitTx
 	for i, t := range resp.Tickets {
-		session.participants[i].ticket = wire.NewMsgTx()
-		err := session.participants[i].ticket.FromBytes(t.Ticket)
-		if err != nil {
-			return err
+
+		ticket := wire.NewMsgTx()
+		if err = ticket.FromBytes(t.Ticket); err != nil {
+			return errors.Wrapf(err, "error decoding ticket bytes for part %d", i)
 		}
 
-		session.participants[i].revocation = wire.NewMsgTx()
-		err = session.participants[i].revocation.FromBytes(t.Revocation)
-		if err != nil {
-			return err
+		revocation := wire.NewMsgTx()
+		if err = revocation.FromBytes(t.Revocation); err != nil {
+			return errors.Wrapf(err, "error decoding reovaction bytes for part %d", i)
 		}
 
-		// TODO: check if the revocation actually revokes the ticket
+		if err = validations.CheckTicket(splitTx, ticket, cfg.ChainParams); err != nil {
+			return errors.Wrapf(err, "error checking validity of ticket of part %d", i)
+		}
+
+		if err = validations.CheckRevocation(ticket, revocation, cfg.ChainParams); err != nil {
+			return errors.Wrapf(err, "error checking validity of revocation of part %d", i)
+		}
+
+		session.participants[i].ticket = ticket
+		session.participants[i].revocation = revocation
 	}
 
 	return nil
@@ -290,8 +292,11 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 		return merry.Prepend(err, "error decoding selected revocation")
 	}
 
-	// TODO: verify if the funded split hasn't changed and actually does
-	// what it should
+	// TODO: verify if the funded split hasn't changed
+
+	if err = validations.CheckSplit(fundedSplit, cfg.ChainParams); err != nil {
+		return err
+	}
 
 	if len(resp.Secrets) != len(session.participants) {
 		return merry.New("len(secrets) != len(participants)")
@@ -326,6 +331,10 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 	// actually is for the given voter index. Probably need to alert dcrd to
 	// watch for transactions involving all voting addresses and alert on any
 	// published that is not for the given ticket
+
+	// TODO: we don't really need to receive the selected ticket from the
+	// network as we should already have it and the revocation from the
+	// previous step.
 
 	session.fundedSplitTx = fundedSplit
 	session.selectedTicket = selectedTicket

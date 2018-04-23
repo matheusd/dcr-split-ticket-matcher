@@ -59,6 +59,11 @@ const (
 	//   - 4 bytes sequence
 	RedeemP2PKHInputSize = 32 + 4 + 1 + 8 + 4 + 4 + 1 + RedeemP2PKHSigScriptSize + 4
 
+	// RedeemPoolVotingScriptSize is the size of a stakepool voting input
+	// signature.
+	// TODO: explain why different from the standard p2psh
+	RedeemPoolVotingScriptSize = 1 + 73 + 1 + 73
+
 	// P2PKHPkScriptSize is the size of a transaction output script that
 	// pays to a compressed pubkey hash.  It is calculated as:
 	//
@@ -80,8 +85,9 @@ const (
 	P2PKHOutputSize = 8 + 2 + 1 + 25
 
 	// signature script definitions
-	P2SHScriptSize  = sigScriptSize(RedeemP2SHSigScriptSize)
-	P2PKHScriptSize = sigScriptSize(RedeemP2PKHSigScriptSize)
+	P2SHScriptSize           = sigScriptSize(RedeemP2SHSigScriptSize)
+	P2PKHScriptSize          = sigScriptSize(RedeemP2PKHSigScriptSize)
+	PoolVotingP2SHScriptSize = sigScriptSize(RedeemPoolVotingScriptSize)
 )
 
 // EstimateSerializeSize returns a worst case serialize size estimate for a
