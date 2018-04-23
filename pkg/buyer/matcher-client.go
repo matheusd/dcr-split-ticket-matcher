@@ -74,6 +74,7 @@ func (mc *MatcherClient) Participate(ctx context.Context, maxAmount dcrutil.Amou
 	}
 
 	// TODO: check if mainchainHash really is the mainchain tip at this moment
+	// TODO: check if the ticket price really is the current ticket price according to the latest block
 
 	sess := &BuyerSession{
 		ID:            matcher.ParticipantID(resp.SessionId),
@@ -81,6 +82,7 @@ func (mc *MatcherClient) Participate(ctx context.Context, maxAmount dcrutil.Amou
 		Fee:           dcrutil.Amount(resp.Fee),
 		PoolFee:       dcrutil.Amount(resp.PoolFee),
 		TotalPoolFee:  dcrutil.Amount(resp.TotalPoolFee),
+		TicketPrice:   dcrutil.Amount(resp.TicketPrice),
 		mainchainHash: mainchainHash,
 	}
 	return sess, nil
@@ -228,6 +230,11 @@ func (mc *MatcherClient) FundTicket(ctx context.Context, session *BuyerSession, 
 		return fmt.Errorf("Matcher replied with different number of tickets than participants")
 	}
 
+	partsAmounts := make([]dcrutil.Amount, len(session.participants))
+	for i, p := range session.participants {
+		partsAmounts[i] = p.amount
+	}
+
 	splitTx := session.splitTx
 	for i, t := range resp.Tickets {
 
@@ -241,7 +248,9 @@ func (mc *MatcherClient) FundTicket(ctx context.Context, session *BuyerSession, 
 			return errors.Wrapf(err, "error decoding reovaction bytes for part %d", i)
 		}
 
-		if err = validations.CheckTicket(splitTx, ticket, cfg.ChainParams); err != nil {
+		err = validations.CheckTicket(splitTx, ticket, session.TicketPrice,
+			session.TotalPoolFee, session.Fee, partsAmounts, cfg.ChainParams)
+		if err != nil {
 			return errors.Wrapf(err, "error checking validity of ticket of part %d", i)
 		}
 
