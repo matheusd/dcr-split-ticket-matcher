@@ -1,7 +1,6 @@
 package buyer
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -22,11 +21,17 @@ import (
 )
 
 type MatcherClient struct {
-	client pb.SplitTicketMatcherServiceClient
-	conn   *grpc.ClientConn
+	client  pb.SplitTicketMatcherServiceClient
+	conn    *grpc.ClientConn
+	network *decredNetwork
 }
 
-func ConnectToMatcherService(matcherHost string, certFile string) (*MatcherClient, error) {
+func ConnectToMatcherService(matcherHost string, certFile string, netCfg *decredNetworkConfig) (*MatcherClient, error) {
+
+	network, err := connectToDecredNode(netCfg)
+	if err != nil {
+		return nil, err
+	}
 
 	opt := grpc.WithInsecure()
 	if certFile != "" {
@@ -46,8 +51,9 @@ func ConnectToMatcherService(matcherHost string, certFile string) (*MatcherClien
 	client := pb.NewSplitTicketMatcherServiceClient(conn)
 
 	mc := &MatcherClient{
-		client: client,
-		conn:   conn,
+		client:  client,
+		conn:    conn,
+		network: network,
 	}
 	return mc, err
 }
@@ -91,7 +97,7 @@ func (mc *MatcherClient) Participate(ctx context.Context, maxAmount dcrutil.Amou
 func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
 
 	session.secretNb = matcher.SecretNumber(matcher.MustRandUint64())
-	session.secretNbHash = session.secretNb.Hash(*session.mainchainHash)
+	session.secretNbHash = session.secretNb.Hash(session.mainchainHash)
 
 	req := &pb.GenerateTicketRequest{
 		SessionId: int32(session.ID),
@@ -142,11 +148,13 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 		return err
 	}
 
-	if err = validations.CheckSplit(session.splitTx, cfg.ChainParams); err != nil {
+	// cache the utxo map of the split so we can check for the validity of the tx
+	utxoMap, err := validations.UtxoMapFromNetwork(mc.network.client, session.splitTx)
+	if err != nil {
 		return err
 	}
+	session.splitTxUtxoMap = utxoMap
 
-	secretHashes := make([]matcher.SecretNumberHash, len(resp.Participants))
 	gotMyHash := false
 
 	session.participants = make([]buyerSessionParticipant, len(resp.Participants))
@@ -157,20 +165,13 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 			votePkScript: p.VotePkScript,
 		}
 		copy(session.participants[i].secretHash[:], p.SecretnbHash)
-		secretHashes[i] = session.participants[i].secretHash
-		gotMyHash = gotMyHash || secretHashes[i].Equals(session.secretNbHash)
+		gotMyHash = gotMyHash || session.participants[i].secretHash.Equals(session.secretNbHash)
 	}
 
-	targetVoterHash := matcher.SecretNumberHashesHash(secretHashes, *session.mainchainHash)
-	if (len(session.splitTx.TxOut) < 1) || (len(session.splitTx.TxOut[0].PkScript) < 1) || (session.splitTx.TxOut[0].PkScript[0] != txscript.OP_RETURN) {
-		return ErrSplitTxOutZeroNotOpReturn
-	}
-
-	// pick the range [2:] because the first byte is the OP_RETURN, the second
-	// is the push data op
-	splitVoterCommitment := session.splitTx.TxOut[0].PkScript[2:]
-	if !bytes.Equal(targetVoterHash, splitVoterCommitment) {
-		return ErrWrongSplitTxVoterSelCommitment
+	err = validations.CheckSplit(session.splitTx, session.splitTxUtxoMap,
+		session.secretHashes(), session.mainchainHash, cfg.ChainParams)
+	if err != nil {
+		return err
 	}
 
 	// vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -301,9 +302,15 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 		return merry.Prepend(err, "error decoding selected revocation")
 	}
 
-	// TODO: verify if the funded split hasn't changed
+	err = validations.CheckSplit(session.splitTx, session.splitTxUtxoMap,
+		session.secretHashes(), session.mainchainHash, cfg.ChainParams)
+	if err != nil {
+		return err
+	}
 
-	if err = validations.CheckSplit(fundedSplit, cfg.ChainParams); err != nil {
+	err = validations.CheckSignedSplit(session.splitTx, session.splitTxUtxoMap,
+		cfg.ChainParams)
+	if err != nil {
 		return err
 	}
 
@@ -313,27 +320,15 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 
 	for i, s := range resp.Secrets {
 		session.participants[i].secretNb = matcher.SecretNumber(s.Secretnb)
-		sentSecretHash := session.participants[i].secretNb.Hash(*session.mainchainHash)
-		if !sentSecretHash.Equals(session.participants[i].secretHash) {
-			// TODO: show big red warning, as sending a wrong secret number
-			// is a voting manipulation attempt
-			return ErrWrongSecretNbProvided
-		}
 	}
 
 	session.voterIndex = session.findVoterIndex()
-	if session.voterIndex < 0 {
-		return merry.New("Negative voter index")
-	}
 
-	// verify if the voting address for the submitted ticket actually is
-	// for the given voter index. If these are different, that means the matcher
-	// is malicious and is not honoring the deterministically selected voter.
-	// TODO: show a big red warning.
-	// TODO: check the pool fee destination output as well
-	targetVoterPkScript := session.participants[session.voterIndex].votePkScript
-	if !bytes.Equal(selectedTicket.TxOut[0].PkScript, targetVoterPkScript) {
-		return merry.Errorf("DAAAAANGER!!!! Received funded ticket is not for the deterministically selected voter (%d)", session.voterIndex)
+	err = validations.CheckSelectedVoter(session.secretNumbers(),
+		session.secretHashes(), session.amounts(), session.voteScripts(),
+		selectedTicket, session.mainchainHash)
+	if err != nil {
+		return err
 	}
 
 	// TODO: verify if the published ticket transaction (received from the network)

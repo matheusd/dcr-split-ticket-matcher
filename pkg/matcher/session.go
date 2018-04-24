@@ -228,7 +228,7 @@ func (sess *Session) addVoterSelectionData(split *wire.MsgTx) {
 	for i, p := range sess.Participants {
 		hashes[i] = p.SecretHash
 	}
-	hash := SecretNumberHashesHash(hashes, sess.MainchainHash)
+	hash := SecretNumberHashesHash(hashes, &sess.MainchainHash)
 
 	b := txscript.NewScriptBuilder()
 	b.
@@ -357,7 +357,7 @@ func (sess *Session) FindVoterIndex() int {
 	}
 
 	nbs := sess.SecretNumbers()
-	nbsHash := nbs.Hash(sess.MainchainHash)
+	nbsHash := nbs.Hash(&sess.MainchainHash)
 	coinIdx := nbsHash.SelectedCoin(totalCommitment)
 	for i, p := range sess.Participants {
 		sum += uint64(p.CommitAmount)

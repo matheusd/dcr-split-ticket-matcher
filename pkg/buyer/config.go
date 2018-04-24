@@ -42,6 +42,10 @@ type BuyerConfig struct {
 	DataDir         string  `long:"datadir" description:"Directory where session data files are stored"`
 	MatcherCertFile string  `long:"matchercertfile" description:"Location of the certificate file for connecting to the grpc matcher service"`
 	SessionName     string  `long:"sessionname" description:"Name of the session to connect to. Leave blank to connect to the public matching session."`
+	DcrdHost        string  `long:"dcrdhost" description:"Host of the dcrd daemon"`
+	DcrdUser        string  `long:"dcrduser" description:"Username of the dcrd daemon"`
+	DcrdPass        string  `long:"dcrpass" description:"Password of the dcrd daemon"`
+	DcrdCertFile    string  `long:"dcrdcertfile" description:"Location of the certificate for the dcrd daemon"`
 
 	Passphrase  []byte
 	ChainParams *chaincfg.Params
@@ -109,6 +113,22 @@ func LoadConfig() (*BuyerConfig, error) {
 		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "WalletHost")
 	}
 
+	if cfg.DcrdHost == "" {
+		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "DcrdHost")
+	}
+
+	if cfg.DcrdUser == "" {
+		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "DcrdUser")
+	}
+
+	if cfg.DcrdPass == "" {
+		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "DcrdPass")
+	}
+
+	if cfg.DcrdCertFile == "" {
+		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "DcrdCertfile")
+	}
+
 	if cfg.Pass == "" {
 		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "WalletPass")
 	} else if cfg.Pass == "-" {
@@ -124,6 +144,15 @@ func LoadConfig() (*BuyerConfig, error) {
 
 	return cfg, nil
 
+}
+
+func (cfg *BuyerConfig) networkCfg() *decredNetworkConfig {
+	return &decredNetworkConfig{
+		Host:     cfg.DcrdHost,
+		User:     cfg.DcrdUser,
+		Pass:     cfg.DcrdPass,
+		CertFile: cfg.DcrdCertFile,
+	}
 }
 
 func passFromStdin() (string, error) {

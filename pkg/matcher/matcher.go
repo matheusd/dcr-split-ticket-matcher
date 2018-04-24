@@ -518,7 +518,7 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 			WithMessagef("len(splitTxInputs %d) != len(inputScriptSigs %d)", len(sess.SplitTxInputs), len(req.inputScriptSigs))
 	}
 
-	sentNbHash := req.secretNb.Hash(sess.Session.MainchainHash)
+	sentNbHash := req.secretNb.Hash(&sess.Session.MainchainHash)
 	if !sentNbHash.Equals(sess.SecretHash) {
 		return ErrSecretNbHashMismatch.
 			WithMessagef("Disclosed secret number (%d) does not hash (%s) to previously sent hash (%s)",

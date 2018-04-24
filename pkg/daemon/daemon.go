@@ -26,7 +26,7 @@ type Daemon struct {
 	matcher *matcher.Matcher
 	wallet  *WalletClient
 	rpcKeys *tls.Certificate
-	dcrd    *DecredNetwork
+	dcrd    *decredNetwork
 }
 
 // NewDaemon returns a new daemon instance and prepares it to listen to
@@ -44,7 +44,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 
 	d.log.Noticef("Starting dcrstmd version %s", pkg.Version)
 
-	dcfg := &DecredNetworkConfig{
+	dcfg := &decredNetworkConfig{
 		Host:        cfg.DcrdHost,
 		Pass:        cfg.DcrdPass,
 		CertFile:    cfg.DcrdCert,

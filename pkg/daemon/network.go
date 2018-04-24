@@ -12,7 +12,7 @@ import (
 	logging "github.com/op/go-logging"
 )
 
-type DecredNetworkConfig struct {
+type decredNetworkConfig struct {
 	Host        string
 	User        string
 	Pass        string
@@ -21,7 +21,7 @@ type DecredNetworkConfig struct {
 	chainParams *chaincfg.Params
 }
 
-type DecredNetwork struct {
+type decredNetwork struct {
 	client      *rpcclient.Client
 	blockHeight int32
 	blockHash   chainhash.Hash
@@ -30,12 +30,12 @@ type DecredNetwork struct {
 	chainParams *chaincfg.Params
 }
 
-func ConnectToDecredNode(cfg *DecredNetworkConfig) (*DecredNetwork, error) {
+func ConnectToDecredNode(cfg *decredNetworkConfig) (*decredNetwork, error) {
 
 	log := logging.MustGetLogger("decred-network")
 	log.SetBackend(cfg.logBackend)
 
-	net := &DecredNetwork{
+	net := &decredNetwork{
 		log:         log,
 		chainParams: cfg.chainParams,
 	}
@@ -75,7 +75,7 @@ func ConnectToDecredNode(cfg *DecredNetworkConfig) (*DecredNetwork, error) {
 	return net, nil
 }
 
-func (net *DecredNetwork) maintainClient() {
+func (net *decredNetwork) maintainClient() {
 	pingResChan := make(chan error)
 	var sleepTime time.Duration = 30
 
@@ -113,7 +113,7 @@ func (net *DecredNetwork) maintainClient() {
 	}
 }
 
-func (net *DecredNetwork) updateFromBestBlock() error {
+func (net *decredNetwork) updateFromBestBlock() error {
 	bestBlockHash, blockHeight, err := net.client.GetBestBlock()
 	if err != nil {
 		return err
@@ -131,7 +131,7 @@ func (net *DecredNetwork) updateFromBestBlock() error {
 	return nil
 }
 
-func (net *DecredNetwork) notificationHandlers() *rpcclient.NotificationHandlers {
+func (net *decredNetwork) notificationHandlers() *rpcclient.NotificationHandlers {
 	return &rpcclient.NotificationHandlers{
 		OnClientConnected:   net.onClientConnected,
 		OnBlockConnected:    net.onBlockConnected,
@@ -140,11 +140,11 @@ func (net *DecredNetwork) notificationHandlers() *rpcclient.NotificationHandlers
 	}
 }
 
-func (net *DecredNetwork) onClientConnected() {
+func (net *decredNetwork) onClientConnected() {
 	net.log.Infof("Connected to the dcrd daemon")
 }
 
-func (net *DecredNetwork) onBlockConnected(blockHeader []byte, transactions [][]byte) {
+func (net *decredNetwork) onBlockConnected(blockHeader []byte, transactions [][]byte) {
 	header := &wire.BlockHeader{}
 	header.FromBytes(blockHeader)
 	net.ticketPrice = uint64(header.SBits)
@@ -156,31 +156,31 @@ func (net *DecredNetwork) onBlockConnected(blockHeader []byte, transactions [][]
 		header.Height, dcrutil.Amount(net.ticketPrice), stakeDiffChangeDistance)
 }
 
-func (net *DecredNetwork) onBlockDisconnected(blockHeader []byte) {
+func (net *decredNetwork) onBlockDisconnected(blockHeader []byte) {
 	header := &wire.BlockHeader{}
 	header.FromBytes(blockHeader)
 	net.log.Infof("Block disconnected. Height=%d", header.Height)
 	net.updateFromBestBlock()
 }
 
-func (net *DecredNetwork) onReorganization(oldHash *chainhash.Hash, oldHeight int32,
+func (net *decredNetwork) onReorganization(oldHash *chainhash.Hash, oldHeight int32,
 	newHash *chainhash.Hash, newHeight int32) {
 	net.log.Info("Chain reorg. OldHeight=%d NewHeight=%d", oldHeight, newHeight)
 	net.updateFromBestBlock()
 }
 
-func (net *DecredNetwork) CurrentTicketPrice() uint64 {
+func (net *decredNetwork) CurrentTicketPrice() uint64 {
 	return net.ticketPrice
 }
 
-func (net *DecredNetwork) CurrentBlockHeight() int32 {
+func (net *decredNetwork) CurrentBlockHeight() int32 {
 	return net.blockHeight
 }
 
-func (net *DecredNetwork) CurrentBlockHash() chainhash.Hash {
+func (net *decredNetwork) CurrentBlockHash() chainhash.Hash {
 	return net.blockHash
 }
 
-func (net *DecredNetwork) ConnectedToDecredNetwork() bool {
+func (net *decredNetwork) ConnectedToDecredNetwork() bool {
 	return !net.client.Disconnected()
 }

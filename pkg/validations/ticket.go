@@ -10,79 +10,37 @@ import (
 	"github.com/pkg/errors"
 )
 
-// currentScriptFlags are the flags for script execution currently enabled on
-// the decred network. This might need updating in case the consensus rules
-// change.
-var currentScriptFlags = txscript.ScriptBip16 |
-	txscript.ScriptVerifyDERSignatures |
-	txscript.ScriptVerifyStrictEncoding |
-	txscript.ScriptVerifyMinimalData |
-	txscript.ScriptVerifyCleanStack |
-	txscript.ScriptVerifyCheckLockTimeVerify |
-	txscript.ScriptVerifyCheckSequenceVerify |
-	txscript.ScriptVerifySHA256
-
-// minRelayFeeRate is the minimum tx fee rate for inclusion on the network.
-// Measured as Atoms/KB. 1e5 = 0.001 DCR
-const minRelayFeeRate dcrutil.Amount = 1e5
-
-// totalOutputAmount calculates the total amount of outputs for a transaction.
-// Only safe to be called on transactions which passed
-// blockchain.CheckTransactionSanity()
-func totalOutputAmount(tx *wire.MsgTx) dcrutil.Amount {
-	var total int64
-	for _, out := range tx.TxOut {
-		total += out.Value
-	}
-	return dcrutil.Amount(total)
-}
-
-// CheckSplit validates that the given split transaction respects the rules for
-// the split ticket matching service
-func CheckSplit(split *wire.MsgTx, params *chaincfg.Params) error {
-	var err error
-
-	err = blockchain.CheckTransactionSanity(split, params)
-	if err != nil {
-		return errors.Wrap(err, "split tx failed sanity check")
-	}
-
-	// TODO: check if relay fee is correct
-	// TODO: check if outputs follow participation amounts
-	// TODO: check if output[0] is voter lottery commitment
-	// TODO: check if the commitment amounts sum up to ticketPrice - totalPoolFee
-	// TODO: check if poolFee is valid (5%)
-	// TODO: check if poolFee is equal among participants
-	// TODO: check if split tx is correctly funded
-	// TODO: check if my vote/pool script are in the list
-	// TODO: check if limit fees (fee allowance) is correct
-	// TODO: check if split[0] has the OP_RETURN with the correct hash for voting fraud detection
-
-	return nil
-}
-
 // CheckTicket validates that the given ticket respects the rules for the
 // split ticket matching service. Split must have passed the CheckSplit()
 // function.
+// This function can be called on buyers, to ensure that no other participant
+// or the matcher service are trying to trick the buyer into a malicious
+// split ticket session, wasting time or (more importantly) funds.
 func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, poolFee, partTicketFee dcrutil.Amount,
 	partsAmounts []dcrutil.Amount, params *chaincfg.Params) error {
 	var err error
 
+	// ensure the ticket tx looks like a valid decred tx
 	err = blockchain.CheckTransactionSanity(ticket, params)
 	if err != nil {
 		return errors.Wrap(err, "ticket failed sanity check")
 	}
 
+	// ensure this actually validates as an sstx
 	err = stake.CheckSStx(ticket)
 	if err != nil {
 		return errors.Wrap(err, "ticket tx is not an sstx")
 	}
 
+	// ensure the ticket has the appropriate number of inputs, given how many
+	// participants are in the split ticket
 	if len(ticket.TxIn) != len(partsAmounts)+1 {
 		return errors.Errorf("ticket has different number of inputs (%d) "+
 			"than expected (%d)", len(ticket.TxIn), len(partsAmounts))
 	}
 
+	// ensure the ticket has the appropriate number of outputs, given how
+	// many participants are in the split ticket
 	// number of participants + voting addr + pool fee + pool fee change
 	expectedNbOuts := len(partsAmounts)*2 + 1 + 2
 	if len(ticket.TxOut) != expectedNbOuts {
@@ -90,6 +48,7 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, poolFee, partTicketFee 
 			" than expected (%d)", len(ticket.TxOut), expectedNbOuts)
 	}
 
+	// ensure the output amount is the specified ticket price
 	if dcrutil.Amount(ticket.TxOut[0].Value) != ticketPrice {
 		return errors.Errorf("ticket price has different value (%s) than "+
 			"expected (%s)", dcrutil.Amount(ticket.TxOut[0].Value), ticketPrice)
@@ -100,6 +59,7 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, poolFee, partTicketFee 
 	var totalAmountIn int64
 	var amountsIn []int64
 	for i, in := range ticket.TxIn {
+		// ensure all ticket inputs come from the split transaction
 		if in.PreviousOutPoint.Index >= uint32(len(split.TxOut)) {
 			return errors.Errorf("input %d of ticket references inexistent "+
 				"output %d of split tx", i, in.PreviousOutPoint.Index)
@@ -111,6 +71,19 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, poolFee, partTicketFee 
 		}
 
 		out := split.TxOut[in.PreviousOutPoint.Index]
+
+		// ensure the split output/ticket input value is actually the same as
+		// the expected participant amount.
+		if i > 0 {
+			expected := partsAmounts[i-1] + partTicketFee
+			amount := dcrutil.Amount(out.Value)
+			if amount != expected {
+				return errors.Errorf("amount in ticket input %d (%s) different "+
+					"than expected (%s)", i, amount, expected)
+			}
+		}
+
+		// ensure the input actually signs the ticket transaction
 		engine, err := txscript.NewEngine(out.PkScript, ticket, i,
 			currentScriptFlags, out.Version, nil)
 		if err != nil {
@@ -124,6 +97,8 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, poolFee, partTicketFee 
 				"ticket", i)
 		}
 
+		// ensure the input amounts are not overflowing the accumulator
+		// (CheckTransactionSanity does this for outputs)
 		newAmountIn := totalAmountIn + out.Value
 		if (newAmountIn <= 0) || (newAmountIn >= dcrutil.MaxAmount) {
 			return errors.Errorf("input amount of ticket overflows maximum " +
@@ -133,6 +108,8 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, poolFee, partTicketFee 
 		amountsIn = append(amountsIn, out.Value)
 	}
 
+	// ensure the commitment amounts are congruent with the inputs.
+	// Current decred consensus rules enforce commitments proportional to inputs.
 	_, _, outAmt, chgAmt, _, spendLimits := stake.TxSStxStakeOutputInfo(ticket)
 	_, outAmtCalc, err := stake.SStxNullOutputAmounts(amountsIn, chgAmt,
 		int64(ticketPrice))
@@ -146,12 +123,16 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, poolFee, partTicketFee 
 			"calculated")
 	}
 
+	// ensure the spending limit allowance is the default one.
 	for i, limit := range spendLimits {
 		if (limit[0] != 0) || (limit[1] != 24) {
 			return errors.Errorf("limit of output %d is not the standard value", i)
 		}
 	}
 
+	// ensure no change amounts are being sent. We may want to change this in
+	// the future if the split transaction isn't needed anymore and we actually
+	// start accepting doing the coinjoin directly on the ticket transaction.
 	for i, amount := range chgAmt {
 		if amount != 0 {
 			return errors.Errorf("ticket change %d has amount > 0 (%s)", i,
@@ -159,11 +140,16 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, poolFee, partTicketFee 
 		}
 	}
 
+	// ensure the pool fee commitment actually is the total pool fee
 	if dcrutil.Amount(outAmt[0]) != poolFee {
 		return errors.Errorf("amount in commitment for pool fee (%s) "+
 			"different than expected (%s)", dcrutil.Amount(outAmt[0]), poolFee)
 	}
 
+	// ensure the participation amounts in the ticket actually follow the
+	// provided distribution. This is specially important because we'll decide
+	// the voter based on the amounts in `partsAmounts`, so it's **very**
+	// important to ensure this isn't changing on the actual ticket.
 	for i := 1; i < len(outAmt); i++ {
 		expected := partsAmounts[i-1] + partTicketFee
 		amount := dcrutil.Amount(outAmt[i])
@@ -173,6 +159,10 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, poolFee, partTicketFee 
 		}
 	}
 
+	// ensure that the pool fee is congruent with what is observed in the real
+	// network (5% max on mainnet, 7.5% max on testnet/simnet). We can check
+	// using the poolFee/ticketPrice on the arguments because we're also
+	// validating elsewhere that these are correct in the actual ticket tx.
 	poolFeeRate := float64(poolFee) / float64(ticketPrice)
 	if params.Name == "mainnet" && poolFeeRate > 0.05 {
 		return errors.Errorf("pool fee rate (%f) higher than expected for mainnet")
@@ -180,7 +170,8 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, poolFee, partTicketFee 
 		return errors.Errorf("pool fee rate (%f) higher than expected for testnet")
 	}
 
-	// check if the tx fee for the ticket is >= default fee
+	// ensure that the ticket fee being used will actually allow the ticket to be
+	// mined (fee rate much lower than 0.001 DCR/KB might block the ticket)
 	totalAmountOut := ticket.TxOut[0].Value
 	if totalAmountOut >= totalAmountIn {
 		return errors.Wrapf(err, "total output amount in ticket (%s) >= "+
@@ -195,58 +186,12 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, poolFee, partTicketFee 
 			dcrutil.Amount(txFee), dcrutil.Amount(minFee))
 	}
 
-	expectedFee := partTicketFee * dcrutil.Amount(len(partsAmounts))
-	if dcrutil.Amount(txFee) != expectedFee {
-		return errors.Errorf("ticket fee (%s) different than expected (%s)",
-			dcrutil.Amount(txFee), expectedFee)
+	// ensure that the ticket fee is not higher than some arbitrary threshold
+	// to prevent fee drain. We might wanna lower this later on.
+	if txFee > 2*minFee {
+		return errors.Errorf("ticket fee (%s) higher than 2 times minimum required amount (%s)",
+			dcrutil.Amount(txFee), dcrutil.Amount(2*minFee))
 	}
-
-	return nil
-}
-
-// CheckRevocation checks whether the revocation for the given ticket respects
-// the rules for split ticket buying. The ticket must have passed the
-// CheckTicket function.
-func CheckRevocation(ticket, revocation *wire.MsgTx, params *chaincfg.Params) error {
-	var err error
-
-	err = blockchain.CheckTransactionSanity(revocation, params)
-	if err != nil {
-		return errors.Wrap(err, "revocation failed sanity check")
-	}
-
-	err = stake.CheckSSRtx(revocation)
-	if err != nil {
-		return errors.Wrap(err, "revocation tx is not an rrtx")
-	}
-
-	// check whether the revocation scriptSig successfully signs the ticket output
-	engine, err := txscript.NewEngine(ticket.TxOut[0].PkScript, revocation, 0,
-		currentScriptFlags, ticket.TxOut[0].Version, nil)
-	if err != nil {
-		return errors.Wrap(err, "error creating script engine")
-	}
-	err = engine.Execute()
-	if err != nil {
-		return errors.Wrap(err, "error verifying revocation scriptSig")
-	}
-
-	// check if the tx fee for the revocation is >= default fee
-	amountIn := dcrutil.Amount(ticket.TxOut[0].Value)
-	amountOut := totalOutputAmount(revocation)
-	if amountOut >= amountIn {
-		return errors.Wrapf(err, "total output amount in revocation (%s) >= "+
-			"total input amount in ticket (%s)", amountOut, amountIn)
-	}
-	fee := amountIn - amountOut
-	serializedSize := int64(revocation.SerializeSize())
-	minFee := dcrutil.Amount((serializedSize * int64(minRelayFeeRate)) / 1000)
-	if fee < minFee {
-		return errors.Errorf("revocation fee (%s) less than minimum required "+
-			"amount (%s)", fee, minFee)
-	}
-
-	// TODO: check if fee allowance is correct
 
 	return nil
 }

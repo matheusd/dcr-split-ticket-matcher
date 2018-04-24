@@ -272,7 +272,7 @@ func (h SecretNumberHash) Equals(other SecretNumberHash) bool {
 
 type SecretNumber uint64
 
-func (nb SecretNumber) Hash(mainchainHash chainhash.Hash) SecretNumberHash {
+func (nb SecretNumber) Hash(mainchainHash *chainhash.Hash) SecretNumberHash {
 	var res SecretNumberHash
 	var data [8]byte
 	var calculated []byte
@@ -303,7 +303,7 @@ func (h SecretNumbersHash) SelectedCoin(max uint64) uint64 {
 
 type SecretNumbers []SecretNumber
 
-func (nbs SecretNumbers) Hash(mainchainHash chainhash.Hash) SecretNumbersHash {
+func (nbs SecretNumbers) Hash(mainchainHash *chainhash.Hash) SecretNumbersHash {
 	var res SecretNumbersHash
 	var data [8]byte
 	var calculated []byte
@@ -322,7 +322,7 @@ func (nbs SecretNumbers) Hash(mainchainHash chainhash.Hash) SecretNumbersHash {
 	return res
 }
 
-func SecretNumberHashesHash(hashes []SecretNumberHash, mainchainHash chainhash.Hash) []byte {
+func SecretNumberHashesHash(hashes []SecretNumberHash, mainchainHash *chainhash.Hash) []byte {
 	var calculated []byte
 
 	// note that block hashes are reversed, so the first bytes are the actual

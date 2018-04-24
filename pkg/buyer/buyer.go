@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/validations"
+
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
@@ -49,6 +51,7 @@ type BuyerSession struct {
 	splitChange         *wire.TxOut
 	splitInputs         []*wire.TxIn
 	participants        []buyerSessionParticipant
+	splitTxUtxoMap      validations.UtxoMap
 
 	ticketTemplate *wire.MsgTx
 	splitTx        *wire.MsgTx
@@ -71,7 +74,7 @@ func (session *BuyerSession) selectedCoin() uint64 {
 		nbs[i] = p.secretNb
 	}
 
-	nbsHash := nbs.Hash(*session.mainchainHash)
+	nbsHash := nbs.Hash(session.mainchainHash)
 	return nbsHash.SelectedCoin(totalCommitment)
 }
 
@@ -86,6 +89,38 @@ func (session *BuyerSession) findVoterIndex() int {
 	}
 
 	return -1
+}
+
+func (session *BuyerSession) secretHashes() []matcher.SecretNumberHash {
+	res := make([]matcher.SecretNumberHash, len(session.participants))
+	for i, p := range session.participants {
+		res[i] = p.secretHash
+	}
+	return res
+}
+
+func (session *BuyerSession) secretNumbers() matcher.SecretNumbers {
+	res := make(matcher.SecretNumbers, len(session.participants))
+	for i, p := range session.participants {
+		res[i] = p.secretNb
+	}
+	return res
+}
+
+func (session *BuyerSession) amounts() []dcrutil.Amount {
+	res := make([]dcrutil.Amount, len(session.participants))
+	for i, p := range session.participants {
+		res[i] = p.amount
+	}
+	return res
+}
+
+func (session *BuyerSession) voteScripts() [][]byte {
+	res := make([][]byte, len(session.participants))
+	for i, p := range session.participants {
+		res[i] = p.votePkScript
+	}
+	return res
 }
 
 type Reporter interface {
@@ -155,7 +190,8 @@ func waitForSession(ctx context.Context, cfg *BuyerConfig) sessionWaiterResponse
 	rep := reporterFromContext(ctx)
 
 	rep.reportStage(ctx, StageConnectingToMatcher, nil, cfg)
-	mc, err := ConnectToMatcherService(cfg.MatcherHost, cfg.MatcherCertFile)
+	mc, err := ConnectToMatcherService(cfg.MatcherHost, cfg.MatcherCertFile,
+		cfg.networkCfg())
 	if err != nil {
 		return sessionWaiterResponse{nil, nil, nil, err}
 	}
