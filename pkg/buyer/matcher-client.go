@@ -186,6 +186,7 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 			myPart.amount, session.Amount)
 	}
 
+	// ensure the vote/pool scripts provided at my index are actually my own
 	err = validations.CheckTicketScriptMatchAddresses(session.voteAddress,
 		session.poolAddress, myPart.votePkScript, myPart.poolPkScript,
 		session.PoolFee*dcrutil.Amount(len(session.participants)),
@@ -195,10 +196,30 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 			"ticket")
 	}
 
+	// ensure the split tx is valid
 	err = validations.CheckSplit(session.splitTx, session.splitTxUtxoMap,
 		session.secretHashes(), session.mainchainHash, cfg.ChainParams)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "error checking split tx")
+	}
+
+	// ensure the ticket template is valid
+	err = validations.CheckTicket(session.splitTx, session.ticketTemplate,
+		session.TicketPrice, session.PoolFee, session.Fee, session.amounts(),
+		cfg.ChainParams)
+	if err != nil {
+		return errors.Wrapf(err, "error checking ticket template")
+	}
+
+	// ensure my commitment, inputs and change is in the ticket/split
+	err = validations.CheckParticipantInTicket(session.splitTx,
+		session.ticketTemplate, session.Amount, session.Fee,
+		session.ticketOutputAddress, session.splitOutputAddress,
+		session.splitChange, session.myIndex, session.splitInputOutpoints(),
+		cfg.ChainParams)
+	if err != nil {
+		return errors.Wrapf(err, "error checking my participation in ticket "+
+			"template")
 	}
 
 	return nil
@@ -254,8 +275,24 @@ func (mc *MatcherClient) FundTicket(ctx context.Context, session *BuyerSession, 
 			return errors.Wrapf(err, "error checking validity of ticket of part %d", i)
 		}
 
+		err = validations.CheckSignedTicket(splitTx, ticket, cfg.ChainParams)
+		if err != nil {
+			return errors.Wrapf(err, "error checking validity of signatures "+
+				"of ticket of part %d", i)
+		}
+
 		if err = validations.CheckRevocation(ticket, revocation, cfg.ChainParams); err != nil {
 			return errors.Wrapf(err, "error checking validity of revocation of part %d", i)
+		}
+
+		err = validations.CheckParticipantInTicket(splitTx, ticket,
+			session.Amount, session.Fee,
+			session.ticketOutputAddress, session.splitOutputAddress,
+			session.splitChange, session.myIndex, session.splitInputOutpoints(),
+			cfg.ChainParams)
+		if err != nil {
+			return errors.Wrapf(err, "error checking my participation in " +
+				" ticket of part %d", i)
 		}
 
 		session.participants[i].ticket = ticket

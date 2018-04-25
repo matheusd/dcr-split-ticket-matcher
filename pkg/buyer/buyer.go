@@ -122,6 +122,14 @@ func (session *BuyerSession) voteScripts() [][]byte {
 	return res
 }
 
+func (session *BuyerSession) splitInputOutpoints() []wire.OutPoint {
+	res := make([]wire.OutPoint, len(session.splitTx.TxIn))
+	for i, in := range session.splitTx.TxIn {
+		res[i] = in.PreviousOutPoint
+	}
+	return res
+}
+
 type Reporter interface {
 	reportStage(context.Context, BuyerStage, *BuyerSession, *BuyerConfig)
 	reportMatcherStatus(*pbm.StatusResponse)

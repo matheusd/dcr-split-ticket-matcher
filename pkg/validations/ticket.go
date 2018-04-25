@@ -1,6 +1,9 @@
 package validations
 
 import (
+	"bytes"
+	"encoding/hex"
+
 	"github.com/decred/dcrd/blockchain"
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg"
@@ -85,20 +88,6 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, partPoolFee,
 			}
 		}
 
-		// ensure the input actually signs the ticket transaction
-		engine, err := txscript.NewEngine(out.PkScript, ticket, i,
-			currentScriptFlags, out.Version, nil)
-		if err != nil {
-			return errors.Wrapf(err, "error creating engine to process input "+
-				"%d of ticket", i)
-		}
-
-		err = engine.Execute()
-		if err != nil {
-			return errors.Wrapf(err, "error executing script of input %d of "+
-				"ticket", i)
-		}
-
 		// ensure the input amounts are not overflowing the accumulator
 		// (CheckTransactionSanity does this for outputs)
 		newAmountIn := totalAmountIn + out.Value
@@ -176,11 +165,41 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, partPoolFee,
 		return errors.Errorf("pool fee rate (%f) higher than expected for testnet")
 	}
 
+	return nil
+}
+
+// CheckSignedTicket validates whether the given signed ticket can be spent
+// on the network. Only safe to be called on tickets that passed CheckTicket().
+func CheckSignedTicket(split, ticket *wire.MsgTx, params *chaincfg.Params) error {
+	for i, in := range ticket.TxIn {
+		out := split.TxOut[in.PreviousOutPoint.Index]
+
+		// ensure the input actually signs the ticket transaction
+		engine, err := txscript.NewEngine(out.PkScript, ticket, i,
+			currentScriptFlags, out.Version, nil)
+		if err != nil {
+			return errors.Wrapf(err, "error creating engine to process input "+
+				"%d of ticket", i)
+		}
+
+		err = engine.Execute()
+		if err != nil {
+			return errors.Wrapf(err, "error executing script of input %d of "+
+				"ticket", i)
+		}
+	}
+
+	var totalAmountIn int64
+	for _, in := range ticket.TxIn {
+		out := split.TxOut[in.PreviousOutPoint.Index]
+		totalAmountIn += out.Value
+	}
+
 	// ensure that the ticket fee being used will actually allow the ticket to be
 	// mined (fee rate much lower than 0.001 DCR/KB might block the ticket)
 	totalAmountOut := ticket.TxOut[0].Value
 	if totalAmountOut >= totalAmountIn {
-		return errors.Wrapf(err, "total output amount in ticket (%s) >= "+
+		return errors.Errorf("total output amount in ticket (%s) >= "+
 			"total input amount (%s)", dcrutil.Amount(totalAmountOut),
 			dcrutil.Amount(totalAmountIn))
 	}
@@ -264,4 +283,108 @@ func CheckTicketScriptMatchAddresses(voteAddress, poolAddress dcrutil.Address,
 
 	return nil
 
+}
+
+// CheckParticipantInTicket checks whether the participant at `index` on the
+// ticket is present with the given parameters.
+//
+// This function checks whether the input and commitment output of the
+// ith participant is being committed to the correct address and amount.
+//
+// This is only safe to be called on tickets that have passed the CheckTicket
+// function.
+func CheckParticipantInTicket(split, ticket *wire.MsgTx, amount,
+	fee dcrutil.Amount, commitmentAddr, splitAddr dcrutil.Address,
+	splitChange *wire.TxOut, index uint32,
+	splitInputs []wire.OutPoint, params *chaincfg.Params) error {
+
+	// the first input is the pool fee, so skip that to get the real input idx
+	idxInput := index + 1
+
+	// output 0 is vote, output 1 is the pool commitment, output 2 is pool
+	// change, so the first commitment is at index 3
+	idxOutput := 3 + index*2
+
+	out := ticket.TxOut[idxOutput]
+
+	decodedAddr, err := stake.AddrFromSStxPkScrCommitment(out.PkScript, params)
+	if err != nil {
+		return errors.Wrapf(err, "error decoding commitment address")
+	}
+
+	if decodedAddr.String() != commitmentAddr.String() {
+		return errors.Errorf("commitment address (%s) at index %d not equal "+
+			"to expected address (%s)", decodedAddr, idxOutput, commitmentAddr)
+	}
+
+	contrib := amount + fee
+
+	decodedAmount, err := stake.AmountFromSStxPkScrCommitment(out.PkScript)
+	if decodedAmount != contrib {
+		return errors.Errorf("decoded commitment amount (%s) is not equal to "+
+			"expected amount (%s)", decodedAmount, contrib)
+	}
+
+	in := ticket.TxIn[idxInput]
+	splitOut := split.TxOut[in.PreviousOutPoint.Index]
+
+	if dcrutil.Amount(splitOut.Value) != contrib {
+		return errors.Errorf("input amount for ticket (%s) is not equal to "+
+			"expected amount (%s)", dcrutil.Amount(splitOut.Value), contrib)
+	}
+
+	class, addresses, reqSigs, err := txscript.ExtractPkScriptAddrs(
+		splitOut.Version, splitOut.PkScript, params)
+	if err != nil {
+		return errors.Wrapf(err, "error decoding pkscript of split output")
+	}
+
+	if class != txscript.PubKeyHashTy {
+		return errors.Errorf("split output script is not PubKeyHashTy")
+	}
+
+	if reqSigs != 1 {
+		return errors.Errorf("split output script requires a different "+
+			"number of signatures (%d) than expected", reqSigs)
+	}
+
+	if len(addresses) != 1 {
+		return errors.Errorf("split output script has a different number of "+
+			"addresses (%d) than expected", len(addresses))
+	}
+
+	if addresses[0].String() != splitAddr.String() {
+		return errors.Errorf("address in output (%s) does not match the"+
+			"expected address (%s)", addresses[0], splitAddr)
+	}
+
+	splitOutPoints := make(map[wire.OutPoint]bool, len(split.TxIn))
+	for _, in := range split.TxIn {
+		splitOutPoints[in.PreviousOutPoint] = true
+	}
+	for _, expectedOutp := range splitInputs {
+		if _, has := splitOutPoints[expectedOutp]; !has {
+			return errors.Errorf("could not find expected split outpoint "+
+				"%s:%d in split inputs", hex.EncodeToString(expectedOutp.Hash[:]),
+				expectedOutp.Index)
+		}
+	}
+
+	found := false
+	for _, out := range split.TxOut {
+		if (out.Value != splitChange.Value) ||
+			(out.Version != splitChange.Version) ||
+			(!bytes.Equal(out.PkScript, splitChange.PkScript)) {
+			continue
+		}
+
+		found = true
+		break
+	}
+
+	if !found {
+		return errors.Errorf("could not find change output in split tx")
+	}
+
+	return nil
 }
