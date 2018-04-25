@@ -9,6 +9,7 @@ import (
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
+	"github.com/pkg/errors"
 
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
 	"google.golang.org/grpc"
@@ -193,7 +194,9 @@ func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *Buye
 	return nil
 }
 
-func (wc *WalletClient) SignTickets(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
+func (wc *WalletClient) prepareTicketsForSigning(session *BuyerSession) (
+	[]*pb.SignTransactionsRequest_UnsignedTransaction,
+	[]*pb.SignTransactionsRequest_AdditionalScript, error) {
 
 	splitTxHash := session.splitTx.TxHash()
 
@@ -215,7 +218,7 @@ func (wc *WalletClient) SignTickets(ctx context.Context, session *BuyerSession, 
 		ticket.TxOut[1].PkScript = p.poolPkScript
 		bytes, err := ticket.Bytes()
 		if err != nil {
-			return err
+			return nil, nil, err
 		}
 
 		tickets[i] = &pb.SignTransactionsRequest_UnsignedTransaction{
@@ -223,20 +226,16 @@ func (wc *WalletClient) SignTickets(ctx context.Context, session *BuyerSession, 
 		}
 	}
 
-	req := &pb.SignTransactionsRequest{
-		Passphrase:        cfg.Passphrase,
-		AdditionalScripts: splitScripts,
-		Transactions:      tickets,
-	}
+	return tickets, splitScripts, nil
+}
 
-	resp, err := wc.wsvc.SignTransactions(ctx, req)
-	if err != nil {
-		return err
-	}
+func (wc *WalletClient) processSignedTickets(
+	transactions []*pb.SignTransactionsResponse_SignedTransaction,
+	session *BuyerSession) error {
 
 	signed := wire.NewMsgTx()
 
-	for _, t := range resp.Transactions {
+	for _, t := range transactions {
 
 		err := signed.FromBytes(t.Transaction)
 		if err != nil {
@@ -261,7 +260,9 @@ func (wc *WalletClient) SignTickets(ctx context.Context, session *BuyerSession, 
 	return nil
 }
 
-func (wc *WalletClient) SignRevocation(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
+func (wc *WalletClient) prepareRevocationForSigning(session *BuyerSession) (
+	*pb.SignTransactionsRequest_UnsignedTransaction,
+	[]*pb.SignTransactionsRequest_AdditionalScript, error) {
 
 	// create the ticket assuming I'm the one voting, then create a revocation
 	// based on it, then sign it.
@@ -272,42 +273,42 @@ func (wc *WalletClient) SignRevocation(ctx context.Context, session *BuyerSessio
 
 	ticketHash := myTicket.TxHash()
 
-	revocationFee, _ := dcrutil.NewAmount(0.001) // TODO: parametrize
 	revocation, err := matcher.CreateUnsignedRevocation(&ticketHash, myTicket,
-		revocationFee)
+		dcrutil.Amount(matcher.RevocationFeeRate))
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	revocationBytes, err := revocation.Bytes()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	ticketScripts := make([]*pb.SignTransactionRequest_AdditionalScript, 1)
-	ticketScripts[0] = &pb.SignTransactionRequest_AdditionalScript{
+	ticketScripts := make([]*pb.SignTransactionsRequest_AdditionalScript, 1)
+	ticketScripts[0] = &pb.SignTransactionsRequest_AdditionalScript{
 		OutputIndex:     0,
 		PkScript:        myTicket.TxOut[0].PkScript,
 		TransactionHash: ticketHash[:],
 		Tree:            int32(wire.TxTreeStake),
 	}
 
-	req := &pb.SignTransactionRequest{
-		Passphrase:            cfg.Passphrase,
+	txReq := &pb.SignTransactionsRequest_UnsignedTransaction{
 		SerializedTransaction: revocationBytes,
-		AdditionalScripts:     ticketScripts,
 	}
 
-	resp, err := wc.wsvc.SignTransaction(ctx, req)
-	if err != nil {
-		return err
-	}
+	return txReq, ticketScripts, nil
+
+}
+
+func (wc *WalletClient) processSignedRevocation(
+	transaction *pb.SignTransactionsResponse_SignedTransaction,
+	session *BuyerSession) error {
 
 	signed := wire.NewMsgTx()
-	signed.FromBytes(resp.Transaction)
+	signed.FromBytes(transaction.Transaction)
 
 	if signed.TxIn[0].SignatureScript == nil {
-		return ErrNoInputSignedOnRevocation
+		return errors.Errorf("input 0 was not signed on revocation")
 	}
 
 	session.revocationScriptSig = signed.TxIn[0].SignatureScript
@@ -315,61 +316,60 @@ func (wc *WalletClient) SignRevocation(ctx context.Context, session *BuyerSessio
 	return nil
 }
 
-func (wc *WalletClient) fixNonWalletSplitInputs(splitCopy *wire.MsgTx, session *BuyerSession, cfg *BuyerConfig) []*pb.SignTransactionRequest_AdditionalScript {
-	walletSplitInputs := make(map[wire.OutPoint]bool)
-	for _, in := range session.splitInputs {
-		walletSplitInputs[in.PreviousOutPoint] = true
-	}
+func (wc *WalletClient) splitPkScripts(splitCopy *wire.MsgTx,
+	session *BuyerSession) ([]*pb.SignTransactionsRequest_AdditionalScript,
+	error) {
 
-	dummyScripts := make([]*pb.SignTransactionRequest_AdditionalScript, 0, len(splitCopy.TxIn)-len(session.splitInputs))
-	pkScript, scriptSig := dummyScriptSigner(cfg.ChainParams)
-	for _, in := range splitCopy.TxIn {
-		if _, fromWallet := walletSplitInputs[in.PreviousOutPoint]; fromWallet {
-			continue
+	scripts := make([]*pb.SignTransactionsRequest_AdditionalScript, len(splitCopy.TxIn))
+	for i, in := range splitCopy.TxIn {
+		utxo, hasUtxo := session.splitTxUtxoMap[in.PreviousOutPoint]
+		if !hasUtxo {
+			return nil, errors.Errorf("did not find utxo for input %d of "+
+				"split tx", i)
 		}
 
-		sc := &pb.SignTransactionRequest_AdditionalScript{
+		scripts[i] = &pb.SignTransactionsRequest_AdditionalScript{
 			TransactionHash: in.PreviousOutPoint.Hash[:],
 			OutputIndex:     in.PreviousOutPoint.Index,
 			Tree:            int32(in.PreviousOutPoint.Tree),
-			PkScript:        pkScript,
+			PkScript:        utxo.PkScript,
 		}
-		dummyScripts = append(dummyScripts, sc)
-		in.SignatureScript = scriptSig
 	}
 
-	return dummyScripts
+	return scripts, nil
 
 }
 
-func (wc *WalletClient) SignSplit(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
+func (wc *WalletClient) prepareSplitForSigning(session *BuyerSession) (
+	*pb.SignTransactionsRequest_UnsignedTransaction,
+	[]*pb.SignTransactionsRequest_AdditionalScript, error) {
 
 	splitCopy := session.splitTx.Copy()
 
-	// fix the inputs that are not from this wallet, so that the wallet doesn't
-	// error out saying it couldn't find the given pkscript. Not the ideal way
-	// to go about this (ideally we should retrieve the actual pkscripts from the
-	// network and let the wallet error out on signing)
-	dummyScripts := wc.fixNonWalletSplitInputs(splitCopy, session, cfg)
+	scripts, err := wc.splitPkScripts(splitCopy, session)
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "error grabing pkscript of split "+
+			"tx inputs")
+	}
 
 	splitBytes, err := splitCopy.Bytes()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	req := &pb.SignTransactionRequest{
-		Passphrase:            cfg.Passphrase,
+	txReq := &pb.SignTransactionsRequest_UnsignedTransaction{
 		SerializedTransaction: splitBytes,
-		AdditionalScripts:     dummyScripts,
 	}
 
-	resp, err := wc.wsvc.SignTransaction(ctx, req)
-	if err != nil {
-		return err
-	}
+	return txReq, scripts, nil
+}
+
+func (wc *WalletClient) processSignedSplit(
+	transaction *pb.SignTransactionsResponse_SignedTransaction,
+	session *BuyerSession) error {
 
 	signed := wire.NewMsgTx()
-	signed.FromBytes(resp.Transaction)
+	signed.FromBytes(transaction.Transaction)
 
 	signedCount := 0
 	for _, in := range signed.TxIn {
@@ -395,4 +395,58 @@ func (wc *WalletClient) SignSplit(ctx context.Context, session *BuyerSession, cf
 	}
 
 	return nil
+}
+
+func (wc *WalletClient) SignTransactions(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
+	req := &pb.SignTransactionsRequest{
+		Passphrase: cfg.Passphrase,
+	}
+
+	tickets, ticketsAddScripts, err := wc.prepareTicketsForSigning(session)
+	if err != nil {
+		return errors.Wrapf(err, "error preparing tickets for signing")
+	}
+
+	revocation, revocationAddScripts, err := wc.prepareRevocationForSigning(session)
+	if err != nil {
+		return errors.Wrapf(err, "error preparing revocation for signing")
+	}
+
+	split, splitAddScripts, err := wc.prepareSplitForSigning(session)
+	if err != nil {
+		return errors.Wrapf(err, "error preparing split tx for signing")
+	}
+
+	req.Transactions = append(req.Transactions, split, revocation)
+	req.Transactions = append(req.Transactions, tickets...)
+	req.AdditionalScripts = append(req.AdditionalScripts, splitAddScripts...)
+	req.AdditionalScripts = append(req.AdditionalScripts, revocationAddScripts...)
+	req.AdditionalScripts = append(req.AdditionalScripts, ticketsAddScripts...)
+
+	resp, err := wc.wsvc.SignTransactions(ctx, req)
+	if err != nil {
+		return errors.Wrapf(err, "error signing transactions")
+	}
+
+	expectedLen := 1 + 1 + len(tickets)
+	foundLen := len(resp.Transactions)
+	if foundLen != expectedLen {
+		return errors.Errorf("wallet signed a different number transactions "+
+			"(%d) than expected (%d)", foundLen, expectedLen)
+	}
+
+	if err := wc.processSignedSplit(resp.Transactions[0], session); err != nil {
+		return errors.Wrapf(err, "error processing signed split tx")
+	}
+
+	if err := wc.processSignedRevocation(resp.Transactions[1], session); err != nil {
+		return errors.Wrapf(err, "error processing signed revocation tx")
+	}
+
+	if err := wc.processSignedTickets(resp.Transactions[2:], session); err != nil {
+		return errors.Wrapf(err, "error processing signed tickets")
+	}
+
+	return nil
+
 }

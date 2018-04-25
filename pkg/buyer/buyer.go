@@ -252,21 +252,12 @@ func buySplitTicket(ctx context.Context, cfg *BuyerConfig, mc *MatcherClient, wc
 	}
 	rep.reportStage(ctx, StageTicketGenerated, session, cfg)
 
-	// FIXME: make the client-side checks to ensure the ticket is valid
-
 	rep.reportStage(ctx, StageSigningTicket, session, cfg)
-	err = wc.SignTickets(ctx, session, cfg)
+	err = wc.SignTransactions(ctx, session, cfg)
 	if err != nil {
 		return err
 	}
 	rep.reportStage(ctx, StageTicketSigned, session, cfg)
-
-	rep.reportStage(ctx, StageSigningRevocation, session, cfg)
-	err = wc.SignRevocation(ctx, session, cfg)
-	if err != nil {
-		return err
-	}
-	rep.reportStage(ctx, StageRevocationSigned, session, cfg)
 
 	rep.reportStage(ctx, StageFundingTicket, session, cfg)
 	err = mc.FundTicket(ctx, session, cfg)
@@ -274,13 +265,6 @@ func buySplitTicket(ctx context.Context, cfg *BuyerConfig, mc *MatcherClient, wc
 		return err
 	}
 	rep.reportStage(ctx, StageTicketFunded, session, cfg)
-
-	rep.reportStage(ctx, StageSigningSplitTx, session, cfg)
-	err = wc.SignSplit(ctx, session, cfg)
-	if err != nil {
-		return err
-	}
-	rep.reportStage(ctx, StageSplitTxSigned, session, cfg)
 
 	rep.reportStage(ctx, StageFundingSplitTx, session, cfg)
 	err = mc.FundSplitTx(ctx, session, cfg)
