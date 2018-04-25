@@ -16,12 +16,6 @@ message TxOut {
     bytes script = 2;
 }
 
-message TxIn {
-    bytes prev_hash = 1;
-    int32 prev_index = 2;
-    bytes script_sig = 3;
-}
-
 message OutPoint {
     bytes prev_hash = 1;
     int32 prev_index = 2;
@@ -38,30 +32,29 @@ message WatchWaitingListResponse {
 }
 
 message FindMatchesRequest {
-    uint64 amount = 1;
-    string session_name = 2;
+    uint32 protocol_version = 1;
+    uint64 amount = 2;
+    string session_name = 3;
 }
 
 message FindMatchesResponse {
-    int32 session_id = 1;
+    uint32 session_id = 1;
     uint64 amount = 2;
     uint64 fee = 3;
     uint64 pool_fee = 4;
     bytes mainchain_hash = 5;
     uint64 ticket_price = 6;
-    uint64 total_pool_fee = 7;
 }
 
 message GenerateTicketRequest {
-    int32 session_id = 1;
-    TxOut commitment_output = 2;
-    TxOut change_output = 3;
-    TxOut split_tx_output = 4;
-    TxOut split_tx_change = 5;
-    repeated OutPoint split_tx_inputs = 6;
-    string vote_address = 7;
-    string pool_address = 8;
-    bytes secretnb_hash = 9;
+    uint32 session_id = 1;
+    string vote_address = 2;
+    string pool_address = 3;
+    string commitment_address = 4;
+    string split_tx_address = 5;
+    TxOut split_tx_change = 6;
+    repeated OutPoint split_tx_inputs = 7;
+    bytes secretnb_hash = 8;
 }
 
 message GenerateTicketResponse {
@@ -74,13 +67,14 @@ message GenerateTicketResponse {
     bytes split_tx = 1;
     bytes ticket_template = 2;
     repeated Participant participants = 3;
+    uint32 index = 4;
 }
 
 message FundTicketRequest {
     message FundedParticipantTicket {
         bytes ticket_input_scriptsig = 1;
     }
-    int32 session_id = 1;
+    uint32 session_id = 1;
     repeated FundedParticipantTicket tickets = 2;
     bytes revocation_script_sig = 3;
 }
@@ -94,22 +88,18 @@ message FundTicketResponse {
 }
 
 message FundSplitTxRequest {
-    int32 session_id = 1;
+    uint32 session_id = 1;
     repeated bytes split_tx_scriptsigs = 2;
     uint64 secretnb = 3;
 }
 
 message FundSplitTxResponse {
-    message ParticipantSecret {
-        uint64 secretnb = 4;
-    }
     bytes split_tx = 1;
-    bytes selected_ticket = 2;
-    bytes revocation = 3;
-    repeated ParticipantSecret secrets = 4;
+    repeated uint64 secret_numbers = 2;
 }
 
 message StatusRequest { }
 message StatusResponse {
     uint64 ticket_price = 1;
+    uint32 protocol_version = 2;
 }

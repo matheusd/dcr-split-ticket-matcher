@@ -30,28 +30,27 @@ type buyerSessionParticipant struct {
 }
 
 type BuyerSession struct {
-	ID           matcher.ParticipantID
-	Amount       dcrutil.Amount
-	Fee          dcrutil.Amount
-	PoolFee      dcrutil.Amount
-	TotalPoolFee dcrutil.Amount
-	TicketPrice  dcrutil.Amount
+	ID          matcher.ParticipantID
+	Amount      dcrutil.Amount
+	Fee         dcrutil.Amount
+	PoolFee     dcrutil.Amount
+	TicketPrice dcrutil.Amount
 
 	mainchainHash *chainhash.Hash
 	secretNb      matcher.SecretNumber
 	secretNbHash  matcher.SecretNumberHash
 
+	voteAddress         dcrutil.Address
+	poolAddress         dcrutil.Address
 	splitOutputAddress  dcrutil.Address
 	ticketOutputAddress dcrutil.Address
 	votePkScript        []byte
 	poolPkScript        []byte
-	ticketOutput        *wire.TxOut
-	ticketChange        *wire.TxOut
-	splitOutput         *wire.TxOut
 	splitChange         *wire.TxOut
 	splitInputs         []*wire.TxIn
 	participants        []buyerSessionParticipant
 	splitTxUtxoMap      validations.UtxoMap
+	myIndex             uint32
 
 	ticketTemplate *wire.MsgTx
 	splitTx        *wire.MsgTx

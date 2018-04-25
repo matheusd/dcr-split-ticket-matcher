@@ -7,7 +7,9 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
+	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
@@ -66,6 +68,12 @@ func (svc *SplitTicketMatcherService) WatchWaitingList(req *pb.WatchWaitingListR
 }
 
 func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.FindMatchesRequest) (*pb.FindMatchesResponse, error) {
+	if req.ProtocolVersion != pkg.ProtocolVersion {
+		return nil, errors.Errorf("server is running a different protocol "+
+			"version (%d) than client (%d)", pkg.ProtocolVersion,
+			req.ProtocolVersion)
+	}
+
 	sess, err := svc.matcher.AddParticipant(ctx, req.Amount, req.SessionName)
 	if err != nil {
 		return nil, err
@@ -74,33 +82,36 @@ func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.F
 	res := &pb.FindMatchesResponse{
 		Amount:        uint64(sess.CommitAmount),
 		Fee:           uint64(sess.Fee),
-		SessionId:     int32(sess.ID),
+		SessionId:     uint32(sess.ID),
 		PoolFee:       uint64(sess.PoolFee),
 		MainchainHash: sess.Session.MainchainHash[:],
 		TicketPrice:   uint64(sess.Session.TicketPrice),
-		TotalPoolFee:  uint64(sess.Session.PoolFee),
 	}
 	return res, nil
 }
 
 func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *pb.GenerateTicketRequest) (*pb.GenerateTicketResponse, error) {
 
-	var commitTxout, changeTxout, splitTxout, splitChange *wire.TxOut
-	var voteAddr, poolAddr dcrutil.Address
+	var splitChange *wire.TxOut
+	var voteAddr, poolAddr, commitAddr, splitAddr dcrutil.Address
 	var err error
 
-	commitTxout = wire.NewTxOut(int64(req.CommitmentOutput.Value), req.CommitmentOutput.Script)
-	changeTxout = wire.NewTxOut(int64(req.ChangeOutput.Value), req.ChangeOutput.Script)
-	splitTxout = wire.NewTxOut(int64(req.SplitTxOutput.Value), req.SplitTxOutput.Script)
 	splitChange = wire.NewTxOut(int64(req.SplitTxChange.Value), req.SplitTxChange.Script)
-	voteAddr, err = dcrutil.DecodeAddress(req.VoteAddress)
-	if err != nil {
-		return nil, err
+
+	if voteAddr, err = dcrutil.DecodeAddress(req.VoteAddress); err != nil {
+		return nil, errors.Wrap(err, "error decoding vote address")
 	}
 
-	poolAddr, err = dcrutil.DecodeAddress(req.PoolAddress)
-	if err != nil {
-		return nil, err
+	if poolAddr, err = dcrutil.DecodeAddress(req.PoolAddress); err != nil {
+		return nil, errors.Wrap(err, "error decoding pool address")
+	}
+
+	if commitAddr, err = dcrutil.DecodeAddress(req.CommitmentAddress); err != nil {
+		return nil, errors.Wrap(err, "error decoding commitment address")
+	}
+
+	if splitAddr, err = dcrutil.DecodeAddress(req.SplitTxAddress); err != nil {
+		return nil, errors.Wrap(err, "error decoding split tx address")
 	}
 
 	splitOutpoints := make([]*wire.OutPoint, len(req.SplitTxInputs))
@@ -118,8 +129,9 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 	var secretNbHash matcher.SecretNumberHash
 	copy(secretNbHash[:], req.SecretnbHash)
 
-	split, ticketTempl, _, parts, err := svc.matcher.SetParticipantsOutputs(ctx, matcher.ParticipantID(req.SessionId),
-		*commitTxout, *changeTxout, voteAddr, *splitChange, *splitTxout, splitOutpoints, poolAddr, secretNbHash)
+	split, ticketTempl, parts, partIndex, err := svc.matcher.SetParticipantsOutputs(ctx,
+		matcher.ParticipantID(req.SessionId), voteAddr, poolAddr, commitAddr,
+		splitAddr, splitChange, splitOutpoints, secretNbHash)
 	if err != nil {
 		return nil, err
 	}
@@ -148,6 +160,7 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 		SplitTx:        buffSplit,
 		TicketTemplate: buffTicket,
 		Participants:   partsResp,
+		Index:          partIndex,
 	}
 
 	return resp, nil
@@ -181,25 +194,21 @@ func (svc *SplitTicketMatcherService) FundTicket(ctx context.Context, req *pb.Fu
 }
 
 func (svc *SplitTicketMatcherService) FundSplitTx(ctx context.Context, req *pb.FundSplitTxRequest) (*pb.FundSplitTxResponse, error) {
-	split, ticket, revocation, secrets, err := svc.matcher.FundSplit(ctx,
+	split, secrets, err := svc.matcher.FundSplit(ctx,
 		matcher.ParticipantID(req.SessionId),
 		req.SplitTxScriptsigs, matcher.SecretNumber(req.Secretnb))
 	if err != nil {
 		return nil, err
 	}
 
-	respSecrets := make([]*pb.FundSplitTxResponse_ParticipantSecret, len(secrets))
+	respSecrets := make([]uint64, len(secrets))
 	for i, s := range secrets {
-		respSecrets[i] = &pb.FundSplitTxResponse_ParticipantSecret{
-			Secretnb: uint64(s),
-		}
+		respSecrets[i] = uint64(s)
 	}
 
 	resp := &pb.FundSplitTxResponse{
-		SplitTx:        split,
-		SelectedTicket: ticket,
-		Revocation:     revocation,
-		Secrets:        respSecrets,
+		SplitTx:       split,
+		SecretNumbers: respSecrets,
 	}
 	return resp, nil
 }

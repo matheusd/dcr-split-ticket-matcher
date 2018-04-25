@@ -23,27 +23,29 @@ func (id ParticipantID) String() string {
 
 // SessionParticipant is a participant of a split in a given session
 type SessionParticipant struct {
-	ID                    ParticipantID
-	CommitAmount          dcrutil.Amount
-	Fee                   dcrutil.Amount
-	PoolFee               dcrutil.Amount
-	CommitmentTxOut       *wire.TxOut
-	ChangeTxOut           *wire.TxOut
-	SplitTxOut            *wire.TxOut
-	SplitTxChange         *wire.TxOut
-	SplitTxInputs         []*wire.TxIn
-	TicketsScriptSig      [][]byte
-	RevocationScriptSig   []byte
-	PoolFeeInputScriptSig []byte
-	SplitTxOutputIndex    int
-	Session               *Session
-	VoteAddress           dcrutil.Address
-	PoolAddress           dcrutil.Address
-	VotePkScript          []byte
-	PoolPkScript          []byte
-	Index                 int
-	SecretHash            SecretNumberHash
-	SecretNb              SecretNumber
+	ID                ParticipantID
+	CommitAmount      dcrutil.Amount
+	Fee               dcrutil.Amount
+	PoolFee           dcrutil.Amount
+	VoteAddress       dcrutil.Address
+	PoolAddress       dcrutil.Address
+	CommitmentAddress dcrutil.Address
+	SplitTxAddress    dcrutil.Address
+	SecretHash        SecretNumberHash
+	SecretNb          SecretNumber
+
+	Session *Session
+	Index   int
+
+	votePkScript          []byte
+	poolPkScript          []byte
+	commitmentPkScript    []byte
+	splitPkScript         []byte
+	splitTxChange         *wire.TxOut
+	splitTxInputs         []*wire.TxIn
+	ticketsScriptSig      [][]byte
+	revocationScriptSig   []byte
+	poolFeeInputScriptSig []byte
 
 	chanSetOutputsResponse  chan setParticipantOutputsResponse
 	chanFundTicketResponse  chan fundTicketResponse
@@ -80,54 +82,60 @@ func (part *SessionParticipant) sessionCanceled(err error) {
 	}
 }
 
-// createTicketOutputs creates the voteTxOut and poolTxOut after the voteAddress
-// and poolAddress have been filled.
-func (part *SessionParticipant) createTicketOutputs() error {
-	if part.VoteAddress == nil {
-		return ErrNoVoteAddress
-	}
-
-	if part.PoolAddress == nil {
-		return ErrNoPoolAddress
-	}
-
+// createIOs creates the inputs and outputs for the ticket and split
+// transactions, according to the currently stored addresses.
+func (part *SessionParticipant) createIOs() error {
 	voteScript, err := txscript.PayToSStx(part.VoteAddress)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "error creating ticket vote output script")
 	}
 
-	limits := uint16(0x5800)
 	poolScript, err := txscript.GenerateSStxAddrPush(part.PoolAddress,
-		part.Session.PoolFee, limits)
+		part.Session.PoolFee, CommitmentLimits)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "error creating ticket pool output script")
 	}
 
-	part.VotePkScript = voteScript
-	part.PoolPkScript = poolScript
+	commitScript, err := txscript.GenerateSStxAddrPush(part.CommitmentAddress,
+		part.CommitAmount+part.Fee, CommitmentLimits)
+	if err != nil {
+		return errors.Wrapf(err, "error creating ticket commitment output script")
+	}
+
+	splitScript, err := txscript.PayToAddrScript(part.SplitTxAddress)
+	if err != nil {
+		return errors.Wrapf(err, "error creating split output script")
+	}
+
+	part.votePkScript = voteScript
+	part.poolPkScript = poolScript
+	part.commitmentPkScript = commitScript
+	part.splitPkScript = splitScript
 	return nil
 }
 
 func (part *SessionParticipant) replaceTicketIOs(ticket *wire.MsgTx) {
-	ticket.TxOut[0].PkScript = part.VotePkScript
-	ticket.TxOut[1].PkScript = part.PoolPkScript
+	ticket.TxOut[0].PkScript = part.votePkScript
+	ticket.TxOut[1].PkScript = part.poolPkScript
 
-	ticket.TxIn[0].SignatureScript = part.PoolFeeInputScriptSig
+	ticket.TxIn[0].SignatureScript = part.poolFeeInputScriptSig
+
+	// replace the scriptsig for the input of each participant into the ticket
 	for i, p := range part.Session.Participants {
-		if len(p.TicketsScriptSig) > part.Index {
+		if len(p.ticketsScriptSig) > part.Index {
 			// do note the following: it's TxIn[i+1] because the first TxIn of the
 			// ticket is the pool fee (which is already signed by the matcher). Also,
 			// we need the corresponding script for the given participant, given
 			// that the selected voter participant is `part`, therefore we grab
 			// the signature `p` created for the `part.Index` ticket.
-			ticket.TxIn[i+1].SignatureScript = p.TicketsScriptSig[part.Index]
+			ticket.TxIn[i+1].SignatureScript = p.ticketsScriptSig[part.Index]
 		}
 	}
 }
 
 func (part *SessionParticipant) replaceRevocationInput(ticket, revocation *wire.MsgTx) {
 	ticketHash := ticket.TxHash()
-	revocation.TxIn[0].SignatureScript = part.RevocationScriptSig
+	revocation.TxIn[0].SignatureScript = part.revocationScriptSig
 	revocation.TxIn[0].PreviousOutPoint.Hash = ticketHash
 }
 
@@ -158,8 +166,11 @@ type Session struct {
 // participants have been filled
 func (sess *Session) AllOutputsFilled() bool {
 	for _, p := range sess.Participants {
-		if p.ChangeTxOut == nil || p.CommitmentTxOut == nil || p.SplitTxOut == nil ||
-			len(p.SplitTxInputs) == 0 {
+		if (p.VoteAddress == nil) ||
+			(p.PoolAddress == nil) ||
+			(p.CommitmentAddress == nil) ||
+			(p.SplitTxAddress == nil) ||
+			len(p.splitTxInputs) == 0 {
 
 			return false
 		}
@@ -170,7 +181,7 @@ func (sess *Session) AllOutputsFilled() bool {
 // TicketIsFunded returns true if all ticket inputs have been filled.
 func (sess *Session) TicketIsFunded() bool {
 	for _, p := range sess.Participants {
-		if len(p.TicketsScriptSig) != len(sess.Participants) {
+		if len(p.ticketsScriptSig) != len(sess.Participants) {
 			return false
 		}
 	}
@@ -180,7 +191,7 @@ func (sess *Session) TicketIsFunded() bool {
 // SplitTxIsFunded returns true if the split tx is funded
 func (sess *Session) SplitTxIsFunded() bool {
 	for _, p := range sess.Participants {
-		for _, in := range p.SplitTxInputs {
+		for _, in := range p.splitTxInputs {
 			if len(in.SignatureScript) == 0 {
 				return false
 			}
@@ -247,7 +258,7 @@ func (sess *Session) addVoterSelectionData(split *wire.MsgTx) {
 // CreateTransactions creates the ticket and split tx transactions with all the
 // currently available information
 func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, error) {
-	var spOutIndex uint32 = 0
+	var spOutIndex uint32
 
 	ticket := wire.NewMsgTx()
 	splitTx := wire.NewMsgTx()
@@ -261,28 +272,25 @@ func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, error) {
 	spOutIndex++
 
 	for _, p := range sess.Participants {
-		if p.SplitTxOut != nil {
-			var scriptSig []byte
-			ticket.AddTxIn(wire.NewTxIn(&wire.OutPoint{Index: spOutIndex}, scriptSig))
-			splitTx.AddTxOut(p.SplitTxOut)
+		ticket.AddTxIn(wire.NewTxIn(&wire.OutPoint{Index: spOutIndex}, nil))
+
+		ticket.AddTxOut(wire.NewTxOut(0, p.commitmentPkScript))
+		ticket.AddTxOut(wire.NewTxOut(0, EmptySStxChangeAddr))
+
+		splitTx.AddTxOut(wire.NewTxOut(int64(p.CommitAmount+p.Fee),
+			p.splitPkScript))
+		spOutIndex++
+
+		if p.splitTxChange != nil {
+			splitTx.AddTxOut(&wire.TxOut{p.splitTxChange.Value,
+				p.splitTxChange.Version, p.splitTxChange.PkScript})
 			spOutIndex++
 		}
 
-		if p.SplitTxChange != nil {
-			splitTx.AddTxOut(p.SplitTxChange)
-			spOutIndex++
-		}
-
-		if p.CommitmentTxOut != nil {
-			ticket.AddTxOut(p.CommitmentTxOut)
-		}
-
-		if p.ChangeTxOut != nil {
-			ticket.AddTxOut(p.ChangeTxOut)
-		}
-
-		for _, in := range p.SplitTxInputs {
-			splitTx.AddTxIn(in)
+		for _, in := range p.splitTxInputs {
+			outp := &wire.OutPoint{in.PreviousOutPoint.Hash,
+				in.PreviousOutPoint.Index, in.PreviousOutPoint.Tree}
+			splitTx.AddTxIn(wire.NewTxIn(outp, in.SignatureScript))
 		}
 	}
 
@@ -332,8 +340,8 @@ func (sess *Session) ParticipantTicketOutputs() []*ParticipantTicketOutput {
 		res[i] = &ParticipantTicketOutput{
 			Amount:       p.CommitAmount,
 			SecretHash:   &p.SecretHash,
-			PoolPkScript: p.PoolPkScript,
-			VotePkScript: p.VotePkScript,
+			PoolPkScript: p.poolPkScript,
+			VotePkScript: p.votePkScript,
 		}
 	}
 	return res

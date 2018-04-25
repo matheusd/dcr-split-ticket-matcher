@@ -9,6 +9,13 @@ import (
 )
 
 const (
+	// CommitmentLimits is the limit used in ticket commitments
+	CommitmentLimits = uint16(0x5800)
+
+	// RevocationFeeRate is the fee rate in Atoms/KB of the revocation tx.
+	// 1e5 = 0.001 DCR
+	RevocationFeeRate = int64(1e5)
+
 	// TicketTxInitialSize is the initial size estimate for the ticket
 	// transaction. It includes the tx header + the txout for the ticket
 	// voting address
@@ -41,6 +48,14 @@ const (
 )
 
 var (
+	// EmptySStxChangeAddr is a pre-calculated pkscript for use in SStx change
+	// outputs that pays to a zeroed address. This is usually used in change
+	// addresses that have zero value.
+	EmptySStxChangeAddr = []byte{
+		0xbd, 0x76, 0xa9, 0x14, 0x0, 0x0, 0x0, 0x0, 0x0,
+		0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+		0x0, 0x0, 0x0, 0x0, 0x0, 0x88, 0xac}
+
 	ErrLowAmount                    = merry.New("Amount too low to participate in ticket purchase")
 	ErrTooManyParticipants          = merry.New("Too many online participants at the moment")
 	ErrSessionNotFound              = merry.New("Session with the provided ID not found")

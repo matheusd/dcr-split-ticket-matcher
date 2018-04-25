@@ -64,36 +64,10 @@ func (wc *WalletClient) GenerateOutputs(ctx context.Context, session *BuyerSessi
 	session.ticketOutputAddress = ticketOutAdd
 	session.splitOutputAddress = splitOutAddr
 
-	zeroed := [20]byte{}
-	addrZeroed, err := dcrutil.NewAddressPubKeyHash(zeroed[:], cfg.ChainParams, 0)
-	if err != nil {
-		return err
-	}
-
-	ticketCommitScript, err := txscript.GenerateSStxAddrPush(ticketOutAdd,
-		session.Amount+session.Fee, cfg.SStxFeeLimits)
-	if err != nil {
-		return err
-	}
-
-	ticketChangeScript, err := txscript.PayToSStxChange(addrZeroed)
-	if err != nil {
-		return err
-	}
-
-	splitOutScript, err := txscript.PayToAddrScript(splitOutAddr)
-	if err != nil {
-		return err
-	}
-
 	splitChangeScript, err := txscript.PayToAddrScript(splitChangeAddr)
 	if err != nil {
 		return err
 	}
-
-	session.ticketOutput = wire.NewTxOut(0, ticketCommitScript)
-	session.ticketChange = wire.NewTxOut(0, ticketChangeScript)
-	session.splitOutput = wire.NewTxOut(int64(session.Amount+session.Fee), splitOutScript)
 	session.splitChange = wire.NewTxOut(0, splitChangeScript)
 
 	return wc.generateSplitTxInputs(ctx, session, cfg)
@@ -154,10 +128,9 @@ func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *Buye
 
 	outputs := make([]*pb.ConstructTransactionRequest_Output, 2)
 	outputs[0] = &pb.ConstructTransactionRequest_Output{
-		Amount: session.splitOutput.Value,
+		Amount: int64(session.Amount + session.Fee),
 		Destination: &pb.ConstructTransactionRequest_OutputDestination{
-			Script:        session.splitOutput.PkScript,
-			ScriptVersion: uint32(session.splitOutput.Version),
+			Address: session.splitOutputAddress.String(),
 		},
 	}
 
@@ -292,14 +265,16 @@ func (wc *WalletClient) SignRevocation(ctx context.Context, session *BuyerSessio
 
 	// create the ticket assuming I'm the one voting, then create a revocation
 	// based on it, then sign it.
+	myPart := session.participants[session.myIndex]
 	myTicket := session.ticketTemplate.Copy()
-	myTicket.TxOut[0].PkScript = session.votePkScript
-	myTicket.TxOut[1].PkScript = session.poolPkScript
+	myTicket.TxOut[0].PkScript = myPart.votePkScript
+	myTicket.TxOut[1].PkScript = myPart.poolPkScript
 
 	ticketHash := myTicket.TxHash()
 
 	revocationFee, _ := dcrutil.NewAmount(0.001) // TODO: parametrize
-	revocation, err := matcher.CreateUnsignedRevocation(&ticketHash, myTicket, revocationFee)
+	revocation, err := matcher.CreateUnsignedRevocation(&ticketHash, myTicket,
+		revocationFee)
 	if err != nil {
 		return err
 	}

@@ -16,8 +16,10 @@ import (
 // This function can be called on buyers, to ensure that no other participant
 // or the matcher service are trying to trick the buyer into a malicious
 // split ticket session, wasting time or (more importantly) funds.
-func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, poolFee, partTicketFee dcrutil.Amount,
-	partsAmounts []dcrutil.Amount, params *chaincfg.Params) error {
+func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, partPoolFee,
+	partTicketFee dcrutil.Amount, partsAmounts []dcrutil.Amount,
+	params *chaincfg.Params) error {
+
 	var err error
 
 	// ensure the ticket tx looks like a valid decred tx
@@ -140,10 +142,14 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, poolFee, partTicketFee 
 		}
 	}
 
+	// we expect all participants to pay the same amount as pool fee
+	expectedPoolFee := partPoolFee * dcrutil.Amount(len(partsAmounts))
+
 	// ensure the pool fee commitment actually is the total pool fee
-	if dcrutil.Amount(outAmt[0]) != poolFee {
+	if dcrutil.Amount(outAmt[0]) != expectedPoolFee {
 		return errors.Errorf("amount in commitment for pool fee (%s) "+
-			"different than expected (%s)", dcrutil.Amount(outAmt[0]), poolFee)
+			"different than expected (%s)", dcrutil.Amount(outAmt[0]),
+			expectedPoolFee)
 	}
 
 	// ensure the participation amounts in the ticket actually follow the
@@ -163,7 +169,7 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, poolFee, partTicketFee 
 	// network (5% max on mainnet, 7.5% max on testnet/simnet). We can check
 	// using the poolFee/ticketPrice on the arguments because we're also
 	// validating elsewhere that these are correct in the actual ticket tx.
-	poolFeeRate := float64(poolFee) / float64(ticketPrice)
+	poolFeeRate := float64(expectedPoolFee) / float64(ticketPrice)
 	if params.Name == "mainnet" && poolFeeRate > 0.05 {
 		return errors.Errorf("pool fee rate (%f) higher than expected for mainnet")
 	} else if poolFeeRate > 0.075 {
@@ -194,4 +200,68 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, poolFee, partTicketFee 
 	}
 
 	return nil
+}
+
+// CheckTicketScriptMatchAddresses checks whether the voteaddress is actually
+// present in the vote pk script and if the pool address is present in the
+// poolPkScript
+func CheckTicketScriptMatchAddresses(voteAddress, poolAddress dcrutil.Address,
+	votePkScript, poolPkScript []byte, poolFee dcrutil.Amount,
+	params *chaincfg.Params) error {
+
+	// validating the vote pk script
+	voteClass, voteAddresses, voteReqSigs, err := txscript.ExtractPkScriptAddrs(
+		txscript.DefaultScriptVersion, votePkScript, params)
+	if err != nil {
+		errors.Wrapf(err, "error decoding vote pkscript")
+	}
+
+	if voteClass != txscript.StakeSubmissionTy {
+		return errors.Errorf("vote pkscript (%s) is not a StakeSubmissionTy",
+			voteClass)
+	}
+
+	if len(voteAddresses) != 1 {
+		return errors.Errorf("decoded different number of vote addresses "+
+			"(%d) than expected", len(voteAddresses))
+	}
+
+	if voteReqSigs != 1 {
+		return errors.Errorf("more than 1 signature required on vote pkscript")
+	}
+
+	if voteAddress.String() != voteAddresses[0].String() {
+		return errors.Errorf("decoded vote address on script (%s) does not "+
+			"match the expected vote address (%s)", voteAddresses[0],
+			voteAddress)
+	}
+
+	// validating the pool pk script
+	poolClass := txscript.GetScriptClass(txscript.DefaultScriptVersion,
+		poolPkScript)
+
+	if poolClass != txscript.NullDataTy {
+		return errors.Errorf("pool pkscript (%s) is not a NullDataTy",
+			poolClass)
+	}
+
+	decodedPoolAddr, err := stake.AddrFromSStxPkScrCommitment(poolPkScript, params)
+	if err != nil {
+		return errors.Wrapf(err, "error decoding pool commitment address")
+	}
+
+	if poolAddress.String() != decodedPoolAddr.String() {
+		return errors.Errorf("decoded pool address on script (%s) does not "+
+			"match the expected pool address (%s)", decodedPoolAddr,
+			poolAddress)
+	}
+
+	decodedPoolAmount, err := stake.AmountFromSStxPkScrCommitment(poolPkScript)
+	if decodedPoolAmount != poolFee {
+		return errors.Errorf("decoded pool fee (%s) is not equal to expected "+
+			"pool fee (%s)", decodedPoolAmount, poolFee)
+	}
+
+	return nil
+
 }

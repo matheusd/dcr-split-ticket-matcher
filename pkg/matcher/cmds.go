@@ -16,8 +16,8 @@ type (
 	setParticipantOutputsResponse struct {
 		ticket       *wire.MsgTx
 		splitTx      *wire.MsgTx
-		revocation   *wire.MsgTx
 		participants []*ParticipantTicketOutput
+		index        uint32
 		err          error
 	}
 
@@ -28,11 +28,9 @@ type (
 	}
 
 	fundSplitTxResponse struct {
-		selectedTicket []byte
-		revocation     []byte
-		splitTx        []byte
-		secrets        SecretNumbers
-		err            error
+		splitTx []byte
+		secrets SecretNumbers
+		err     error
 	}
 
 	publishTicketResponse struct {
@@ -51,15 +49,14 @@ type (
 
 	setParticipantOutputsRequest struct {
 		ctx              context.Context
-		sessionID        ParticipantID
-		commitmentOutput *wire.TxOut
-		changeOutput     *wire.TxOut
-		splitTxOutput    *wire.TxOut
-		splitTxChange    *wire.TxOut
-		splitTxOutPoints []*wire.OutPoint
 		voteAddress      dcrutil.Address
 		poolAddress      dcrutil.Address
+		commitAddress    dcrutil.Address
+		splitTxAddress   dcrutil.Address
+		splitTxOutPoints []*wire.OutPoint
 		secretHash       SecretNumberHash
+		sessionID        ParticipantID
+		splitTxChange    *wire.TxOut
 		resp             chan setParticipantOutputsResponse
 	}
 

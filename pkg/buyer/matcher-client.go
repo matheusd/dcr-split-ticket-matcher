@@ -5,15 +5,14 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ansel1/merry"
 	"github.com/pkg/errors"
 
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/validations"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 	"google.golang.org/grpc"
@@ -65,8 +64,9 @@ func (mc *MatcherClient) Status(ctx context.Context) (*pb.StatusResponse, error)
 
 func (mc *MatcherClient) Participate(ctx context.Context, maxAmount dcrutil.Amount, sessionName string) (*BuyerSession, error) {
 	req := &pb.FindMatchesRequest{
-		Amount:      uint64(maxAmount),
-		SessionName: sessionName,
+		Amount:          uint64(maxAmount),
+		SessionName:     sessionName,
+		ProtocolVersion: pkg.ProtocolVersion,
 	}
 
 	resp, err := mc.client.FindMatches(ctx, req)
@@ -87,7 +87,6 @@ func (mc *MatcherClient) Participate(ctx context.Context, maxAmount dcrutil.Amou
 		Amount:        dcrutil.Amount(resp.Amount),
 		Fee:           dcrutil.Amount(resp.Fee),
 		PoolFee:       dcrutil.Amount(resp.PoolFee),
-		TotalPoolFee:  dcrutil.Amount(resp.TotalPoolFee),
 		TicketPrice:   dcrutil.Amount(resp.TicketPrice),
 		mainchainHash: mainchainHash,
 	}
@@ -96,30 +95,32 @@ func (mc *MatcherClient) Participate(ctx context.Context, maxAmount dcrutil.Amou
 
 func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
 
+	voteAddr, err := dcrutil.DecodeAddress(cfg.VoteAddress)
+	if err != nil {
+		return err
+	}
+
+	poolAddr, err := dcrutil.DecodeAddress(cfg.PoolAddress)
+	if err != nil {
+		return err
+	}
+
 	session.secretNb = matcher.SecretNumber(matcher.MustRandUint64())
 	session.secretNbHash = session.secretNb.Hash(session.mainchainHash)
+	session.voteAddress = voteAddr
+	session.poolAddress = poolAddr
 
 	req := &pb.GenerateTicketRequest{
-		SessionId: int32(session.ID),
-		CommitmentOutput: &pb.TxOut{
-			Script: session.ticketOutput.PkScript,
-			Value:  uint64(session.ticketOutput.Value),
-		},
-		ChangeOutput: &pb.TxOut{
-			Script: session.ticketChange.PkScript,
-			Value:  uint64(session.ticketChange.Value),
-		},
+		SessionId: uint32(session.ID),
 		SplitTxChange: &pb.TxOut{
 			Script: session.splitChange.PkScript,
 			Value:  uint64(session.splitChange.Value),
 		},
-		SplitTxOutput: &pb.TxOut{
-			Script: session.splitOutput.PkScript,
-			Value:  uint64(session.splitOutput.Value),
-		},
-		VoteAddress:  cfg.VoteAddress,
-		PoolAddress:  cfg.PoolAddress,
-		SecretnbHash: session.secretNbHash[:],
+		VoteAddress:       session.voteAddress.String(),
+		PoolAddress:       session.poolAddress.String(),
+		CommitmentAddress: session.ticketOutputAddress.String(),
+		SplitTxAddress:    session.splitOutputAddress.String(),
+		SecretnbHash:      session.secretNbHash[:],
 	}
 
 	req.SplitTxInputs = make([]*pb.OutPoint, len(session.splitInputs))
@@ -136,6 +137,13 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 		return err
 	}
 
+	if session.myIndex >= uint32(len(resp.Participants)) {
+		return errors.Errorf("service returned an index (%d) larger than "+
+			"the number of participants (%d)", session.myIndex,
+			len(resp.Participants))
+	}
+
+	session.myIndex = resp.Index
 	session.ticketTemplate = wire.NewMsgTx()
 	err = session.ticketTemplate.FromBytes(resp.TicketTemplate)
 	if err != nil {
@@ -155,8 +163,6 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 	}
 	session.splitTxUtxoMap = utxoMap
 
-	gotMyHash := false
-
 	session.participants = make([]buyerSessionParticipant, len(resp.Participants))
 	for i, p := range resp.Participants {
 		session.participants[i] = buyerSessionParticipant{
@@ -165,7 +171,28 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 			votePkScript: p.VotePkScript,
 		}
 		copy(session.participants[i].secretHash[:], p.SecretnbHash)
-		gotMyHash = gotMyHash || session.participants[i].secretHash.Equals(session.secretNbHash)
+	}
+
+	myIdx := session.myIndex
+	myPart := session.participants[myIdx]
+	if !session.secretNbHash.Equals(myPart.secretHash) {
+		return errors.Errorf("secret hash specified for participant %d does "+
+			"not equal our hash", myIdx)
+	}
+
+	if myPart.amount != session.Amount {
+		return errors.Errorf("amount specified for participant %d (%s) does "+
+			"not equal our previous contribution amount (%s)", myIdx,
+			myPart.amount, session.Amount)
+	}
+
+	err = validations.CheckTicketScriptMatchAddresses(session.voteAddress,
+		session.poolAddress, myPart.votePkScript, myPart.poolPkScript,
+		session.PoolFee*dcrutil.Amount(len(session.participants)),
+		cfg.ChainParams)
+	if err != nil {
+		return errors.Wrapf(err, "error checking the vote/pool scripts of my "+
+			"ticket")
 	}
 
 	err = validations.CheckSplit(session.splitTx, session.splitTxUtxoMap,
@@ -173,34 +200,6 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 	if err != nil {
 		return err
 	}
-
-	// vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	// TODO: everything below this points doesn't really belong here (should be
-	// calculated when signing my ticket/revocation)
-
-	voteAddr, err := dcrutil.DecodeAddress(cfg.VoteAddress)
-	if err != nil {
-		return err
-	}
-
-	poolAddr, err := dcrutil.DecodeAddress(cfg.PoolAddress)
-	if err != nil {
-		return err
-	}
-
-	voteScript, err := txscript.PayToSStx(voteAddr)
-	if err != nil {
-		return err
-	}
-
-	var limits uint16 = 0x5800 // TODO: grab from the original template
-	poolScript, err := txscript.GenerateSStxAddrPush(poolAddr, session.TotalPoolFee, limits)
-	if err != nil {
-		return err
-	}
-
-	session.votePkScript = voteScript
-	session.poolPkScript = poolScript
 
 	return nil
 }
@@ -217,7 +216,7 @@ func (mc *MatcherClient) FundTicket(ctx context.Context, session *BuyerSession, 
 	}
 
 	req := &pb.FundTicketRequest{
-		SessionId:           int32(session.ID),
+		SessionId:           uint32(session.ID),
 		Tickets:             tickets,
 		RevocationScriptSig: session.revocationScriptSig,
 	}
@@ -250,7 +249,7 @@ func (mc *MatcherClient) FundTicket(ctx context.Context, session *BuyerSession, 
 		}
 
 		err = validations.CheckTicket(splitTx, ticket, session.TicketPrice,
-			session.TotalPoolFee, session.Fee, partsAmounts, cfg.ChainParams)
+			session.PoolFee, session.Fee, partsAmounts, cfg.ChainParams)
 		if err != nil {
 			return errors.Wrapf(err, "error checking validity of ticket of part %d", i)
 		}
@@ -274,7 +273,7 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 	}
 
 	req := &pb.FundSplitTxRequest{
-		SessionId:         int32(session.ID),
+		SessionId:         uint32(session.ID),
 		SplitTxScriptsigs: splitTxSigs,
 		Secretnb:          uint64(session.secretNb),
 	}
@@ -287,19 +286,7 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 	fundedSplit := wire.NewMsgTx()
 	err = fundedSplit.FromBytes(resp.SplitTx)
 	if err != nil {
-		return merry.Prepend(err, "error decoding funded split")
-	}
-
-	selectedTicket := wire.NewMsgTx()
-	err = selectedTicket.FromBytes(resp.SelectedTicket)
-	if err != nil {
-		return merry.Prepend(err, "error decoding selected ticket")
-	}
-
-	selectedRevocation := wire.NewMsgTx()
-	err = selectedRevocation.FromBytes(resp.Revocation)
-	if err != nil {
-		return merry.Prepend(err, "error decoding selected revocation")
+		return errors.Wrap(err, "error decoding funded split")
 	}
 
 	err = validations.CheckSplit(session.splitTx, session.splitTxUtxoMap,
@@ -314,19 +301,24 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 		return err
 	}
 
-	if len(resp.Secrets) != len(session.participants) {
-		return merry.New("len(secrets) != len(participants)")
+	if len(resp.SecretNumbers) != len(session.participants) {
+		return errors.Errorf("len(secrets) != len(participants)")
 	}
 
-	for i, s := range resp.Secrets {
-		session.participants[i].secretNb = matcher.SecretNumber(s.Secretnb)
+	for i, s := range resp.SecretNumbers {
+		session.participants[i].secretNb = matcher.SecretNumber(s)
 	}
 
 	session.voterIndex = session.findVoterIndex()
+	if session.voterIndex < 0 {
+		return errors.Errorf("error finding voter index")
+	}
+
+	voter := session.participants[session.voterIndex]
 
 	err = validations.CheckSelectedVoter(session.secretNumbers(),
 		session.secretHashes(), session.amounts(), session.voteScripts(),
-		selectedTicket, session.mainchainHash)
+		voter.ticket, session.mainchainHash)
 	if err != nil {
 		return err
 	}
@@ -336,13 +328,9 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 	// watch for transactions involving all voting addresses and alert on any
 	// published that is not for the given ticket
 
-	// TODO: we don't really need to receive the selected ticket from the
-	// network as we should already have it and the revocation from the
-	// previous step.
-
 	session.fundedSplitTx = fundedSplit
-	session.selectedTicket = selectedTicket
-	session.selectedRevocation = selectedRevocation
+	session.selectedTicket = voter.ticket
+	session.selectedRevocation = voter.revocation
 
 	return nil
 }
