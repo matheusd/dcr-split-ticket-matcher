@@ -299,8 +299,7 @@ func saveSession(session *BuyerSession, cfg *BuyerConfig) error {
 		return err
 	}
 
-	ticketHash := session.selectedTicket.TxHash()
-	ticketHashHex := hex.EncodeToString(ticketHash[:])
+	ticketHashHex := session.selectedTicket.TxHash().String()
 	ticketBytes, err := session.selectedTicket.Bytes()
 	if err != nil {
 		return err
@@ -335,19 +334,19 @@ func saveSession(session *BuyerSession, cfg *BuyerConfig) error {
 	w.WriteString("\n")
 
 	w.WriteString("Split Transaction hash: ")
-	hexWriter.Write(splitHash[:])
+	w.WriteString(splitHash.String())
 	w.WriteString("\nSplit Transaction:\n")
 	hexWriter.Write(splitBytes)
 	w.WriteString("\n\n")
 
 	w.WriteString("Ticket hash: ")
-	hexWriter.Write(ticketHash[:])
+	w.WriteString(ticketHashHex)
 	w.WriteString("\nTicket:\n")
 	hexWriter.Write(ticketBytes)
 	w.WriteString("\n\n")
 
 	w.WriteString("Revocation hash: ")
-	hexWriter.Write(revocationHash[:])
+	w.WriteString(revocationHash.String())
 	w.WriteString("\nRevocation:\n")
 	hexWriter.Write(revocationBytes)
 	w.WriteString("\n\n")

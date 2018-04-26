@@ -3,6 +3,8 @@ package buyer
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
+	"fmt"
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
@@ -127,8 +129,23 @@ func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *Buye
 
 	rep := reporterFromContext(ctx)
 
-	outputs := make([]*pb.ConstructTransactionRequest_Output, 2)
+	outputs := make([]*pb.ConstructTransactionRequest_Output, 3)
+
+	// add the output for the voter lottery commitment, so the wallet accounts
+	// for that when calculating the amount of input.
+	// FIXME: currently double paying, as all participants are accounting for
+	// this. This should be of size ceil(33/nbParts)
+	nullData := bytes.Repeat([]byte{0x00}, matcher.SecretNumberHashesHashSize)
+	script := append([]byte{txscript.OP_RETURN, txscript.OP_DATA_32}, nullData...)
 	outputs[0] = &pb.ConstructTransactionRequest_Output{
+		Amount: 0,
+		Destination: &pb.ConstructTransactionRequest_OutputDestination{
+			Script: script,
+		},
+	}
+
+	// add the output for my ticket commitment
+	outputs[1] = &pb.ConstructTransactionRequest_Output{
 		Amount: int64(session.Amount + session.Fee),
 		Destination: &pb.ConstructTransactionRequest_OutputDestination{
 			Address: session.splitOutputAddress.String(),
@@ -142,7 +159,7 @@ func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *Buye
 	if err != nil {
 		return err
 	}
-	outputs[1] = &pb.ConstructTransactionRequest_Output{
+	outputs[2] = &pb.ConstructTransactionRequest_Output{
 		Amount: int64(session.PoolFee),
 		Destination: &pb.ConstructTransactionRequest_OutputDestination{
 			Address: addrZeroed.String(),
@@ -167,6 +184,9 @@ func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *Buye
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("yyyyyy")
+	fmt.Println(hex.EncodeToString(resp.UnsignedTransaction))
 
 	tx := wire.NewMsgTx()
 	err = tx.FromBytes(resp.UnsignedTransaction)

@@ -13,6 +13,15 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	// MaxPoolFeeRateTestnet is the maximum observed pool fee rate in
+	// testnet/simnet (%)
+	MaxPoolFeeRateTestnet = 7.5
+
+	// MaxPoolFeeRateMainnetis the maximum observed pool fee rate in mainnet (%)
+	MaxPoolFeeRateMainnet = 5.0
+)
+
 // CheckTicket validates that the given ticket respects the rules for the
 // split ticket matching service. Split must have passed the CheckSplit()
 // function.
@@ -158,10 +167,10 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, partPoolFee,
 	// network (5% max on mainnet, 7.5% max on testnet/simnet). We can check
 	// using the poolFee/ticketPrice on the arguments because we're also
 	// validating elsewhere that these are correct in the actual ticket tx.
-	poolFeeRate := float64(expectedPoolFee) / float64(ticketPrice)
-	if params.Name == "mainnet" && poolFeeRate > 0.05 {
+	poolFeeRate := (float64(expectedPoolFee) / float64(ticketPrice)) * 100
+	if params.Name == "mainnet" && poolFeeRate > MaxPoolFeeRateMainnet {
 		return errors.Errorf("pool fee rate (%f) higher than expected for mainnet")
-	} else if poolFeeRate > 0.075 {
+	} else if poolFeeRate > MaxPoolFeeRateTestnet {
 		return errors.Errorf("pool fee rate (%f) higher than expected for testnet")
 	}
 

@@ -34,7 +34,7 @@ func CheckSplit(split *wire.MsgTx, utxos UtxoMap,
 		return errors.Wrap(err, "split tx failed sanity check")
 	}
 
-	if len(split.TxOut[0].PkScript) < VoterLotteryPkScriptSize {
+	if len(split.TxOut[0].PkScript) != VoterLotteryPkScriptSize {
 		return errors.Errorf("size of pkscript of output 0 (%d) of split tx "+
 			"doesn't have expected length (%d)", len(split.TxOut[0].PkScript),
 			VoterLotteryPkScriptSize)

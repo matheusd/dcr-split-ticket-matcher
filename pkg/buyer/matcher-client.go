@@ -291,7 +291,7 @@ func (mc *MatcherClient) FundTicket(ctx context.Context, session *BuyerSession, 
 			session.splitChange, session.myIndex, session.splitInputOutpoints(),
 			cfg.ChainParams)
 		if err != nil {
-			return errors.Wrapf(err, "error checking my participation in " +
+			return errors.Wrapf(err, "error checking my participation in "+
 				" ticket of part %d", i)
 		}
 
@@ -332,7 +332,7 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 		return err
 	}
 
-	err = validations.CheckSignedSplit(session.splitTx, session.splitTxUtxoMap,
+	err = validations.CheckSignedSplit(fundedSplit, session.splitTxUtxoMap,
 		cfg.ChainParams)
 	if err != nil {
 		return err

@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"io/ioutil"
+	"strings"
 	"time"
 
 	"github.com/decred/dcrd/chaincfg"
@@ -9,7 +10,9 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/rpcclient"
 	"github.com/decred/dcrd/wire"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	logging "github.com/op/go-logging"
+	"github.com/pkg/errors"
 )
 
 type decredNetworkConfig struct {
@@ -61,6 +64,16 @@ func ConnectToDecredNode(cfg *decredNetworkConfig) (*decredNetwork, error) {
 	// Register for block connect and disconnect notifications.
 	if err := client.NotifyBlocks(); err != nil {
 		return nil, err
+	}
+
+	nodeNet, err := client.GetCurrentNet()
+	if err != nil {
+		return nil, err
+	}
+	nodeNetName := strings.ToLower(nodeNet.String())
+	if nodeNetName != cfg.chainParams.Name {
+		return nil, errors.Errorf("network of daemon (%s) not the same as the "+
+			"expected (%s)", nodeNetName, cfg.chainParams.Name)
 	}
 
 	err = net.updateFromBestBlock()
@@ -150,8 +163,8 @@ func (net *decredNetwork) onBlockConnected(blockHeader []byte, transactions [][]
 	net.ticketPrice = uint64(header.SBits)
 	net.blockHeight = int32(header.Height)
 	net.blockHash = header.BlockHash()
-	stakeDiffChangeDistance := int32(net.chainParams.WorkDiffWindowSize) -
-		(net.blockHeight % int32(net.chainParams.WorkDiffWindowSize))
+	stakeDiffChangeDistance := matcher.StakeDiffChangeDistance(net.blockHeight,
+		net.chainParams)
 	net.log.Infof("Block connected. Height=%d StakeDiff=%s WindowChangeDist=%d",
 		header.Height, dcrutil.Amount(net.ticketPrice), stakeDiffChangeDistance)
 }
@@ -183,4 +196,14 @@ func (net *decredNetwork) CurrentBlockHash() chainhash.Hash {
 
 func (net *decredNetwork) ConnectedToDecredNetwork() bool {
 	return !net.client.Disconnected()
+}
+
+func (net *decredNetwork) PublishTransactions(txs []*wire.MsgTx) error {
+	for i, tx := range txs {
+		_, err := net.client.SendRawTransaction(tx, false)
+		if err != nil {
+			return errors.Wrapf(err, "error publishing tx %d", i)
+		}
+	}
+	return nil
 }

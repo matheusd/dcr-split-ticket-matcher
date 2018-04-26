@@ -126,6 +126,10 @@ func (rep *StdOutReporter) reportStage(ctx context.Context, stage BuyerStage, se
 		fmt.Printf("Voter lottery commitment hash: %s\n",
 			hex.EncodeToString(commitHash))
 
+		fmt.Println("")
+		fmt.Printf("Split tx hash: %s\n", session.fundedSplitTx.TxHash())
+		fmt.Printf("Ticket Hash: %s\n", session.selectedTicket.TxHash())
+
 	default:
 		fmt.Printf("Unknown stage: %d\n", stage)
 	}

@@ -29,14 +29,14 @@ func encodeQueueName(name string) string {
 }
 
 type SplitTicketMatcherService struct {
-	matcher       *matcher.Matcher
-	priceProvider matcher.TicketPriceProvider
+	matcher         *matcher.Matcher
+	networkProvider matcher.NetworkProvider
 }
 
-func NewSplitTicketMatcherService(matcher *matcher.Matcher, priceProvider matcher.TicketPriceProvider) *SplitTicketMatcherService {
+func NewSplitTicketMatcherService(matcher *matcher.Matcher, networkProvider matcher.NetworkProvider) *SplitTicketMatcherService {
 	return &SplitTicketMatcherService{
-		matcher:       matcher,
-		priceProvider: priceProvider,
+		matcher:         matcher,
+		networkProvider: networkProvider,
 	}
 }
 
@@ -215,6 +215,6 @@ func (svc *SplitTicketMatcherService) FundSplitTx(ctx context.Context, req *pb.F
 
 func (svc *SplitTicketMatcherService) Status(context.Context, *pb.StatusRequest) (*pb.StatusResponse, error) {
 	return &pb.StatusResponse{
-		TicketPrice: svc.priceProvider.CurrentTicketPrice(),
+		TicketPrice: svc.networkProvider.CurrentTicketPrice(),
 	}, nil
 }

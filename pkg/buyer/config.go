@@ -45,7 +45,7 @@ type BuyerConfig struct {
 	DcrdHost        string  `long:"dcrdhost" description:"Host of the dcrd daemon"`
 	DcrdUser        string  `long:"dcrduser" description:"Username of the dcrd daemon"`
 	DcrdPass        string  `long:"dcrpass" description:"Password of the dcrd daemon"`
-	DcrdCertFile    string  `long:"dcrdcertfile" description:"Location of the certificate for the dcrd daemon"`
+	DcrdCert        string  `long:"dcrdcert" description:"Location of the certificate for the dcrd daemon"`
 
 	Passphrase  []byte
 	ChainParams *chaincfg.Params
@@ -125,7 +125,7 @@ func LoadConfig() (*BuyerConfig, error) {
 		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "DcrdPass")
 	}
 
-	if cfg.DcrdCertFile == "" {
+	if cfg.DcrdCert == "" {
 		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "DcrdCertfile")
 	}
 
@@ -151,7 +151,7 @@ func (cfg *BuyerConfig) networkCfg() *decredNetworkConfig {
 		Host:     cfg.DcrdHost,
 		User:     cfg.DcrdUser,
 		Pass:     cfg.DcrdPass,
-		CertFile: cfg.DcrdCertFile,
+		CertFile: cfg.DcrdCert,
 	}
 }
 

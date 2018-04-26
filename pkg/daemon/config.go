@@ -3,6 +3,7 @@ package daemon
 import (
 	"os"
 	"path/filepath"
+	"time"
 
 	flags "github.com/btcsuite/go-flags"
 	"github.com/decred/dcrd/dcrutil"
@@ -21,6 +22,7 @@ type Config struct {
 	KeyFile      string
 	CertFile     string
 
+	TestNet  bool   `long:"testnet" description:"Whether this is connecting to a testnet wallet/matcher service"`
 	DcrdHost string `long:"dcrdhost" description:"Address of the dcrd daemon"`
 	DcrdUser string `long:"dcrduser" description:"Username of the rpc connection to dcrd"`
 	DcrdPass string `long:"dcrdpass" description:"Password of the rpc connection to dcrd"`
@@ -31,7 +33,10 @@ type Config struct {
 	DcrwPass string `long:"dcrwpass" description:"Password of the rpc connection to dcrwallet"`
 	DcrwCert string `long:"dcrwcert" description:"Location of the rpc.cert file of dcrwallet"`
 
-	MinAmount float64 `long:"minamount" description:"Minimum amount to participate on a split ticket (in DCR)"`
+	MinAmount                 float64       `long:"minamount" description:"Minimum amount to participate on a split ticket (in DCR)"`
+	MaxSessionDuration        time.Duration `long:"maxsessionduration" description:"Maximum number of seconds a session may take before being automatically closed"`
+	StakeDiffChangeStopWindow int32         `long:"stakediffchangestopwindow" description:"Stop the matching service when the the stake change is closer than this number of blocks"`
+	PublishTransactions       bool          `long:"publishtransactions" description:"Whether to actually publish transactions of successful sessions"`
 }
 
 var (
@@ -77,6 +82,10 @@ func LoadConfig() (*Config, error) {
 		DcrwUser: "USER",
 		DcrwPass: "PASSWORD",
 		DcrwCert: filepath.Join(dcrutil.AppDataDir("dcrwallet", false), "rpc.cert"),
+
+		MaxSessionDuration:        30,
+		StakeDiffChangeStopWindow: 5,
+		PublishTransactions: false,
 	}
 
 	parser := flags.NewParser(cfg, flags.Default)

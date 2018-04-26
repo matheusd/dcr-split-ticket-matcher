@@ -17,11 +17,15 @@ import (
 	"github.com/pkg/errors"
 )
 
-type TicketPriceProvider interface {
+// NetworkProvider is the interface for operations that the matcher service
+// needs from the decred network. These operations might be provided by a
+// connection to a full node or to an external api (such as dcrdata).
+type NetworkProvider interface {
 	CurrentTicketPrice() uint64
 	CurrentBlockHeight() int32
 	CurrentBlockHash() chainhash.Hash
 	ConnectedToDecredNetwork() bool
+	PublishTransactions([]*wire.MsgTx) error
 }
 
 type SignPoolSplitOutputProvider interface {
@@ -37,7 +41,7 @@ type VoteAddressProvider interface {
 // Config stores the parameters for the matcher engine
 type Config struct {
 	MinAmount                 uint64
-	PriceProvider             TicketPriceProvider
+	NetworkProvider           NetworkProvider
 	SignPoolSplitOutProvider  SignPoolSplitOutputProvider
 	LogLevel                  logging.Level
 	LogBackend                logging.LeveledBackend
@@ -45,6 +49,7 @@ type Config struct {
 	PoolFee                   float64
 	MaxSessionDuration        time.Duration
 	StakeDiffChangeStopWindow int32
+	PublishTransactions       bool
 }
 
 type cancelSessionChanReq struct {
@@ -194,7 +199,7 @@ func (matcher *Matcher) addParticipant(req *addParticipantRequest) error {
 	matcher.log.Infof("Adding participant for amount %s", dcrutil.Amount(req.maxAmount))
 	q, has := matcher.queues[req.sessionName]
 	if !has {
-		q = newSplitTicketQueue(matcher.cfg.PriceProvider)
+		q = newSplitTicketQueue(matcher.cfg.NetworkProvider)
 		matcher.queues[req.sessionName] = q
 	}
 
@@ -221,8 +226,8 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 	numParts := len(q.waitingParticipants)
 	partFee := SessionParticipantFee(numParts)
 	ticketTxFee := partFee * dcrutil.Amount(numParts)
-	ticketPrice := dcrutil.Amount(matcher.cfg.PriceProvider.CurrentTicketPrice())
-	blockHeight := matcher.cfg.PriceProvider.CurrentBlockHeight()
+	ticketPrice := dcrutil.Amount(matcher.cfg.NetworkProvider.CurrentTicketPrice())
+	blockHeight := matcher.cfg.NetworkProvider.CurrentBlockHeight()
 	poolFeePerc := matcher.cfg.PoolFee
 	minPoolFee := txrules.StakePoolTicketFee(ticketPrice, ticketTxFee, blockHeight,
 		poolFeePerc, matcher.cfg.ChainParams)
@@ -244,8 +249,8 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 
 	sess := &Session{
 		Participants:   make([]*SessionParticipant, numParts),
-		TicketPrice:    dcrutil.Amount(matcher.cfg.PriceProvider.CurrentTicketPrice()),
-		MainchainHash:  matcher.cfg.PriceProvider.CurrentBlockHash(),
+		TicketPrice:    dcrutil.Amount(matcher.cfg.NetworkProvider.CurrentTicketPrice()),
+		MainchainHash:  matcher.cfg.NetworkProvider.CurrentBlockHash(),
 		PoolFee:        poolFee,
 		ChainParams:    matcher.cfg.ChainParams,
 		TicketPoolIn:   wire.NewTxIn(&wire.OutPoint{Index: 1}, nil),       // FIXME: this should probably be removed from here and moved into the session
@@ -523,7 +528,16 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 		_ = ticket
 		_ = revocation
 
-		// TODO publish transactions
+		if matcher.cfg.PublishTransactions {
+			txs := []*wire.MsgTx{splitTx, ticket}
+			matcher.log.Infof("Publishing transactions of session %s", sess.ID)
+			err = matcher.cfg.NetworkProvider.PublishTransactions(txs)
+			if err != nil {
+				matcher.log.Errorf("Error publishing transactions: %s", err)
+			}
+		} else {
+			matcher.log.Infof("Skipping publishing transactions")
+		}
 
 		if err == nil {
 			splitBytes, err = splitTx.Bytes()
@@ -572,14 +586,13 @@ func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64, se
 		return nil, ErrLowAmount
 	}
 
-	blockHeight := matcher.cfg.PriceProvider.CurrentBlockHeight()
-	stakeDiffChangeDistance := blockHeight % int32(matcher.cfg.ChainParams.WorkDiffWindowSize)
-	if (stakeDiffChangeDistance < matcher.cfg.StakeDiffChangeStopWindow) ||
-		(stakeDiffChangeDistance > int32(matcher.cfg.ChainParams.WorkDiffWindowSize)-matcher.cfg.StakeDiffChangeStopWindow) {
+	curStakeDiffChangeDist := StakeDiffChangeDistance(
+		matcher.cfg.NetworkProvider.CurrentBlockHeight(), matcher.cfg.ChainParams)
+	if curStakeDiffChangeDist < matcher.cfg.StakeDiffChangeStopWindow {
 		return nil, ErrStakeDiffTooCloseToChange
 	}
 
-	if !matcher.cfg.PriceProvider.ConnectedToDecredNetwork() {
+	if !matcher.cfg.NetworkProvider.ConnectedToDecredNetwork() {
 		return nil, ErrNotConnectedToDecredNet
 	}
 

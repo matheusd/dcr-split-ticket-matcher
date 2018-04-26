@@ -5,19 +5,19 @@ import "github.com/decred/dcrd/dcrutil"
 // splitTicketQueue is the queue of participants waiting for a split ticket
 // session. May be named or not.
 type splitTicketQueue struct {
-	priceProvider       TicketPriceProvider
+	networkProvider     NetworkProvider
 	waitingParticipants []*addParticipantRequest
 }
 
-func newSplitTicketQueue(priceProvider TicketPriceProvider) *splitTicketQueue {
+func newSplitTicketQueue(networkProvider NetworkProvider) *splitTicketQueue {
 	return &splitTicketQueue{
-		priceProvider: priceProvider,
+		networkProvider: networkProvider,
 	}
 }
 
 func (q *splitTicketQueue) enoughForNewSession() bool {
 
-	ticketPrice := dcrutil.Amount(q.priceProvider.CurrentTicketPrice())
+	ticketPrice := dcrutil.Amount(q.networkProvider.CurrentTicketPrice())
 	var availableSum uint64
 
 	for _, r := range q.waitingParticipants {

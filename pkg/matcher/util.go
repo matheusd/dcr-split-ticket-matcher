@@ -10,6 +10,7 @@ import (
 
 	"github.com/dchest/blake256"
 	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
@@ -282,7 +283,8 @@ func (nb SecretNumber) Hash(mainchainHash *chainhash.Hash) SecretNumberHash {
 	// note that block hashes are reversed, so the first bytes are the actual
 	// random bytes (ending bytes should be a string of 0000s)
 	h := blake256.NewSalt(mainchainHash[:16])
-	calculated = h.Sum(data[:])
+	h.Write(data[:])
+	calculated = h.Sum(nil)
 	copy(res[:], calculated)
 
 	return res
@@ -314,13 +316,17 @@ func (nbs SecretNumbers) Hash(mainchainHash *chainhash.Hash) SecretNumbersHash {
 
 	for _, nb := range nbs {
 		binary.LittleEndian.PutUint64(data[:], uint64(nb))
-		calculated = h.Sum(data[:])
+		h.Write(data[:])
 	}
-
+	calculated = h.Sum(nil)
 	copy(res[:], calculated)
 
 	return res
 }
+
+// SecretNumberHashesHashSize is the size of the resulting hash of all secret
+// number hashes.
+const SecretNumberHashesHashSize = 32
 
 func SecretNumberHashesHash(hashes []SecretNumberHash, mainchainHash *chainhash.Hash) []byte {
 	var calculated []byte
@@ -330,8 +336,28 @@ func SecretNumberHashesHash(hashes []SecretNumberHash, mainchainHash *chainhash.
 	h := blake256.NewSalt(mainchainHash[:16])
 
 	for _, hs := range hashes {
-		calculated = h.Sum(hs[:])
+		h.Write(hs[:])
 	}
+	calculated = h.Sum(nil)
 
 	return calculated
+}
+
+// StakeDiffChangeDistance returns the distance (in blocks) to the closest
+// stake diff change block (either in the past or the future, whichever is
+// closest).
+func StakeDiffChangeDistance(blockHeight int32, params *chaincfg.Params) int32 {
+
+	winSize := int32(params.WorkDiffWindowSize)
+
+	// the remainder decreases as the block height approaches a change block,
+	// so the lower baseDist is, the closer it is to the next change.
+	baseDist := blockHeight % winSize
+	if baseDist > winSize/2 {
+		// the previous change block is closer
+		return winSize - baseDist
+	} else {
+		// the next change block is closer
+		return baseDist
+	}
 }

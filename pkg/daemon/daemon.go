@@ -32,7 +32,14 @@ type Daemon struct {
 // NewDaemon returns a new daemon instance and prepares it to listen to
 // requests.
 func NewDaemon(cfg *Config) (*Daemon, error) {
-	net := &chaincfg.TestNet2Params
+
+	net := &chaincfg.MainNetParams
+	poolFee := 5.0
+
+	if cfg.TestNet {
+		net = &chaincfg.TestNet2Params
+		poolFee = 7.5
+	}
 
 	d := &Daemon{
 		cfg: cfg,
@@ -96,17 +103,26 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		panic(err)
 	}
 	d.log.Infof("Minimum participation amount %s", minAmount)
+	d.log.Infof("Stopping when sdiff change is closer than %d blocks", cfg.StakeDiffChangeStopWindow)
+	d.log.Infof("Maximum session time: %d seconds", cfg.MaxSessionDuration)
+	if cfg.TestNet {
+		d.log.Infof("Running on testnet")
+	} else {
+		d.log.Infof("Running on mainnet")
+	}
+	d.log.Infof("Publishing transactions: %v", cfg.PublishTransactions)
 
 	mcfg := &matcher.Config{
 		LogLevel:                  cfg.LogLevel,
 		MinAmount:                 uint64(minAmount),
-		PriceProvider:             d.dcrd,
+		NetworkProvider:           d.dcrd,
 		SignPoolSplitOutProvider:  d.wallet,
 		ChainParams:               net,
-		PoolFee:                   7.5,
-		MaxSessionDuration:        30 * time.Second,
+		PoolFee:                   poolFee,
+		MaxSessionDuration:        cfg.MaxSessionDuration * time.Second,
 		LogBackend:                logBackend,
-		StakeDiffChangeStopWindow: 2,
+		StakeDiffChangeStopWindow: cfg.StakeDiffChangeStopWindow,
+		PublishTransactions:       cfg.PublishTransactions,
 	}
 	d.matcher = matcher.NewMatcher(mcfg)
 
