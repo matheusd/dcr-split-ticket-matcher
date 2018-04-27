@@ -83,12 +83,14 @@ func (mc *MatcherClient) Participate(ctx context.Context, maxAmount dcrutil.Amou
 	// TODO: check if the ticket price really is the current ticket price according to the latest block
 
 	sess := &BuyerSession{
-		ID:            matcher.ParticipantID(resp.SessionId),
-		Amount:        dcrutil.Amount(resp.Amount),
-		Fee:           dcrutil.Amount(resp.Fee),
-		PoolFee:       dcrutil.Amount(resp.PoolFee),
-		TicketPrice:   dcrutil.Amount(resp.TicketPrice),
-		mainchainHash: mainchainHash,
+		ID:              matcher.ParticipantID(resp.SessionId),
+		Amount:          dcrutil.Amount(resp.Amount),
+		Fee:             dcrutil.Amount(resp.Fee),
+		PoolFee:         dcrutil.Amount(resp.PoolFee),
+		TicketPrice:     dcrutil.Amount(resp.TicketPrice),
+		mainchainHash:   mainchainHash,
+		mainchainHeight: resp.MainchainHeight,
+		nbParticipants:  resp.NbParticipants,
 	}
 	return sess, nil
 }
@@ -135,6 +137,12 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 	resp, err := mc.client.GenerateTicket(ctx, req)
 	if err != nil {
 		return err
+	}
+
+	if uint32(len(resp.Participants)) != session.nbParticipants {
+		return errors.Errorf("service returned information for a different "+
+			"number of participants (%d) than expected (%d)",
+			len(resp.Participants), session.nbParticipants)
 	}
 
 	if session.myIndex >= uint32(len(resp.Participants)) {
@@ -198,7 +206,8 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 
 	// ensure the split tx is valid
 	err = validations.CheckSplit(session.splitTx, session.splitTxUtxoMap,
-		session.secretHashes(), session.mainchainHash, cfg.ChainParams)
+		session.secretHashes(), session.mainchainHash, session.mainchainHeight,
+		cfg.ChainParams)
 	if err != nil {
 		return errors.Wrapf(err, "error checking split tx")
 	}
@@ -206,7 +215,7 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 	// ensure the ticket template is valid
 	err = validations.CheckTicket(session.splitTx, session.ticketTemplate,
 		session.TicketPrice, session.PoolFee, session.Fee, session.amounts(),
-		cfg.ChainParams)
+		session.mainchainHeight, cfg.ChainParams)
 	if err != nil {
 		return errors.Wrapf(err, "error checking ticket template")
 	}
@@ -270,7 +279,8 @@ func (mc *MatcherClient) FundTicket(ctx context.Context, session *BuyerSession, 
 		}
 
 		err = validations.CheckTicket(splitTx, ticket, session.TicketPrice,
-			session.PoolFee, session.Fee, partsAmounts, cfg.ChainParams)
+			session.PoolFee, session.Fee, partsAmounts, session.mainchainHeight,
+			cfg.ChainParams)
 		if err != nil {
 			return errors.Wrapf(err, "error checking validity of ticket of part %d", i)
 		}
@@ -327,7 +337,8 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 	}
 
 	err = validations.CheckSplit(session.splitTx, session.splitTxUtxoMap,
-		session.secretHashes(), session.mainchainHash, cfg.ChainParams)
+		session.secretHashes(), session.mainchainHash, session.mainchainHeight,
+		cfg.ChainParams)
 	if err != nil {
 		return err
 	}

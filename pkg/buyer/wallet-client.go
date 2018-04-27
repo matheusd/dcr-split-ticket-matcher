@@ -3,8 +3,6 @@ package buyer
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
-	"fmt"
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
@@ -184,9 +182,6 @@ func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *Buye
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("yyyyyy")
-	fmt.Println(hex.EncodeToString(resp.UnsignedTransaction))
 
 	tx := wire.NewMsgTx()
 	err = tx.FromBytes(resp.UnsignedTransaction)

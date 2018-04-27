@@ -80,12 +80,14 @@ func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.F
 	}
 
 	res := &pb.FindMatchesResponse{
-		Amount:        uint64(sess.CommitAmount),
-		Fee:           uint64(sess.Fee),
-		SessionId:     uint32(sess.ID),
-		PoolFee:       uint64(sess.PoolFee),
-		MainchainHash: sess.Session.MainchainHash[:],
-		TicketPrice:   uint64(sess.Session.TicketPrice),
+		Amount:          uint64(sess.CommitAmount),
+		Fee:             uint64(sess.Fee),
+		SessionId:       uint32(sess.ID),
+		PoolFee:         uint64(sess.PoolFee),
+		MainchainHash:   sess.Session.MainchainHash[:],
+		MainchainHeight: sess.Session.MainchainHeight,
+		TicketPrice:     uint64(sess.Session.TicketPrice),
+		NbParticipants:  uint32(len(sess.Session.Participants)),
 	}
 	return res, nil
 }

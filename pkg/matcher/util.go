@@ -346,13 +346,13 @@ func SecretNumberHashesHash(hashes []SecretNumberHash, mainchainHash *chainhash.
 // StakeDiffChangeDistance returns the distance (in blocks) to the closest
 // stake diff change block (either in the past or the future, whichever is
 // closest).
-func StakeDiffChangeDistance(blockHeight int32, params *chaincfg.Params) int32 {
+func StakeDiffChangeDistance(blockHeight uint32, params *chaincfg.Params) int32 {
 
 	winSize := int32(params.WorkDiffWindowSize)
 
 	// the remainder decreases as the block height approaches a change block,
 	// so the lower baseDist is, the closer it is to the next change.
-	baseDist := blockHeight % winSize
+	baseDist := int32(blockHeight) % winSize
 	if baseDist > winSize/2 {
 		// the previous change block is closer
 		return winSize - baseDist
@@ -360,4 +360,21 @@ func StakeDiffChangeDistance(blockHeight int32, params *chaincfg.Params) int32 {
 		// the next change block is closer
 		return baseDist
 	}
+}
+
+// TargetTicketExpirationBlock calculates the expected expiration block for a
+// ticket, given the current block height and a maximum expiry value.
+//
+// The calculated value is guaranteed to be < maxExpiry, but may be
+// significantly less if the current block height is close to a change in stake
+// difficulty.
+func TargetTicketExpirationBlock(curBlockHeight, maxExpiry uint32,
+	params *chaincfg.Params) uint32 {
+
+	dist := curBlockHeight % uint32(params.WorkDiffWindowSize)
+	if dist < maxExpiry {
+		return curBlockHeight + dist
+	}
+
+	return curBlockHeight + maxExpiry
 }

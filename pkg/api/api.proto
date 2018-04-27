@@ -43,7 +43,9 @@ message FindMatchesResponse {
     uint64 fee = 3;
     uint64 pool_fee = 4;
     bytes mainchain_hash = 5;
-    uint64 ticket_price = 6;
+    uint32 mainchain_height = 6;
+    uint64 ticket_price = 7;
+    uint32 nb_participants = 8;
 }
 
 message GenerateTicketRequest {

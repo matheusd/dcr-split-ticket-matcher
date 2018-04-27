@@ -25,7 +25,7 @@ const VoterLotteryPkScriptSize = 1 + 1 + 32
 // the split ticket matching service
 func CheckSplit(split *wire.MsgTx, utxos UtxoMap,
 	secretHashes []matcher.SecretNumberHash, mainchainHash *chainhash.Hash,
-	params *chaincfg.Params) error {
+	currentBlockHeight uint32, params *chaincfg.Params) error {
 
 	var err error
 
@@ -53,6 +53,25 @@ func CheckSplit(split *wire.MsgTx, utxos UtxoMap,
 		return errors.Errorf("voter lottery commitment (%s) does not equal "+
 			"the expected value (%s)", hex.EncodeToString(splitVoterCommitment),
 			hex.EncodeToString(targetVoterHash))
+	}
+
+	// ensure the various locks don't prevent the split from being mined
+	if split.Expiry != wire.NoExpiryValue {
+		return errors.Errorf("expiry for the split tx is not 0")
+	}
+	if split.LockTime != 0 {
+		return errors.Errorf("locktime for split tx is not 0")
+	}
+	if split.Version != wire.TxVersion {
+		return errors.Errorf("split tx version (%d) different than expected "+
+			"(%d)", split.Version, wire.TxVersion)
+	}
+	for i, in := range split.TxIn {
+		if in.Sequence != wire.MaxTxInSequenceNum {
+			return errors.Errorf("input %d of split tx has sequence number "+
+				"(%d) different than expected (%d)", i, in.Sequence,
+				wire.MaxTxInSequenceNum)
+		}
 	}
 
 	return nil

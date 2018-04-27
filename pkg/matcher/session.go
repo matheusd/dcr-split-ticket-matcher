@@ -148,18 +148,20 @@ func (id SessionID) String() string {
 
 // Session is a particular ticket being built
 type Session struct {
-	ID             SessionID
-	Participants   []*SessionParticipant
-	TicketPrice    dcrutil.Amount
-	MainchainHash  chainhash.Hash
-	VoterIndex     int
-	PoolFee        dcrutil.Amount
-	ChainParams    *chaincfg.Params
-	SplitTxPoolOut *wire.TxOut
-	TicketPoolIn   *wire.TxIn
-	StartTime      time.Time
-	Done           bool
-	Canceled       bool
+	ID              SessionID
+	Participants    []*SessionParticipant
+	TicketPrice     dcrutil.Amount
+	MainchainHash   chainhash.Hash
+	MainchainHeight uint32
+	VoterIndex      int
+	PoolFee         dcrutil.Amount
+	ChainParams     *chaincfg.Params
+	SplitTxPoolOut  *wire.TxOut
+	TicketPoolIn    *wire.TxIn
+	StartTime       time.Time
+	Done            bool
+	Canceled        bool
+	TicketExpiry    uint32
 }
 
 // AllOutputsFilled returns true if all commitment and change outputs for all
@@ -262,6 +264,8 @@ func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, error) {
 
 	ticket := wire.NewMsgTx()
 	splitTx := wire.NewMsgTx()
+
+	ticket.Expiry = sess.TicketExpiry
 
 	sess.addCommonTicketOutputs(ticket)
 	sess.addVoterSelectionData(splitTx)

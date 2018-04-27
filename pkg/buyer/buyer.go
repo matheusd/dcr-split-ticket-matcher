@@ -36,9 +36,11 @@ type BuyerSession struct {
 	PoolFee     dcrutil.Amount
 	TicketPrice dcrutil.Amount
 
-	mainchainHash *chainhash.Hash
-	secretNb      matcher.SecretNumber
-	secretNbHash  matcher.SecretNumberHash
+	mainchainHash   *chainhash.Hash
+	mainchainHeight uint32
+	nbParticipants  uint32
+	secretNb        matcher.SecretNumber
+	secretNbHash    matcher.SecretNumberHash
 
 	voteAddress         dcrutil.Address
 	poolAddress         dcrutil.Address

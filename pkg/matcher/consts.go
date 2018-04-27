@@ -16,6 +16,9 @@ const (
 	// 1e5 = 0.001 DCR
 	RevocationFeeRate = int64(1e5)
 
+	// MaximumExpiry accepted for split and ticket transactions
+	MaximumExpiry = 16
+
 	// VoterLotteryCommitmentScriptSize is the size of the pkscript of the
 	// voter lottery commiment output (output 0 of the split tx). It is
 	// the size of an OP_RETURN + 32 byte hash.

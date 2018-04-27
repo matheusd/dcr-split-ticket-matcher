@@ -28,6 +28,25 @@ func CheckRevocation(ticket, revocation *wire.MsgTx, params *chaincfg.Params) er
 		return errors.Wrap(err, "revocation tx is not an rrtx")
 	}
 
+	// ensure the various tx locks don't prevent the revocation from being mined
+	if revocation.Expiry != 0 {
+		return errors.Errorf("revocation has expiry (%d) different than zero",
+			revocation.Expiry)
+	}
+	if revocation.LockTime != 0 {
+		return errors.Errorf("revocation has locktime (%d) different than zero",
+			revocation.LockTime)
+	}
+	if revocation.TxIn[0].Sequence != wire.MaxTxInSequenceNum {
+		return errors.Errorf("sequence number of revocation input (%d) "+
+			"different than expected (%d)", revocation.TxIn[0].Sequence,
+			wire.MaxTxInSequenceNum)
+	}
+	if revocation.Version != wire.TxVersion {
+		return errors.Errorf("revocation txversion (%d) different than "+
+			"expected (%d)", revocation.Version, wire.TxVersion)
+	}
+
 	// ensure the revocation scriptSig successfully signs the ticket output
 	engine, err := txscript.NewEngine(ticket.TxOut[0].PkScript, revocation, 0,
 		currentScriptFlags, ticket.TxOut[0].Version, nil)

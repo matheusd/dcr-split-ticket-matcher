@@ -22,7 +22,7 @@ import (
 // connection to a full node or to an external api (such as dcrdata).
 type NetworkProvider interface {
 	CurrentTicketPrice() uint64
-	CurrentBlockHeight() int32
+	CurrentBlockHeight() uint32
 	CurrentBlockHash() chainhash.Hash
 	ConnectedToDecredNetwork() bool
 	PublishTransactions([]*wire.MsgTx) error
@@ -235,6 +235,9 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 	poolFee := poolFeePart * dcrutil.Amount(numParts) // ensure every participant pays the same amount
 	sessID := matcher.newSessionID()
 	parts := q.waitingParticipants
+	curHeight := matcher.cfg.NetworkProvider.CurrentBlockHeight()
+	expiry := TargetTicketExpirationBlock(curHeight, MaximumExpiry,
+		matcher.cfg.ChainParams)
 	q.waitingParticipants = nil
 
 	matcher.log.Noticef("Starting new session %s: Ticket Price=%s Fees=%s Participants=%d PoolFee=%s",
@@ -248,16 +251,18 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 	}
 
 	sess := &Session{
-		Participants:   make([]*SessionParticipant, numParts),
-		TicketPrice:    dcrutil.Amount(matcher.cfg.NetworkProvider.CurrentTicketPrice()),
-		MainchainHash:  matcher.cfg.NetworkProvider.CurrentBlockHash(),
-		PoolFee:        poolFee,
-		ChainParams:    matcher.cfg.ChainParams,
-		TicketPoolIn:   wire.NewTxIn(&wire.OutPoint{Index: 1}, nil),       // FIXME: this should probably be removed from here and moved into the session
-		SplitTxPoolOut: wire.NewTxOut(int64(poolFee), splitPoolOutScript), // ditto above
-		ID:             sessID,
-		StartTime:      time.Now(),
-		VoterIndex:     -1, // voter not decided yet
+		Participants:    make([]*SessionParticipant, numParts),
+		TicketPrice:     dcrutil.Amount(matcher.cfg.NetworkProvider.CurrentTicketPrice()),
+		MainchainHash:   matcher.cfg.NetworkProvider.CurrentBlockHash(),
+		MainchainHeight: curHeight,
+		PoolFee:         poolFee,
+		ChainParams:     matcher.cfg.ChainParams,
+		TicketPoolIn:    wire.NewTxIn(&wire.OutPoint{Index: 1}, nil),       // FIXME: this should probably be removed from here and moved into the session
+		SplitTxPoolOut:  wire.NewTxOut(int64(poolFee), splitPoolOutScript), // ditto above
+		ID:              sessID,
+		StartTime:       time.Now(),
+		TicketExpiry:    expiry,
+		VoterIndex:      -1, // voter not decided yet
 	}
 	matcher.sessions[sessID] = sess
 

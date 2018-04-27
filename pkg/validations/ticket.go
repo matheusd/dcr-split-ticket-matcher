@@ -10,6 +10,7 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/pkg/errors"
 )
 
@@ -30,7 +31,7 @@ const (
 // split ticket session, wasting time or (more importantly) funds.
 func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, partPoolFee,
 	partTicketFee dcrutil.Amount, partsAmounts []dcrutil.Amount,
-	params *chaincfg.Params) error {
+	currentBlockHeight uint32, params *chaincfg.Params) error {
 
 	var err error
 
@@ -79,9 +80,20 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, partPoolFee,
 				"output %d of split tx", i, in.PreviousOutPoint.Index)
 		}
 
+		if in.PreviousOutPoint.Tree != wire.TxTreeRegular {
+			return errors.Errorf("input %d of ticket does not reference the "+
+				"regular tx tree", i)
+		}
+
 		if !splitHash.IsEqual(&in.PreviousOutPoint.Hash) {
 			return errors.Errorf("input %d of ticket does not reference "+
-				"tx hash", i)
+				"tx hash of split tx", i)
+		}
+
+		if in.Sequence != wire.MaxTxInSequenceNum {
+			return errors.Errorf("input %d of ticket has sequence number "+
+				"(%d) different than expected (%d)", i, in.Sequence,
+				wire.MaxTxInSequenceNum)
 		}
 
 		out := split.TxOut[in.PreviousOutPoint.Index]
@@ -172,6 +184,25 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, partPoolFee,
 		return errors.Errorf("pool fee rate (%f) higher than expected for mainnet")
 	} else if poolFeeRate > MaxPoolFeeRateTestnet {
 		return errors.Errorf("pool fee rate (%f) higher than expected for testnet")
+	}
+
+	// ensure the various locks don't prevent the ticket from being mined
+	if ticket.Expiry == 0 {
+		return errors.Errorf("expiry for the ticket is 0")
+	}
+	if ticket.LockTime != 0 {
+		return errors.Errorf("locktime for ticket is not 0")
+	}
+	if ticket.Version != wire.TxVersion {
+		return errors.Errorf("ticket tx version (%d) different than expected "+
+			"(%d)", ticket.Version, wire.TxVersion)
+	}
+
+	// ensure the expiry doesn't leave the ticket eternally on mempool
+	expiryDist := ticket.Expiry - currentBlockHeight
+	if expiryDist > matcher.MaximumExpiry {
+		return errors.Errorf("expiry (%d) is greater than maximum allowed (%d)",
+			expiryDist, matcher.MaximumExpiry)
 	}
 
 	return nil
