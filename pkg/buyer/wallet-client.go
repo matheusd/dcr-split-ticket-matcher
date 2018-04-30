@@ -387,6 +387,13 @@ func (wc *WalletClient) processSignedSplit(
 	signed := wire.NewMsgTx()
 	signed.FromBytes(transaction.Transaction)
 
+	// ensure my wallet is only signing the explicit inputs I previously sent
+	// (to avoid someone injecting an input known to be mine)
+	err := splitticket.CheckOnlySignedInSplit(signed, session.splitInputOutpoints())
+	if err != nil {
+		return err
+	}
+
 	signedCount := 0
 	for _, in := range signed.TxIn {
 		if in.SignatureScript == nil {

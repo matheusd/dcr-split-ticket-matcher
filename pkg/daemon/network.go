@@ -210,6 +210,5 @@ func (net *decredNetwork) PublishTransactions(txs []*wire.MsgTx) error {
 
 func (net *decredNetwork) GetUtxos(outpoints []*wire.OutPoint) (
 	splitticket.UtxoMap, error) {
-
-	return nil, errors.Errorf("Not Implemented yet")
+	return splitticket.UtxoMapOutpointsFromNetwork(net.client, outpoints)
 }

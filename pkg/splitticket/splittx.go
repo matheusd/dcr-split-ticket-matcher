@@ -73,6 +73,13 @@ func CheckSplit(split *wire.MsgTx, utxos UtxoMap,
 		}
 	}
 
+	for i, out := range split.TxOut {
+		if out.Version != txscript.DefaultScriptVersion {
+			return errors.Errorf("output %d of split tx does not use the "+
+				"default script version (%d)", i, out.Version)
+		}
+	}
+
 	return nil
 }
 
@@ -119,6 +126,111 @@ func CheckSignedSplit(split *wire.MsgTx, utxos UtxoMap, params *chaincfg.Params)
 	if txFee < minFee {
 		return errors.Errorf("split tx fee (%s) less than minimum required "+
 			"amount (%s)", dcrutil.Amount(txFee), dcrutil.Amount(minFee))
+	}
+
+	return nil
+}
+
+// CheckParticipantInSplit verifies that the given split transaction records
+// the given output address for ticket participation and the specified change.
+//
+// This is to be used by each individual participant to verify if they are
+// present in the split transaction.
+func CheckParticipantInSplit(split *wire.MsgTx, splitAddress dcrutil.Address,
+	commitAmount, ticketFee dcrutil.Amount, splitChange *wire.TxOut,
+	params *chaincfg.Params) error {
+
+	changeIdx := -1
+	outputIdx := -1
+
+	expectedAddr := splitAddress.String()
+	expectedAmount := int64(commitAmount + ticketFee)
+
+	for i, out := range split.TxOut {
+		// output 0 of the split is the voter lottery commitment, so ignore it
+		if i == 0 {
+			continue
+		}
+
+		if splitChange != nil {
+			if (bytes.Equal(splitChange.PkScript, out.PkScript)) &&
+				(splitChange.Value == out.Value) &&
+				(splitChange.Version == out.Version) {
+
+				if changeIdx > -1 {
+					return errors.Errorf("got the split change output twice "+
+						"(%d and %d)", changeIdx, i)
+				}
+
+				changeIdx = i
+			}
+		}
+
+		_, addresses, reqSigs, err := txscript.ExtractPkScriptAddrs(
+			out.Version, out.PkScript, params)
+		if err != nil {
+			return errors.Wrapf(err, "error extracting addresses from output %d", i)
+		}
+
+		if len(addresses) != 1 {
+			continue
+		}
+
+		if (addresses[0].String() == expectedAddr) &&
+			(out.Value == expectedAmount) &&
+			(out.Version == txscript.DefaultScriptVersion) &&
+			(reqSigs == 1) {
+
+			if outputIdx > -1 {
+				return errors.Errorf("got the split output twice (%d and %d)",
+					outputIdx, i)
+			}
+
+			outputIdx = i
+		}
+	}
+
+	if changeIdx == -1 {
+		return errors.Errorf("could not find change output in split tx")
+	}
+
+	if outputIdx == -1 {
+		return errors.Errorf("could not find output in split tx")
+	}
+
+	return nil
+}
+
+// CheckOnlySignedInSplit checks whether the only signed inputs (identified
+// by their respective outpoints) of the ticket are the expected ones.
+//
+// This is used by individual participants to ensure they are only signing
+// the outpoints they previously specified for a particular session.
+//
+// Only safe to be called on splits that have passed the CheckSplit function.
+func CheckOnlySignedInSplit(split *wire.MsgTx, outpoints []wire.OutPoint) error {
+
+	expected := make(map[wire.OutPoint]bool, len(outpoints))
+	for _, outp := range outpoints {
+		expected[outp] = false
+	}
+	signedCount := 0
+
+	for _, in := range split.TxIn {
+		if in.SignatureScript == nil {
+			continue
+		}
+
+		signedCount++
+		if _, has := expected[in.PreviousOutPoint]; !has {
+			errors.Errorf("signed input %s not in the expected list of inputs "+
+				"to be signed", in.PreviousOutPoint)
+		}
+	}
+
+	if signedCount != len(outpoints) {
+		errors.Errorf("signed less inputs (%d) than the expected (%d)",
+			signedCount, len(outpoints))
 	}
 
 	return nil

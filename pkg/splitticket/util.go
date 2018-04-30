@@ -1,8 +1,6 @@
 package splitticket
 
 import (
-	"encoding/hex"
-
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/rpcclient"
 	"github.com/decred/dcrd/txscript"
@@ -14,6 +12,7 @@ import (
 // the decred network. This might need updating in case the consensus rules
 // change.
 var currentScriptFlags = txscript.ScriptBip16 |
+	txscript.ScriptDiscourageUpgradableNops |
 	txscript.ScriptVerifyDERSignatures |
 	txscript.ScriptVerifyStrictEncoding |
 	txscript.ScriptVerifyMinimalData |
@@ -37,41 +36,6 @@ func totalOutputAmount(tx *wire.MsgTx) dcrutil.Amount {
 	return dcrutil.Amount(total)
 }
 
-// UtxoMapFromNetwork queries a daemon connected via rpc for the outpoints of
-// the given transaction and returns an utxo map for use in validation
-// functions.
-func UtxoMapFromNetwork(client *rpcclient.Client, tx *wire.MsgTx) (UtxoMap, error) {
-	res := make(UtxoMap, len(tx.TxIn))
-
-	for i, in := range tx.TxIn {
-		outRes, err := client.GetTxOut(&in.PreviousOutPoint.Hash, in.PreviousOutPoint.Index,
-			false)
-		if err != nil {
-			return nil, errors.Wrapf(err, "error obtaining oupoint %d of tx", i)
-		}
-
-		pkScript, err := hex.DecodeString(outRes.ScriptPubKey.Hex)
-		if err != nil {
-			return nil, errors.Wrapf(err, "error decoding pkscript of "+
-				"outpoint %d of tx", i)
-		}
-
-		value, err := dcrutil.NewAmount(outRes.Value)
-		if err != nil {
-			return nil, errors.Wrapf(err, "error decoding value for outpoint "+
-				"%d of tx", i)
-		}
-
-		res[in.PreviousOutPoint] = UtxoEntry{
-			PkScript: pkScript,
-			Value:    value,
-			Version:  uint16(outRes.Version),
-		}
-	}
-
-	return res, nil
-}
-
 // UtxoEntry is an entry of the utxo set of the network
 type UtxoEntry struct {
 	PkScript []byte
@@ -81,3 +45,47 @@ type UtxoEntry struct {
 
 // UtxoMap is an auxilary type for the split transaction checks.
 type UtxoMap map[wire.OutPoint]UtxoEntry
+
+// UtxoMapFromNetwork queries a daemon connected via rpc for the outpoints of
+// the given transaction and returns an utxo map for use in validation
+// functions.
+func UtxoMapFromNetwork(client *rpcclient.Client, tx *wire.MsgTx) (UtxoMap, error) {
+
+	outpoints := make([]*wire.OutPoint, len(tx.TxIn))
+	for i, in := range tx.TxIn {
+		outpoints[i] = &in.PreviousOutPoint
+	}
+	return UtxoMapOutpointsFromNetwork(client, outpoints)
+}
+
+// UtxoMapOutpointsFromNetwork queries a daemon connected via rpc for the outpoints of
+// the given transaction and returns an utxo map for use in validation
+// functions.
+func UtxoMapOutpointsFromNetwork(client *rpcclient.Client, outpoints []*wire.OutPoint) (UtxoMap, error) {
+	res := make(UtxoMap, len(outpoints))
+
+	for _, outp := range outpoints {
+
+		txRes, err := client.GetRawTransaction(&outp.Hash)
+		if err != nil {
+			return nil, errors.Wrapf(err, "error obtaining tx %s", outp.Hash)
+		}
+
+		tx := txRes.MsgTx()
+
+		if outp.Index >= uint32(len(tx.TxOut)) {
+			return nil, errors.Errorf("tx does not have output of index %d",
+				outp.Index)
+		}
+
+		outRes := tx.TxOut[outp.Index]
+
+		res[*outp] = UtxoEntry{
+			PkScript: outRes.PkScript,
+			Value:    dcrutil.Amount(outRes.Value),
+			Version:  outRes.Version,
+		}
+	}
+
+	return res, nil
+}

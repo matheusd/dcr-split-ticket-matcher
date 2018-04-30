@@ -3,6 +3,7 @@ package matcher
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"math"
 	"sort"
 	"time"
@@ -336,8 +337,40 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	if _, has := matcher.participants[req.sessionID]; !has {
 		return errors.Errorf("session %s not found", req.sessionID)
 	}
-
 	part := matcher.participants[req.sessionID]
+
+	utxos, err := matcher.cfg.NetworkProvider.GetUtxos(req.splitTxOutPoints)
+	if err != nil {
+		return errors.Wrapf(err, "error obtaining utxos")
+	}
+
+	var changeAmount dcrutil.Amount
+	if req.splitTxChange != nil {
+		changeAmount = dcrutil.Amount(req.splitTxChange.Value)
+	}
+
+	var inputAmount dcrutil.Amount
+	for _, utxo := range utxos {
+		inputAmount += utxo.Value
+	}
+
+	// FIXME: take into account estimate for split tx fees
+
+	// this checks whether the **total** input amount is consistent
+	expectedInputAmount := part.CommitAmount + part.PoolFee + part.Fee + changeAmount
+	if inputAmount < expectedInputAmount {
+		return errors.Errorf("total input amount (%s) less than the expected "+
+			"(%s)", inputAmount, expectedInputAmount)
+	}
+
+	// this checks whether the **participation** input amount (whatever is input
+	// and not sent to change) is consistent
+	expectedInputAmount = part.CommitAmount + part.PoolFee + part.Fee
+	if inputAmount-changeAmount < expectedInputAmount {
+		return errors.Errorf("participation input amount (%s) less than the "+
+			"expected (%s)", inputAmount-changeAmount, expectedInputAmount)
+	}
+	fmt.Println("xxxx", inputAmount, changeAmount, expectedInputAmount)
 
 	part.VoteAddress = req.voteAddress
 	part.PoolAddress = req.poolAddress
@@ -346,6 +379,7 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	part.SecretHash = req.secretHash
 	part.splitTxChange = req.splitTxChange
 	part.splitTxInputs = make([]*wire.TxIn, len(req.splitTxOutPoints))
+	part.splitTxUtxos = utxos
 	for i, outp := range req.splitTxOutPoints {
 		part.splitTxInputs[i] = wire.NewTxIn(outp, nil)
 	}
@@ -365,11 +399,29 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 
 		var ticket, splitTx *wire.MsgTx
 		var poolTicketInSig []byte
+		var splitUtxos splitticket.UtxoMap
 		var err error
 
 		ticket, splitTx, err = sess.CreateTransactions()
+		splitUtxos, err = sess.SplitUtxoMap()
 		if err == nil {
+			err = splitticket.CheckSplit(splitTx, splitUtxos, sess.SecretNumberHashes(),
+				&sess.MainchainHash, sess.MainchainHeight, matcher.cfg.ChainParams)
+			if err == nil {
+				err = splitticket.CheckTicket(splitTx, ticket, sess.TicketPrice,
+					part.PoolFee, part.Fee, sess.ParticipantAmounts(),
+					sess.MainchainHeight, matcher.cfg.ChainParams)
+				if err != nil {
+					matcher.log.Errorf("error checking ticket: %v", err)
+				}
+			} else {
+				matcher.log.Errorf("error checking split tx: %v", err)
+			}
+		} else {
+			matcher.log.Errorf("error obtaining utxo map for session: %v", err)
+		}
 
+		if err == nil {
 			toSign := ticket.Copy()
 			for _, p := range sess.Participants {
 				p.replaceTicketIOs(toSign)
@@ -529,9 +581,39 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 		ticket, splitTx, revocation, err := sess.CreateVoterTransactions()
 		secrets := sess.SecretNumbers()
 
-		// TODO: final check on all transactions before publishing
-		_ = ticket
-		_ = revocation
+		// we ignore the error here because this doesn't change from setParticipantOutputs()
+		splitUtxoMap, _ := sess.SplitUtxoMap()
+		err = splitticket.CheckSplit(splitTx, splitUtxoMap,
+			sess.SecretNumberHashes(), &sess.MainchainHash, sess.MainchainHeight,
+			matcher.cfg.ChainParams)
+		if err != nil {
+			matcher.log.Errorf("error on final checkSplit: %v", err)
+		}
+
+		err = splitticket.CheckSignedSplit(splitTx, splitUtxoMap,
+			matcher.cfg.ChainParams)
+		if err != nil {
+			matcher.log.Errorf("error on final checkSignedSplit: %v", err)
+		}
+
+		err = splitticket.CheckTicket(splitTx, ticket, sess.TicketPrice,
+			part.PoolFee, part.Fee, sess.ParticipantAmounts(),
+			sess.MainchainHeight, matcher.cfg.ChainParams)
+		if err != nil {
+			matcher.log.Errorf("error on final checkTicket: %v", err)
+		}
+
+		err = splitticket.CheckSignedTicket(splitTx, ticket,
+			matcher.cfg.ChainParams)
+		if err != nil {
+			matcher.log.Errorf("error on final checkSignedTicket: %v", err)
+		}
+
+		err = splitticket.CheckRevocation(ticket, revocation,
+			matcher.cfg.ChainParams)
+		if err != nil {
+			matcher.log.Errorf("error on final checkRevocation: %v", err)
+		}
 
 		if matcher.cfg.PublishTransactions {
 			txs := []*wire.MsgTx{splitTx, ticket}

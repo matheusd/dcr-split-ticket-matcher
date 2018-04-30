@@ -208,6 +208,13 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, partPoolFee,
 			expiryDist, MaximumTicketExpiry)
 	}
 
+	for i, out := range ticket.TxOut {
+		if out.Version != txscript.DefaultScriptVersion {
+			return errors.Errorf("output %d of ticket does not use the "+
+				"default script version (%d)", i, out.Version)
+		}
+	}
+
 	return nil
 }
 

@@ -231,6 +231,14 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 			"template")
 	}
 
+	// ensure my participation in the split is correct
+	err = splitticket.CheckParticipantInSplit(session.splitTx,
+		session.splitOutputAddress, session.Amount, session.Fee,
+		session.splitChange, cfg.ChainParams)
+	if err != nil {
+		return errors.Wrapf(err, "error checking my participation in split")
+	}
+
 	return nil
 }
 

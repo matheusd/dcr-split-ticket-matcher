@@ -47,6 +47,13 @@ func CheckRevocation(ticket, revocation *wire.MsgTx, params *chaincfg.Params) er
 			"expected (%d)", revocation.Version, wire.TxVersion)
 	}
 
+	for i, out := range revocation.TxOut {
+		if out.Version != txscript.DefaultScriptVersion {
+			return errors.Errorf("output %d of revocation does not use the "+
+				"default script version (%d)", i, out.Version)
+		}
+	}
+
 	// ensure the revocation scriptSig successfully signs the ticket output
 	engine, err := txscript.NewEngine(ticket.TxOut[0].PkScript, revocation, 0,
 		currentScriptFlags, ticket.TxOut[0].Version, nil)

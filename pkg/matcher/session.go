@@ -47,6 +47,7 @@ type SessionParticipant struct {
 	ticketsScriptSig      [][]byte
 	revocationScriptSig   []byte
 	poolFeeInputScriptSig []byte
+	splitTxUtxos          splitticket.UtxoMap
 
 	chanSetOutputsResponse  chan setParticipantOutputsResponse
 	chanFundTicketResponse  chan fundTicketResponse
@@ -380,4 +381,43 @@ func (sess *Session) FindVoterIndex() int {
 	}
 
 	panic("Should never get here")
+}
+
+// SplitUtxoMap returns the full utxo map for the split transaction's inputs
+// for every participant.
+// Returns an error if the same utxo is used more than once across all
+// participants.
+func (sess *Session) SplitUtxoMap() (splitticket.UtxoMap, error) {
+	res := make(splitticket.UtxoMap)
+	for _, p := range sess.Participants {
+		for o, u := range p.splitTxUtxos {
+			if _, has := res[o]; has {
+				return nil, errors.Errorf("output %s is present multiple "+
+					"times in the split ticket session", o)
+			}
+			res[o] = u
+		}
+	}
+
+	return res, nil
+}
+
+// SecretNumberHashes returns an array with the individual secret number hashes
+// for all participants
+func (sess *Session) SecretNumberHashes() []splitticket.SecretNumberHash {
+	res := make([]splitticket.SecretNumberHash, len(sess.Participants))
+	for i, p := range sess.Participants {
+		res[i] = p.SecretHash
+	}
+	return res
+}
+
+// ParticipantAmounts returns an array with the commitment amounts for each
+// individual participant
+func (sess *Session) ParticipantAmounts() []dcrutil.Amount {
+	res := make([]dcrutil.Amount, len(sess.Participants))
+	for i, p := range sess.Participants {
+		res[i] = p.CommitAmount
+	}
+	return res
 }
