@@ -16,6 +16,8 @@ import (
 	pbm "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/util"
+	"github.com/pkg/errors"
 )
 
 type buyerSessionParticipant struct {
@@ -160,6 +162,21 @@ type sessionWaiterResponse struct {
 }
 
 func BuySplitTicket(ctx context.Context, cfg *BuyerConfig) error {
+
+	if cfg.WalletHost == "127.0.0.1:0" {
+		hosts, err := util.FindListeningWallets(cfg.WalletCertFile, cfg.ChainParams)
+		if err != nil {
+			return errors.Wrapf(err, "error finding running wallet")
+		}
+
+		if len(hosts) != 1 {
+			return errors.Errorf("found different number of running wallets "+
+				"(%d) than expected", len(hosts))
+		}
+
+		cfg.WalletHost = hosts[0]
+	}
+
 	ctxWait, _ := context.WithTimeout(ctx, time.Second*time.Duration(cfg.MaxWaitTime))
 	var resp sessionWaiterResponse
 	reschan := make(chan sessionWaiterResponse)
