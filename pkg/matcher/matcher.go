@@ -230,7 +230,7 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 	ticketPrice := dcrutil.Amount(matcher.cfg.NetworkProvider.CurrentTicketPrice())
 	blockHeight := matcher.cfg.NetworkProvider.CurrentBlockHeight()
 	poolFeePerc := matcher.cfg.PoolFee
-	minPoolFee := txrules.StakePoolTicketFee(ticketPrice, ticketTxFee, blockHeight,
+	minPoolFee := txrules.StakePoolTicketFee(ticketPrice, ticketTxFee, int32(blockHeight),
 		poolFeePerc, matcher.cfg.ChainParams)
 	poolFeePart := dcrutil.Amount(math.Ceil(float64(minPoolFee) / float64(numParts)))
 	poolFee := poolFeePart * dcrutil.Amount(numParts) // ensure every participant pays the same amount

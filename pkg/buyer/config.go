@@ -4,20 +4,38 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/ansel1/merry"
+	"github.com/go-ini/ini"
+	"github.com/pkg/errors"
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrwallet/netparams"
 	flags "github.com/jessevdk/go-flags"
 )
 
 var (
 	defaultDataDir     = dcrutil.AppDataDir("splitticketbuyer", false)
 	defaultCfgFilePath = filepath.Join(defaultDataDir, "splitticketbuyer.conf")
+
+	DefaultConfig = &BuyerConfig{
+		ConfigFile:    defaultCfgFilePath,
+		MatcherHost:   "localhost:8475",
+		SStxFeeLimits: uint16(0x5800),
+		ChainParams:   &chaincfg.MainNetParams,
+		// WalletCertFile:  filepath.Join(dcrutil.AppDataDir("dcrwallet", false), "rpc.cert"),
+		SourceAccount:   0,
+		MaxTime:         30,
+		MaxWaitTime:     120,
+		DataDir:         defaultDataDir,
+		MatcherCertFile: filepath.Join(defaultDataDir, "matcher.cert"),
+		Pass:            "-",
+	}
 
 	ErrMisingConfigParameter = merry.New("Missing config parameter")
 	ErrEmptyPassword         = merry.New("Empty Password Provided")
@@ -167,4 +185,87 @@ func passFromStdin() (string, error) {
 		return "", ErrEmptyPassword
 	}
 	return strings.TrimRight(param, "\r\n"), nil
+}
+
+// DefaultConfigFileExists checks whether the default config file for the buyer
+// exists for the current user
+func DefaultConfigFileExists() bool {
+	_, err := os.Stat(DefaultConfig.ConfigFile)
+	return err == nil
+}
+
+// InitConfigFromDcrwallet inits a config based on whatever is stored
+// in the dcrwallet.conf file. This replaces any existing configuration.
+func InitConfigFromDcrwallet() error {
+	dcrwalletDir := dcrutil.AppDataDir("dcrwallet", false)
+	dcrwalletCfgFile := filepath.Join(dcrwalletDir, "dcrwallet.conf")
+
+	dcrdDir := dcrutil.AppDataDir("dcrd", false)
+
+	ioutil.WriteFile(defaultCfgFilePath, []byte(defaultConfigFileContents), 0644)
+
+	file, err := ini.InsensitiveLoad(dcrwalletCfgFile)
+	if err != nil {
+		return errors.Wrapf(err, "error opening dcrwallet.conf file")
+	}
+
+	section, err := file.GetSection("Application Options")
+	if err != nil {
+		return errors.Wrapf(err, "error getting main section of dcrwallet conf")
+	}
+
+	dst, err := ini.Load(defaultCfgFilePath)
+	if err != nil {
+		return errors.Wrapf(err, "error initializing default config data")
+	}
+
+	dstSection, err := dst.GetSection("Application Options")
+	if err != nil {
+		return errors.Wrapf(err, "error getting dst section")
+	}
+
+	update := func(srcKey, dstKey, def string) {
+		srcVal := def
+		if section.Haskey(srcKey) {
+			srcVal = section.Key(srcKey).Value()
+		}
+		if srcVal != "" {
+			dstSection.Key(dstKey).SetValue(srcVal)
+		}
+	}
+
+	testnetRpcCert := filepath.Join(defaultDataDir, "testnet-rpc.cert")
+	mainnetRpcCert := filepath.Join(defaultDataDir, "mainnet-rpc.cert")
+	ioutil.WriteFile(testnetRpcCert, []byte(testnetMatcherRpcCert), 0644)
+	ioutil.WriteFile(mainnetRpcCert, []byte(mainnetMatcherRpcCert), 0644)
+
+	activeNet := netparams.MainNetParams
+	isTestNet := section.Key("testnet").Value() == "1"
+	matcherHost := "mainnet-split-tickets.matheusd.com:8475"
+	matcherCert := mainnetRpcCert
+	if isTestNet {
+		activeNet = netparams.TestNet2Params
+		matcherHost = "testnet-split-tickets.matheusd.com:18475"
+		matcherCert = testnetRpcCert
+	}
+
+	dstSection.Key("MatcherHost").SetValue(matcherHost)
+	dstSection.Key("MatcherCertFile").SetValue(matcherCert)
+
+	update("rpcconnect", "DcrdHost", "localhost:"+activeNet.JSONRPCClientPort)
+	update("cafile", "DcrdCert", filepath.Join(dcrdDir, "rpc.cert"))
+	update("username", "DcrdUser", "")
+	update("dcrdusername", "DcrdUser", "")
+	update("password", "DcrdPass", "")
+	update("dcrdpassword", "DcrdPass", "")
+	update("pass", "Pass", "")
+	update("testnet", "TestNet", "0")
+	update("rpccert", "WalletCertFile", filepath.Join(dcrwalletDir, "rpc.cert"))
+
+	err = dst.SaveTo(defaultCfgFilePath)
+	if err != nil {
+		return errors.Wrapf(err, "error saving initialized cfg file")
+	}
+
+	return nil
 }

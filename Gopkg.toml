@@ -49,3 +49,7 @@
 [[constraint]]
   name = "github.com/ansel1/merry"
   version = "1.0.2"
+
+[[constraint]]
+  name = "github.com/go-ini/ini"
+  revision = "5b3e00af70a9484542169a976dcab8d03e601a17"

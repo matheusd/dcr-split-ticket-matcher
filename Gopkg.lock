@@ -92,6 +92,11 @@
   source = "https://github.com/dnldd/dcrwallet"
 
 [[projects]]
+  name = "github.com/go-ini/ini"
+  packages = ["."]
+  revision = "5b3e00af70a9484542169a976dcab8d03e601a17"
+
+[[projects]]
   branch = "master"
   name = "github.com/golang/protobuf"
   packages = [
@@ -201,6 +206,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9fb7e5a29c99648f9d19ac4a441bd60f18ede442388255cdf5c4c8c1554c9630"
+  inputs-digest = "c3f4335f5f45ee9781da5e1b3dc1b2e9680f9b3a210765fc43152bcc7ce44900"
   solver-name = "gps-cdcl"
   solver-version = 1
