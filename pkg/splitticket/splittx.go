@@ -1,4 +1,4 @@
-package validations
+package splitticket
 
 import (
 	"bytes"
@@ -10,7 +10,6 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/pkg/errors"
 )
 
@@ -24,7 +23,7 @@ const VoterLotteryPkScriptSize = 1 + 1 + 32
 // CheckSplit validates that the given split transaction respects the rules for
 // the split ticket matching service
 func CheckSplit(split *wire.MsgTx, utxos UtxoMap,
-	secretHashes []matcher.SecretNumberHash, mainchainHash *chainhash.Hash,
+	secretHashes []SecretNumberHash, mainchainHash *chainhash.Hash,
 	currentBlockHeight uint32, params *chaincfg.Params) error {
 
 	var err error
@@ -44,7 +43,7 @@ func CheckSplit(split *wire.MsgTx, utxos UtxoMap,
 		return errors.Errorf("output 0 of split tx is not an OP_RETURN")
 	}
 
-	targetVoterHash := matcher.SecretNumberHashesHash(secretHashes, mainchainHash)
+	targetVoterHash := SecretNumberHashesHash(secretHashes, mainchainHash)
 
 	// pick the range [2:] because the first byte is the OP_RETURN, the second
 	// is the push data op

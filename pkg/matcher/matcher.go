@@ -7,6 +7,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
+
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
@@ -26,16 +28,14 @@ type NetworkProvider interface {
 	CurrentBlockHash() chainhash.Hash
 	ConnectedToDecredNetwork() bool
 	PublishTransactions([]*wire.MsgTx) error
+	GetUtxos(outpoints []*wire.OutPoint) (splitticket.UtxoMap, error)
 }
 
+// SignPoolSplitOutputProvider is the interface for the poerations the matcher
+// needs for generating and signing the pool fee address input of tickets.
 type SignPoolSplitOutputProvider interface {
 	PoolFeeAddress() dcrutil.Address
 	SignPoolSplitOutput(split, ticket *wire.MsgTx) ([]byte, error)
-}
-
-type VoteAddressProvider interface {
-	VotingAddress() dcrutil.Address
-	SignRevocation(ticket, revocation *wire.MsgTx) (*wire.MsgTx, error)
 }
 
 // Config stores the parameters for the matcher engine
@@ -58,7 +58,7 @@ type cancelSessionChanReq struct {
 }
 
 type ParticipantTicketOutput struct {
-	SecretHash   *SecretNumberHash
+	SecretHash   *splitticket.SecretNumberHash
 	VotePkScript []byte
 	PoolPkScript []byte
 	Amount       dcrutil.Amount
@@ -271,7 +271,7 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 	for i, p := range parts {
 		maxAmounts[i] = dcrutil.Amount(p.maxAmount)
 	}
-	commitments, err := SelectContributionAmounts(maxAmounts, ticketPrice, partFee, poolFeePart)
+	commitments, err := splitticket.SelectContributionAmounts(maxAmounts, ticketPrice, partFee, poolFeePart)
 	if err != nil {
 		matcher.log.Errorf("Error selecting contribution amounts: %v", err)
 		panic(err)
@@ -591,7 +591,7 @@ func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64, se
 		return nil, ErrLowAmount
 	}
 
-	curStakeDiffChangeDist := StakeDiffChangeDistance(
+	curStakeDiffChangeDist := splitticket.StakeDiffChangeDistance(
 		matcher.cfg.NetworkProvider.CurrentBlockHeight(), matcher.cfg.ChainParams)
 	if curStakeDiffChangeDist < matcher.cfg.StakeDiffChangeStopWindow {
 		return nil, ErrStakeDiffTooCloseToChange
@@ -630,7 +630,7 @@ func (matcher *Matcher) SetParticipantsOutputs(ctx context.Context,
 	sessionID ParticipantID, voteAddress, poolAddress, commitAddress,
 	splitTxAddress dcrutil.Address, splitTxChange *wire.TxOut,
 	splitTxOutPoints []*wire.OutPoint,
-	secretNbHash SecretNumberHash) (*wire.MsgTx, *wire.MsgTx,
+	secretNbHash splitticket.SecretNumberHash) (*wire.MsgTx, *wire.MsgTx,
 	[]*ParticipantTicketOutput, uint32, error) {
 
 	if voteAddress == nil {
@@ -704,7 +704,8 @@ func (matcher *Matcher) FundTicket(ctx context.Context, sessionID ParticipantID,
 }
 
 func (matcher *Matcher) FundSplit(ctx context.Context, sessionID ParticipantID,
-	inputScriptSigs [][]byte, secretNb SecretNumber) ([]byte, SecretNumbers, error) {
+	inputScriptSigs [][]byte, secretNb splitticket.SecretNumber) ([]byte,
+	splitticket.SecretNumbers, error) {
 
 	req := fundSplitTxRequest{
 		ctx:             ctx,

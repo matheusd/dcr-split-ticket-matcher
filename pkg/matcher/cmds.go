@@ -5,6 +5,7 @@ import (
 
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 )
 
 type (
@@ -29,7 +30,7 @@ type (
 
 	fundSplitTxResponse struct {
 		splitTx []byte
-		secrets SecretNumbers
+		secrets splitticket.SecretNumbers
 		err     error
 	}
 
@@ -54,7 +55,7 @@ type (
 		commitAddress    dcrutil.Address
 		splitTxAddress   dcrutil.Address
 		splitTxOutPoints []*wire.OutPoint
-		secretHash       SecretNumberHash
+		secretHash       splitticket.SecretNumberHash
 		sessionID        ParticipantID
 		splitTxChange    *wire.TxOut
 		resp             chan setParticipantOutputsResponse
@@ -72,7 +73,7 @@ type (
 		ctx             context.Context
 		sessionID       ParticipantID
 		inputScriptSigs [][]byte
-		secretNb        SecretNumber
+		secretNb        splitticket.SecretNumber
 		resp            chan fundSplitTxResponse
 	}
 

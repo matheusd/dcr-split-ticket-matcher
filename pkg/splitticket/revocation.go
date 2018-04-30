@@ -1,4 +1,4 @@
-package validations
+package splitticket
 
 import (
 	"github.com/decred/dcrd/blockchain"

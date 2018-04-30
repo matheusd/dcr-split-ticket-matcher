@@ -1,4 +1,4 @@
-package validations
+package splitticket
 
 import (
 	"encoding/hex"
@@ -37,16 +37,6 @@ func totalOutputAmount(tx *wire.MsgTx) dcrutil.Amount {
 	return dcrutil.Amount(total)
 }
 
-// UtxoEntry is an entry of the utxo set of the network
-type UtxoEntry struct {
-	PkScript []byte
-	Value    dcrutil.Amount
-	Version  uint16
-}
-
-// UtxoMap is an auxilary type for the split transaction checks.
-type UtxoMap map[wire.OutPoint]UtxoEntry
-
 // UtxoMapFromNetwork queries a daemon connected via rpc for the outpoints of
 // the given transaction and returns an utxo map for use in validation
 // functions.
@@ -81,3 +71,13 @@ func UtxoMapFromNetwork(client *rpcclient.Client, tx *wire.MsgTx) (UtxoMap, erro
 
 	return res, nil
 }
+
+// UtxoEntry is an entry of the utxo set of the network
+type UtxoEntry struct {
+	PkScript []byte
+	Value    dcrutil.Amount
+	Version  uint16
+}
+
+// UtxoMap is an auxilary type for the split transaction checks.
+type UtxoMap map[wire.OutPoint]UtxoEntry

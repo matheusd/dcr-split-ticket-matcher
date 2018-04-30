@@ -10,18 +10,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/validations"
-
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
 	pbm "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 )
 
 type buyerSessionParticipant struct {
-	secretHash   matcher.SecretNumberHash
-	secretNb     matcher.SecretNumber
+	secretHash   splitticket.SecretNumberHash
+	secretNb     splitticket.SecretNumber
 	votePkScript []byte
 	poolPkScript []byte
 	amount       dcrutil.Amount
@@ -39,8 +38,8 @@ type BuyerSession struct {
 	mainchainHash   *chainhash.Hash
 	mainchainHeight uint32
 	nbParticipants  uint32
-	secretNb        matcher.SecretNumber
-	secretNbHash    matcher.SecretNumberHash
+	secretNb        splitticket.SecretNumber
+	secretNbHash    splitticket.SecretNumberHash
 
 	voteAddress         dcrutil.Address
 	poolAddress         dcrutil.Address
@@ -51,7 +50,7 @@ type BuyerSession struct {
 	splitChange         *wire.TxOut
 	splitInputs         []*wire.TxIn
 	participants        []buyerSessionParticipant
-	splitTxUtxoMap      validations.UtxoMap
+	splitTxUtxoMap      splitticket.UtxoMap
 	myIndex             uint32
 
 	ticketTemplate *wire.MsgTx
@@ -69,7 +68,7 @@ type BuyerSession struct {
 
 func (session *BuyerSession) selectedCoin() uint64 {
 	var totalCommitment uint64
-	nbs := make(matcher.SecretNumbers, len(session.participants))
+	nbs := make(splitticket.SecretNumbers, len(session.participants))
 	for i, p := range session.participants {
 		totalCommitment += uint64(p.amount)
 		nbs[i] = p.secretNb
@@ -92,16 +91,16 @@ func (session *BuyerSession) findVoterIndex() int {
 	return -1
 }
 
-func (session *BuyerSession) secretHashes() []matcher.SecretNumberHash {
-	res := make([]matcher.SecretNumberHash, len(session.participants))
+func (session *BuyerSession) secretHashes() []splitticket.SecretNumberHash {
+	res := make([]splitticket.SecretNumberHash, len(session.participants))
 	for i, p := range session.participants {
 		res[i] = p.secretHash
 	}
 	return res
 }
 
-func (session *BuyerSession) secretNumbers() matcher.SecretNumbers {
-	res := make(matcher.SecretNumbers, len(session.participants))
+func (session *BuyerSession) secretNumbers() splitticket.SecretNumbers {
+	res := make(splitticket.SecretNumbers, len(session.participants))
 	for i, p := range session.participants {
 		res[i] = p.secretNb
 	}

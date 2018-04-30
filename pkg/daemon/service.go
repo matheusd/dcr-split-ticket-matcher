@@ -9,6 +9,7 @@ import (
 	"github.com/decred/dcrd/wire"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 
@@ -125,10 +126,10 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 		splitOutpoints[i] = wire.NewOutPoint(hash, uint32(in.PrevIndex), int8(in.Tree))
 	}
 
-	if len(req.SecretnbHash) < matcher.SecretNbHashSize {
+	if len(req.SecretnbHash) < splitticket.SecretNbHashSize {
 		return nil, ErrSecretNbSizeError
 	}
-	var secretNbHash matcher.SecretNumberHash
+	var secretNbHash splitticket.SecretNumberHash
 	copy(secretNbHash[:], req.SecretnbHash)
 
 	split, ticketTempl, parts, partIndex, err := svc.matcher.SetParticipantsOutputs(ctx,
@@ -198,7 +199,7 @@ func (svc *SplitTicketMatcherService) FundTicket(ctx context.Context, req *pb.Fu
 func (svc *SplitTicketMatcherService) FundSplitTx(ctx context.Context, req *pb.FundSplitTxRequest) (*pb.FundSplitTxResponse, error) {
 	split, secrets, err := svc.matcher.FundSplit(ctx,
 		matcher.ParticipantID(req.SessionId),
-		req.SplitTxScriptsigs, matcher.SecretNumber(req.Secretnb))
+		req.SplitTxScriptsigs, splitticket.SecretNumber(req.Secretnb))
 	if err != nil {
 		return nil, err
 	}

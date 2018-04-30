@@ -10,7 +10,7 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/rpcclient"
 	"github.com/decred/dcrd/wire"
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 	logging "github.com/op/go-logging"
 	"github.com/pkg/errors"
 )
@@ -163,7 +163,7 @@ func (net *decredNetwork) onBlockConnected(blockHeader []byte, transactions [][]
 	net.ticketPrice = uint64(header.SBits)
 	net.blockHeight = header.Height
 	net.blockHash = header.BlockHash()
-	stakeDiffChangeDistance := matcher.StakeDiffChangeDistance(net.blockHeight,
+	stakeDiffChangeDistance := splitticket.StakeDiffChangeDistance(net.blockHeight,
 		net.chainParams)
 	net.log.Infof("Block connected. Height=%d StakeDiff=%s WindowChangeDist=%d",
 		header.Height, dcrutil.Amount(net.ticketPrice), stakeDiffChangeDistance)
@@ -206,4 +206,10 @@ func (net *decredNetwork) PublishTransactions(txs []*wire.MsgTx) error {
 		}
 	}
 	return nil
+}
+
+func (net *decredNetwork) GetUtxos(outpoints []*wire.OutPoint) (
+	splitticket.UtxoMap, error) {
+
+	return nil, errors.Errorf("Not Implemented yet")
 }

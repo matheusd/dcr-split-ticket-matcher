@@ -1,4 +1,4 @@
-package validations
+package splitticket
 
 import (
 	"bytes"
@@ -10,7 +10,6 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/pkg/errors"
 )
 
@@ -19,8 +18,12 @@ const (
 	// testnet/simnet (%)
 	MaxPoolFeeRateTestnet = 7.5
 
-	// MaxPoolFeeRateMainnetis the maximum observed pool fee rate in mainnet (%)
+	// MaxPoolFeeRateMainnet is the maximum observed pool fee rate in mainnet (%)
 	MaxPoolFeeRateMainnet = 5.0
+
+	// MaximumTicketExpiry is the maximum expiry (in blocks) expected in a ticket
+	// transaction
+	MaximumTicketExpiry = 16
 )
 
 // CheckTicket validates that the given ticket respects the rules for the
@@ -200,9 +203,9 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, partPoolFee,
 
 	// ensure the expiry doesn't leave the ticket eternally on mempool
 	expiryDist := ticket.Expiry - currentBlockHeight
-	if expiryDist > matcher.MaximumExpiry {
+	if expiryDist > MaximumTicketExpiry {
 		return errors.Errorf("expiry (%d) is greater than maximum allowed (%d)",
-			expiryDist, matcher.MaximumExpiry)
+			expiryDist, MaximumTicketExpiry)
 	}
 
 	return nil

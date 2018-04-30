@@ -1,4 +1,4 @@
-package validations
+package splitticket
 
 import (
 	"bytes"
@@ -7,7 +7,6 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/pkg/errors"
 )
 
@@ -41,8 +40,8 @@ func (e VoterSelectionValidationError) Error() string {
 //
 // Note that the lists must be in the correct order, otherwise the lottery
 // choice will not be consistent.
-func CheckSelectedVoter(secretNbs matcher.SecretNumbers,
-	secretNbHashes []matcher.SecretNumberHash,
+func CheckSelectedVoter(secretNbs SecretNumbers,
+	secretNbHashes []SecretNumberHash,
 	amounts []dcrutil.Amount, voteScripts [][]byte,
 	ticket *wire.MsgTx, mainchainHash *chainhash.Hash) error {
 

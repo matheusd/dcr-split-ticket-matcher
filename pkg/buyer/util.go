@@ -6,12 +6,11 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
-
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 )
 
 func encodeSessionName(name string) string {
@@ -121,7 +120,7 @@ func (rep *StdOutReporter) reportStage(ctx context.Context, stage BuyerStage, se
 			fmt.Printf("Participant %d: cum_amount=%s secret=%d secret_hash=%s...\n",
 				i, sum, p.secretNb, hex.EncodeToString(p.secretHash[:10]))
 		}
-		commitHash := matcher.SecretNumberHashesHash(session.secretHashes(),
+		commitHash := splitticket.SecretNumberHashesHash(session.secretHashes(),
 			session.mainchainHash)
 		fmt.Printf("Voter lottery commitment hash: %s\n",
 			hex.EncodeToString(commitHash))

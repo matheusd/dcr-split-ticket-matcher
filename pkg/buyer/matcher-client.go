@@ -9,7 +9,7 @@ import (
 
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/validations"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
@@ -107,7 +107,7 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 		return err
 	}
 
-	session.secretNb = matcher.SecretNumber(matcher.MustRandUint64())
+	session.secretNb = splitticket.SecretNumber(matcher.MustRandUint64())
 	session.secretNbHash = session.secretNb.Hash(session.mainchainHash)
 	session.voteAddress = voteAddr
 	session.poolAddress = poolAddr
@@ -165,7 +165,7 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 	}
 
 	// cache the utxo map of the split so we can check for the validity of the tx
-	utxoMap, err := validations.UtxoMapFromNetwork(mc.network.client, session.splitTx)
+	utxoMap, err := splitticket.UtxoMapFromNetwork(mc.network.client, session.splitTx)
 	if err != nil {
 		return err
 	}
@@ -195,7 +195,7 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 	}
 
 	// ensure the vote/pool scripts provided at my index are actually my own
-	err = validations.CheckTicketScriptMatchAddresses(session.voteAddress,
+	err = splitticket.CheckTicketScriptMatchAddresses(session.voteAddress,
 		session.poolAddress, myPart.votePkScript, myPart.poolPkScript,
 		session.PoolFee*dcrutil.Amount(len(session.participants)),
 		cfg.ChainParams)
@@ -205,7 +205,7 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 	}
 
 	// ensure the split tx is valid
-	err = validations.CheckSplit(session.splitTx, session.splitTxUtxoMap,
+	err = splitticket.CheckSplit(session.splitTx, session.splitTxUtxoMap,
 		session.secretHashes(), session.mainchainHash, session.mainchainHeight,
 		cfg.ChainParams)
 	if err != nil {
@@ -213,7 +213,7 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 	}
 
 	// ensure the ticket template is valid
-	err = validations.CheckTicket(session.splitTx, session.ticketTemplate,
+	err = splitticket.CheckTicket(session.splitTx, session.ticketTemplate,
 		session.TicketPrice, session.PoolFee, session.Fee, session.amounts(),
 		session.mainchainHeight, cfg.ChainParams)
 	if err != nil {
@@ -221,7 +221,7 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 	}
 
 	// ensure my commitment, inputs and change is in the ticket/split
-	err = validations.CheckParticipantInTicket(session.splitTx,
+	err = splitticket.CheckParticipantInTicket(session.splitTx,
 		session.ticketTemplate, session.Amount, session.Fee,
 		session.ticketOutputAddress, session.splitOutputAddress,
 		session.splitChange, session.myIndex, session.splitInputOutpoints(),
@@ -278,24 +278,24 @@ func (mc *MatcherClient) FundTicket(ctx context.Context, session *BuyerSession, 
 			return errors.Wrapf(err, "error decoding reovaction bytes for part %d", i)
 		}
 
-		err = validations.CheckTicket(splitTx, ticket, session.TicketPrice,
+		err = splitticket.CheckTicket(splitTx, ticket, session.TicketPrice,
 			session.PoolFee, session.Fee, partsAmounts, session.mainchainHeight,
 			cfg.ChainParams)
 		if err != nil {
 			return errors.Wrapf(err, "error checking validity of ticket of part %d", i)
 		}
 
-		err = validations.CheckSignedTicket(splitTx, ticket, cfg.ChainParams)
+		err = splitticket.CheckSignedTicket(splitTx, ticket, cfg.ChainParams)
 		if err != nil {
 			return errors.Wrapf(err, "error checking validity of signatures "+
 				"of ticket of part %d", i)
 		}
 
-		if err = validations.CheckRevocation(ticket, revocation, cfg.ChainParams); err != nil {
+		if err = splitticket.CheckRevocation(ticket, revocation, cfg.ChainParams); err != nil {
 			return errors.Wrapf(err, "error checking validity of revocation of part %d", i)
 		}
 
-		err = validations.CheckParticipantInTicket(splitTx, ticket,
+		err = splitticket.CheckParticipantInTicket(splitTx, ticket,
 			session.Amount, session.Fee,
 			session.ticketOutputAddress, session.splitOutputAddress,
 			session.splitChange, session.myIndex, session.splitInputOutpoints(),
@@ -336,14 +336,14 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 		return errors.Wrap(err, "error decoding funded split")
 	}
 
-	err = validations.CheckSplit(session.splitTx, session.splitTxUtxoMap,
+	err = splitticket.CheckSplit(session.splitTx, session.splitTxUtxoMap,
 		session.secretHashes(), session.mainchainHash, session.mainchainHeight,
 		cfg.ChainParams)
 	if err != nil {
 		return err
 	}
 
-	err = validations.CheckSignedSplit(fundedSplit, session.splitTxUtxoMap,
+	err = splitticket.CheckSignedSplit(fundedSplit, session.splitTxUtxoMap,
 		cfg.ChainParams)
 	if err != nil {
 		return err
@@ -354,7 +354,7 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 	}
 
 	for i, s := range resp.SecretNumbers {
-		session.participants[i].secretNb = matcher.SecretNumber(s)
+		session.participants[i].secretNb = splitticket.SecretNumber(s)
 	}
 
 	session.voterIndex = session.findVoterIndex()
@@ -364,7 +364,7 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 
 	voter := session.participants[session.voterIndex]
 
-	err = validations.CheckSelectedVoter(session.secretNumbers(),
+	err = splitticket.CheckSelectedVoter(session.secretNumbers(),
 		session.secretHashes(), session.amounts(), session.voteScripts(),
 		voter.ticket, session.mainchainHash)
 	if err != nil {

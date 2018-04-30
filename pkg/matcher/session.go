@@ -9,6 +9,7 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 	"github.com/pkg/errors"
 )
 
@@ -31,8 +32,8 @@ type SessionParticipant struct {
 	PoolAddress       dcrutil.Address
 	CommitmentAddress dcrutil.Address
 	SplitTxAddress    dcrutil.Address
-	SecretHash        SecretNumberHash
-	SecretNb          SecretNumber
+	SecretHash        splitticket.SecretNumberHash
+	SecretNb          splitticket.SecretNumber
 
 	Session *Session
 	Index   int
@@ -237,11 +238,11 @@ func (sess *Session) addCommonTicketOutputs(ticket *wire.MsgTx) error {
 // addVoterSelectionData creates the OP_RETURN output on the split tx with the
 // voter hash to allow for fraud detection
 func (sess *Session) addVoterSelectionData(split *wire.MsgTx) {
-	hashes := make([]SecretNumberHash, len(sess.Participants))
+	hashes := make([]splitticket.SecretNumberHash, len(sess.Participants))
 	for i, p := range sess.Participants {
 		hashes[i] = p.SecretHash
 	}
-	hash := SecretNumberHashesHash(hashes, &sess.MainchainHash)
+	hash := splitticket.SecretNumberHashesHash(hashes, &sess.MainchainHash)
 
 	b := txscript.NewScriptBuilder()
 	b.
@@ -352,8 +353,8 @@ func (sess *Session) ParticipantTicketOutputs() []*ParticipantTicketOutput {
 }
 
 // SecretNumbers returns an array of the secret number of all participants
-func (sess *Session) SecretNumbers() SecretNumbers {
-	res := SecretNumbers(make([]SecretNumber, len(sess.Participants)))
+func (sess *Session) SecretNumbers() splitticket.SecretNumbers {
+	res := splitticket.SecretNumbers(make([]splitticket.SecretNumber, len(sess.Participants)))
 	for i, p := range sess.Participants {
 		res[i] = p.SecretNb
 	}
