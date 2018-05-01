@@ -110,7 +110,7 @@ func (net *decredNetwork) maintainClient() {
 				continue
 			}
 		case <-timeout.C:
-			err = ErrDcrdPingTimeout
+			err = errors.Errorf("dcrd ping timeout")
 		}
 
 		net.log.Errorf("Error pinging dcrd: %v", err)

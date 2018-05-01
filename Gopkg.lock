@@ -11,12 +11,6 @@
   revision = "5312a61534124124185d41f09206b9fef1d88403"
 
 [[projects]]
-  name = "github.com/ansel1/merry"
-  packages = ["."]
-  revision = "c8d518a00eb65f58411f49c1c84ee99c02b699f5"
-  version = "v1.0.2"
-
-[[projects]]
   branch = "master"
   name = "github.com/btcsuite/btclog"
   packages = ["."]
@@ -84,6 +78,7 @@
   name = "github.com/decred/dcrwallet"
   packages = [
     "internal/helpers",
+    "netparams",
     "rpc/walletrpc",
     "wallet/internal/txsizes",
     "wallet/txrules"
@@ -206,6 +201,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c3f4335f5f45ee9781da5e1b3dc1b2e9680f9b3a210765fc43152bcc7ce44900"
+  inputs-digest = "834182aa4c72faae6138068285741074ff13b7350d6305de06c59bd35888aa04"
   solver-name = "gps-cdcl"
   solver-version = 1

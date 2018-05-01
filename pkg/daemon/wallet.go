@@ -10,6 +10,7 @@ import (
 	"github.com/decred/dcrd/rpcclient"
 	"github.com/decred/dcrd/wire"
 	logging "github.com/op/go-logging"
+	"github.com/pkg/errors"
 )
 
 type WalletConfig struct {
@@ -107,7 +108,7 @@ func (wallet *WalletClient) SignPoolSplitOutput(split, ticket *wire.MsgTx) ([]by
 	}
 
 	if signed.TxIn[0].SignatureScript == nil {
-		return nil, ErrPoolFeeInputNotSigned
+		return nil, errors.Errorf("pool fee input is not signed")
 	}
 
 	return signed.TxIn[0].SignatureScript, nil

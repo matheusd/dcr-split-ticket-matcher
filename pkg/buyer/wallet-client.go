@@ -55,7 +55,8 @@ func (wc *WalletClient) CheckNetwork(ctx context.Context, chainParams *chaincfg.
 	}
 
 	if resp.ActiveNetwork != uint32(chainParams.Net) {
-		return ErrWalletOnWrongNetwork
+		return errors.Errorf("wallet (%d) not running on the expected "+
+			"network (%d)", resp.ActiveNetwork, chainParams.Net)
 	}
 
 	return nil
@@ -198,7 +199,7 @@ func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *Buye
 		}
 	}
 	if !foundChangeOut {
-		return ErrSplitChangeOutputNotFoundOnConstruct
+		return errors.Errorf("split change not found on contructed split tx")
 	}
 
 	session.splitInputs = make([]*wire.TxIn, len(tx.TxIn))
@@ -270,7 +271,7 @@ func (wc *WalletClient) processSignedTickets(
 	}
 
 	if len(session.ticketsScriptSig) != len(session.participants) {
-		return ErrNoInputSignedOnTicket
+		return errors.Errorf("no input was signed on the ticket")
 	}
 
 	return nil
@@ -414,7 +415,9 @@ func (wc *WalletClient) processSignedSplit(
 	}
 
 	if signedCount != len(session.splitInputs) {
-		return ErrMissingSigOnSplitTx
+		return errors.Errorf("number of signed inputs of split tx (%d) "+
+			"different than expected (%d)", signedCount,
+			len(session.splitInputs))
 	}
 
 	return nil

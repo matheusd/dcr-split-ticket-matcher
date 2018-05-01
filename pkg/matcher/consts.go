@@ -3,7 +3,6 @@ package matcher
 import (
 	"math"
 
-	"github.com/ansel1/merry"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 )
@@ -63,28 +62,6 @@ var (
 		0xbd, 0x76, 0xa9, 0x14, 0x0, 0x0, 0x0, 0x0, 0x0,
 		0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
 		0x0, 0x0, 0x0, 0x0, 0x0, 0x88, 0xac}
-
-	ErrLowAmount                    = merry.New("Amount too low to participate in ticket purchase")
-	ErrTooManyParticipants          = merry.New("Too many online participants at the moment")
-	ErrSessionNotFound              = merry.New("Session with the provided ID not found")
-	ErrCommitmentValueDifferent     = merry.New("Commitment value is different than expected")
-	ErrNilCommitmentOutput          = merry.New("Nil commitment output provided")
-	ErrNilChangeOutput              = merry.New("Nil change output provided")
-	ErrFeeTooLow                    = merry.New("Provided tx fee is too low")
-	ErrIndexNotFound                = merry.New("Index not found")
-	ErrSplitValueInputValueMismatch = merry.New("Amount of split tx output and ValueIn of ticket input are different")
-	ErrNoSplitTxInputOutPoints      = merry.New("No split tx input outpoints sent")
-	ErrVoteAddressNotSpecified      = merry.New("Voter Address not specified")
-	ErrSplitInputSignLenMismatch    = merry.New("Split input count and script sig count mismatch")
-	ErrNoVoteAddress                = merry.New("Vote Address not specified for session")
-	ErrNoPoolAddress                = merry.New("Pool address was not specified")
-	ErrNoRevocationScriptSig        = merry.New("Revocation Script not specified")
-	ErrSessionMaxTimeExpired        = merry.New("Maximum time for finishing session has expired")
-	ErrParticipantDisconnected      = merry.New("Participant disconnected from session")
-	ErrTicketScriptSigLenMismatch   = merry.New("Number of input script sigs != number of participants")
-	ErrStakeDiffTooCloseToChange    = merry.New("Stake difficulty window too close to change")
-	ErrNotConnectedToDecredNet      = merry.New("Not connected to the decred network")
-	ErrSecretNbHashMismatch         = merry.New("Secret number does not hash to previously sent hash")
 )
 
 // SessionParticipantFee returns the fee that a single participant of a ticket

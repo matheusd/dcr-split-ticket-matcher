@@ -306,7 +306,8 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 		<-sessTimer.C
 		if !s.Done && !s.Canceled {
 			matcher.log.Warningf("Session %s lasted more than MaxSessionDuration", s.ID)
-			matcher.cancelSessionChan <- cancelSessionChanReq{session: s, err: ErrSessionMaxTimeExpired}
+			matcher.cancelSessionChan <- cancelSessionChanReq{session: s,
+				err: errors.Errorf("session expired")}
 		}
 	}(sess)
 }
@@ -458,7 +459,7 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 
 func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 	if _, has := matcher.participants[req.sessionID]; !has {
-		return ErrSessionNotFound
+		return errors.Errorf("session %s not found", req.sessionID)
 	}
 
 	part := matcher.participants[req.sessionID]
@@ -538,7 +539,7 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 
 func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 	if _, has := matcher.participants[req.sessionID]; !has {
-		return ErrSessionNotFound
+		return errors.Errorf("session %s not found", req.sessionID)
 	}
 	part := matcher.participants[req.sessionID]
 	sess := part.Session
@@ -651,7 +652,7 @@ func (matcher *Matcher) cancelSessionOnContextDone(ctx context.Context, sessPart
 		sess := sessPart.Session
 		if (ctx.Err() != nil) && (!sess.Canceled) && (!sess.Done) {
 			matcher.log.Warningf("Cancelling session %s due to context error on participant %s: %v", sess.ID, sessPart.ID, ctx.Err())
-			matcher.cancelSessionChan <- cancelSessionChanReq{session: sessPart.Session, err: ErrParticipantDisconnected}
+			matcher.cancelSessionChan <- cancelSessionChanReq{session: sessPart.Session, err: errors.Errorf("participant disconnected")}
 		}
 	}()
 }
@@ -670,17 +671,20 @@ func (matcher *Matcher) removeSession(sess *Session, err error) {
 
 func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64, sessionName string) (*SessionParticipant, error) {
 	if maxAmount < matcher.cfg.MinAmount {
-		return nil, ErrLowAmount
+		return nil, errors.Errorf("participation amount (%s) less than "+
+			"minimum required (%s)", maxAmount, matcher.cfg.MinAmount)
 	}
 
 	curStakeDiffChangeDist := splitticket.StakeDiffChangeDistance(
 		matcher.cfg.NetworkProvider.CurrentBlockHeight(), matcher.cfg.ChainParams)
 	if curStakeDiffChangeDist < matcher.cfg.StakeDiffChangeStopWindow {
-		return nil, ErrStakeDiffTooCloseToChange
+		return nil, errors.Errorf("current block too close to change of "+
+			"stake difficulty (%d blocks)", curStakeDiffChangeDist)
 	}
 
 	if !matcher.cfg.NetworkProvider.ConnectedToDecredNetwork() {
-		return nil, ErrNotConnectedToDecredNet
+		return nil, errors.Errorf("matcher is not currently connected to the" +
+			"decred network")
 	}
 
 	req := addParticipantRequest{

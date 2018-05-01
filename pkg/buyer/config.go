@@ -12,7 +12,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/ansel1/merry"
 	"github.com/go-ini/ini"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/util"
 	"github.com/pkg/errors"
@@ -27,24 +26,13 @@ var (
 	defaultDataDir     = dcrutil.AppDataDir("splitticketbuyer", false)
 	defaultCfgFilePath = filepath.Join(defaultDataDir, "splitticketbuyer.conf")
 
-	DefaultConfig = &BuyerConfig{
-		ConfigFile:    defaultCfgFilePath,
-		MatcherHost:   "localhost:8475",
-		SStxFeeLimits: uint16(0x5800),
-		ChainParams:   &chaincfg.MainNetParams,
-		// WalletCertFile:  filepath.Join(dcrutil.AppDataDir("dcrwallet", false), "rpc.cert"),
-		SourceAccount:   0,
-		MaxTime:         30,
-		MaxWaitTime:     120,
-		DataDir:         defaultDataDir,
-		MatcherCertFile: filepath.Join(defaultDataDir, "matcher.cert"),
-		Pass:            "-",
-	}
+	// ErrHelpRequested is the error returned when the help command line option
+	// was requested
+	ErrHelpRequested = fmt.Errorf("help requested")
 
-	ErrMisingConfigParameter = merry.New("Missing config parameter")
-	ErrEmptyPassword         = merry.New("Empty Password Provided")
-	ErrHelpRequested         = merry.New("Help Requested")
-	ErrArgParsingError       = merry.New("Argument parsing error")
+	// ErrEmptyPassword is the error returned when an empty password has been
+	// provided in the config
+	ErrEmptyPassword         = fmt.Errorf("empty password")
 )
 
 type BuyerConfig struct {
@@ -73,8 +61,19 @@ type BuyerConfig struct {
 	ChainParams *chaincfg.Params
 }
 
+type missingConfigParameterError string
+
+func (pmt missingConfigParameterError) Error() string {
+	return fmt.Sprintf("missing config parameter %s", pmt)
+}
+
 func LoadConfig() (*BuyerConfig, error) {
 	var err error
+
+	// just a syntatic sugar to reduce typed chars
+	missing := func(pmt string) missingConfigParameterError {
+		return missingConfigParameterError(pmt)
+	}
 
 	preCfg := &BuyerConfig{
 		ConfigFile: defaultCfgFilePath,
@@ -87,7 +86,7 @@ func LoadConfig() (*BuyerConfig, error) {
 			return nil, ErrHelpRequested
 		}
 		preParser.WriteHelp(os.Stderr)
-		return nil, ErrArgParsingError.Appendf(": %v", err)
+		return nil, errors.Wrapf(err, "error parsing cmdline arg")
 	}
 
 	configFilePath := preCfg.ConfigFile
@@ -117,63 +116,63 @@ func LoadConfig() (*BuyerConfig, error) {
 	}
 
 	if cfg.VoteAddress == "" {
-		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "VoteAddress")
+		return nil, missing("VoteAddress")
 	}
 
 	if cfg.PoolAddress == "" {
-		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "PoolAddress")
+		return nil, missing("PoolAddress")
 	}
 
 	if cfg.MaxAmount < 0 {
-		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "MaxAmount")
+		return nil, missing("MaxAmount")
 	}
 
 	if cfg.WalletHost == "" {
-		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "WalletHost")
+		return nil, missing("WalletHost")
 	}
 
 	if cfg.DcrdHost == "" {
-		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "DcrdHost")
+		return nil, missing("DcrdHost")
 	}
 
 	if cfg.DcrdUser == "" {
-		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "DcrdUser")
+		return nil, missing("DcrdUser")
 	}
 
 	if cfg.DcrdPass == "" {
-		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "DcrdPass")
+		return nil, missing("DcrdPass")
 	}
 
 	if cfg.DcrdCert == "" {
-		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "DcrdCertfile")
+		return nil, missing("DcrdCertfile")
 	} else {
 		cfg.DcrdCert = util.CleanAndExpandPath(cfg.DcrdCert)
 	}
 
 	if cfg.WalletCertFile == "" {
-		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "WalletCertFile")
+		return nil, missing("WalletCertFile")
 	} else {
 		cfg.WalletCertFile = util.CleanAndExpandPath(cfg.WalletCertFile)
 	}
 
 	if cfg.MatcherCertFile == "" {
-		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "MatcherCertFile")
+		return nil, missing("MatcherCertFile")
 	} else {
 		cfg.MatcherCertFile = util.CleanAndExpandPath(cfg.MatcherCertFile)
 	}
 
 	if cfg.MatcherHost == "" {
-		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "MatcherHost")
+		return nil, missing("MatcherHost")
 	}
 
 	if cfg.DataDir == "" {
-		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "DataDir")
+		return nil, missing("DataDir")
 	} else {
 		cfg.DataDir = util.CleanAndExpandPath(cfg.DataDir)
 	}
 
 	if cfg.Pass == "" {
-		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "WalletPass")
+		return nil, missing("WalletPass")
 	} else if cfg.Pass == "-" {
 		pass, err := passFromStdin()
 		if err != nil {
@@ -215,7 +214,7 @@ func passFromStdin() (string, error) {
 // DefaultConfigFileExists checks whether the default config file for the buyer
 // exists for the current user
 func DefaultConfigFileExists() bool {
-	_, err := os.Stat(DefaultConfig.ConfigFile)
+	_, err := os.Stat(defaultCfgFilePath)
 	return err == nil
 }
 

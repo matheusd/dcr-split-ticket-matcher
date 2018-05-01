@@ -1,9 +1,5 @@
 package buyer
 
-import (
-	"github.com/ansel1/merry"
-)
-
 type BuyerStage int32
 type reporterCtxKey int
 
@@ -34,20 +30,4 @@ const (
 	StageSplitTxSigned
 	StageFundingSplitTx
 	StageSplitTxFunded
-)
-
-var (
-	ErrNoReporterSpecified                  = merry.New("Stage reporter not specified in context")
-	ErrNotEnoughFundsFundSplit              = merry.New("Not enough funds to fund split transaction to required amount")
-	ErrNoInputSignedOnTicket                = merry.New("No input was found signed on ticket")
-	ErrWrongNumOfAddressesInVoteOut         = merry.New("Wrong number of addresses in vote output")
-	ErrNoInputSignedOnRevocation            = merry.New("Input was not found signed on revocation")
-	ErrWrongInputSignedOnSplit              = merry.New("Wrong input signed on split transaction")
-	ErrMissingSigOnSplitTx                  = merry.New("Missing signature of desired split tx input")
-	ErrSplitChangeOutputNotFoundOnConstruct = merry.New("Could not find the split change output when constructing the split transaction inputs")
-	ErrWalletOnWrongNetwork                 = merry.New("Wallet on wrong network")
-	ErrWrongSecretNbProvided                = merry.New("Wrong secret number provided")
-	ErrOwnHashNotSent                       = merry.New("Own hash not received from matcher")
-	ErrSplitTxOutZeroNotOpReturn            = merry.New("Output 0 of split transaction is not an OP_RETURN")
-	ErrWrongSplitTxVoterSelCommitment       = merry.New("Output 0 of split tx does not commit to correct voter selection hash")
 )

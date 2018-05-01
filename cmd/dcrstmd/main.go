@@ -1,9 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
-
-	"github.com/ansel1/merry"
+	"os"
 
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/daemon"
 )
@@ -11,11 +11,12 @@ import (
 func main() {
 	cfg, err := daemon.LoadConfig()
 	if err != nil {
-		if merry.Is(err, daemon.ErrHelpRequested, daemon.ErrArgParsingError) {
+		if err == daemon.ErrHelpRequested {
 			return
 		}
 
-		panic(err)
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	daemon, err := daemon.NewDaemon(cfg)

@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -8,7 +9,12 @@ import (
 	flags "github.com/btcsuite/go-flags"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/op/go-logging"
+	"github.com/pkg/errors"
 )
+
+// ErrHelpRequested is the error returned when the help option was requested
+// on the command line
+var ErrHelpRequested = fmt.Errorf("help requested")
 
 // Config stores the config needed to run an instance of the dcr split ticket
 // matcher daemon
@@ -57,10 +63,10 @@ func LoadConfig() (*Config, error) {
 	if err != nil {
 		e, ok := err.(*flags.Error)
 		if ok && e.Type == flags.ErrHelp {
-			return nil, ErrHelpRequested
+			return nil, errors.Errorf("help requested")
 		}
 		preParser.WriteHelp(os.Stderr)
-		return nil, ErrArgParsingError.Appendf(": %v", err)
+		return nil, errors.Wrapf(err, "error parsing arguments")
 	}
 
 	configFilePath := preCfg.ConfigFile
