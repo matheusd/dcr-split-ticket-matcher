@@ -2,11 +2,14 @@ package buyer
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/ansel1/merry"
@@ -123,7 +126,7 @@ func LoadConfig() (*BuyerConfig, error) {
 		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "PoolAddress")
 	}
 
-	if cfg.MaxAmount <= 0 {
+	if cfg.MaxAmount < 0 {
 		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "MaxAmount")
 	}
 
@@ -194,15 +197,29 @@ func DefaultConfigFileExists() bool {
 	return err == nil
 }
 
+// InitDefaultConfig replaces the current config (if it exists) with the
+// factory default config.
+func InitDefaultConfig() error {
+	err := os.MkdirAll(defaultDataDir, 0755)
+	if err != nil {
+		return errors.Wrapf(err, "error creating data dir %s", defaultDataDir)
+	}
+	ioutil.WriteFile(defaultCfgFilePath, []byte(defaultConfigFileContents), 0644)
+
+	return nil
+}
+
 // InitConfigFromDcrwallet inits a config based on whatever is stored
 // in the dcrwallet.conf file. This replaces any existing configuration.
 func InitConfigFromDcrwallet() error {
 	dcrwalletDir := dcrutil.AppDataDir("dcrwallet", false)
 	dcrwalletCfgFile := filepath.Join(dcrwalletDir, "dcrwallet.conf")
-
 	dcrdDir := dcrutil.AppDataDir("dcrd", false)
 
-	ioutil.WriteFile(defaultCfgFilePath, []byte(defaultConfigFileContents), 0644)
+	err := InitDefaultConfig()
+	if err != nil {
+		return err
+	}
 
 	file, err := ini.InsensitiveLoad(dcrwalletCfgFile)
 	if err != nil {
@@ -261,6 +278,202 @@ func InitConfigFromDcrwallet() error {
 	update("pass", "Pass", "")
 	update("testnet", "TestNet", "0")
 	update("rpccert", "WalletCertFile", filepath.Join(dcrwalletDir, "rpc.cert"))
+
+	err = dst.SaveTo(defaultCfgFilePath)
+	if err != nil {
+		return errors.Wrapf(err, "error saving initialized cfg file")
+	}
+
+	return nil
+}
+
+func decreditonConfigDir() string {
+	var homeDir string
+
+	usr, err := user.Current()
+	if err == nil {
+		homeDir = usr.HomeDir
+	}
+	if err != nil || homeDir == "" {
+		homeDir = os.Getenv("HOME")
+	}
+
+	switch runtime.GOOS {
+	case "windows":
+		// Windows XP and before didn't have a LOCALAPPDATA, so fallback
+		// to regular APPDATA when LOCALAPPDATA is not set.
+		appData := os.Getenv("LOCALAPPDATA")
+		if appData == "" {
+			appData = os.Getenv("APPDATA")
+		}
+
+		if appData != "" {
+			return filepath.Join(appData, "Decrediton")
+		}
+
+	case "darwin":
+		if homeDir != "" {
+			return filepath.Join(homeDir, "Library",
+				"Application Support", "decrediton")
+		}
+
+	default:
+		if homeDir != "" {
+			return filepath.Join(homeDir, ".config/decrediton")
+		}
+	}
+
+	return ""
+}
+
+type decreditonRemoteCredentials struct {
+	RPCUser     string `json:"rpc_user"`
+	RPCPassword string `json:"rpc_password"`
+	RPCCert     string `json:"rpc_cert"`
+	RPCHost     string `json:"rpc_host"`
+	RPCPort     string `json:"rpc_port"`
+}
+
+type decreditonStakepool struct {
+	Host          string `json:"Host"`
+	Network       string `json:"Network"`
+	PoolAddress   string `json:"PoolAddress"`
+	TicketAddress string `json:"TicketAddress"`
+}
+
+type decreditonWalletConfig struct {
+	StakePools        []*decreditonStakepool       `json:"stakepools"`
+	RemoteCredentials *decreditonRemoteCredentials `json:"remote_credentials"`
+}
+
+// InitConfigFromDecrediton replaces the config with the default one plus
+// all available entries read from an installed decrediton. Requires a
+// decrediton version >= 1.2.0.
+//
+// The data for the given walletName (of the currently selected network)
+// will be used.
+func InitConfigFromDecrediton(walletName string) error {
+	decreditonDir := decreditonConfigDir()
+	decreditonGlobalCfg := filepath.Join(decreditonDir, "config.json")
+	dcrdDir := dcrutil.AppDataDir("dcrd", false)
+
+	globalCfgJson, err := ioutil.ReadFile(decreditonGlobalCfg)
+	if err != nil {
+		return errors.Wrapf(err, "error reading global config.json from "+
+			"decrediton at %s", decreditonGlobalCfg)
+	}
+
+	globalCfg := &struct {
+		Network             string `json:"network"`
+		DaemonStartAdvanced bool   `json:"daemon_start_advanced"`
+	}{}
+
+	err = json.Unmarshal(globalCfgJson, globalCfg)
+	if err != nil {
+		return errors.Wrapf(err, "error unmarshaling decrediton config.json")
+	}
+
+	if (globalCfg.Network != "testnet") && (globalCfg.Network != "mainnet") {
+		return errors.Errorf("unrecognized network in decrediton "+
+			"config.json (%s)", globalCfg.Network)
+	}
+
+	walletsDir := filepath.Join(decreditonDir, "wallets", globalCfg.Network)
+	walletsDirContent, err := ioutil.ReadDir(walletsDir)
+	if err != nil {
+		return errors.Wrapf(err, "error listing content of wallets dir %s",
+			walletsDir)
+	}
+
+	hasWanted := false
+	for _, f := range walletsDirContent {
+		if !f.IsDir() {
+			continue
+		}
+		hasWanted = hasWanted || f.Name() == walletName
+	}
+
+	if !hasWanted {
+		return errors.Errorf("desired wallet (%s) not found in decrediton "+
+			"wallets dir %s", walletName, walletsDir)
+	}
+
+	walletDir := filepath.Join(walletsDir, walletName)
+
+	walletCfgJsonFname := filepath.Join(walletDir, "config.json")
+	walletCfgJson, err := ioutil.ReadFile(walletCfgJsonFname)
+	if err != nil {
+		return errors.Wrapf(err, "error reading wallet config.json from "+
+			"decrediton at %s", walletCfgJsonFname)
+	}
+
+	walletCfg := &decreditonWalletConfig{}
+
+	err = json.Unmarshal(walletCfgJson, walletCfg)
+	if err != nil {
+		return errors.Wrapf(err, "error unmarshaling decrediton config.json")
+	}
+
+	err = InitDefaultConfig()
+	if err != nil {
+		return err
+	}
+
+	dst, err := ini.Load(defaultCfgFilePath)
+	if err != nil {
+		return errors.Wrapf(err, "error initializing default config data")
+	}
+
+	dstSection, err := dst.GetSection("Application Options")
+	if err != nil {
+		return errors.Wrapf(err, "error getting dst section")
+	}
+
+	testnetRpcCert := filepath.Join(defaultDataDir, "testnet-rpc.cert")
+	mainnetRpcCert := filepath.Join(defaultDataDir, "mainnet-rpc.cert")
+	ioutil.WriteFile(testnetRpcCert, []byte(testnetMatcherRpcCert), 0644)
+	ioutil.WriteFile(mainnetRpcCert, []byte(mainnetMatcherRpcCert), 0644)
+
+	activeNet := netparams.MainNetParams
+	isTestNet := globalCfg.Network == "testnet"
+	matcherHost := "mainnet-split-tickets.matheusd.com:8475"
+	matcherCert := mainnetRpcCert
+	testnetVal := "0"
+	if isTestNet {
+		activeNet = netparams.TestNet2Params
+		matcherHost = "testnet-split-tickets.matheusd.com:18475"
+		matcherCert = testnetRpcCert
+		testnetVal = "1"
+	}
+
+	dstSection.Key("MatcherHost").SetValue(matcherHost)
+	dstSection.Key("MatcherCertFile").SetValue(matcherCert)
+	dstSection.Key("TestNet").SetValue(testnetVal)
+	dstSection.Key("WalletCertFile").SetValue(filepath.Join(walletDir, "rpc.cert"))
+
+	if globalCfg.DaemonStartAdvanced {
+		creds := walletCfg.RemoteCredentials
+		dstSection.Key("DcrdHost").SetValue(creds.RPCHost + ":" + creds.RPCPort)
+		dstSection.Key("DcrdUser").SetValue(creds.RPCUser)
+		dstSection.Key("DcrdPass").SetValue(creds.RPCPassword)
+		dstSection.Key("DcrdCert").SetValue(creds.RPCCert)
+	} else {
+		dstSection.Key("DcrdHost").SetValue("127.0.0.1:" + activeNet.JSONRPCClientPort)
+		dstSection.Key("DcrdUser").SetValue("USER")
+		dstSection.Key("DcrdPass").SetValue("PASSWORD")
+		dstSection.Key("DcrdCert").SetValue(filepath.Join(dcrdDir, "rpc.cert"))
+	}
+
+	for _, pool := range walletCfg.StakePools {
+		if (pool.PoolAddress != "") &&
+			(pool.TicketAddress != "") &&
+			(pool.Network == globalCfg.Network) {
+
+			dstSection.Key("VoteAddress").SetValue(pool.TicketAddress)
+			dstSection.Key("PoolAddress").SetValue(pool.PoolAddress)
+			break
+		}
+	}
 
 	err = dst.SaveTo(defaultCfgFilePath)
 	if err != nil {

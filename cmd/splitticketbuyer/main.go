@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"os"
 
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/buyer"
@@ -21,8 +21,10 @@ func main() {
 	if !buyer.DefaultConfigFileExists() {
 		fmt.Println("Initializing buyer config based on existing dcrwallet.conf")
 		err := buyer.InitConfigFromDcrwallet()
+		// err := buyer.InitConfigFromDecrediton("default-wallet")
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
+			os.Exit(1)
 		}
 	}
 
