@@ -14,6 +14,7 @@ import (
 
 	"github.com/ansel1/merry"
 	"github.com/go-ini/ini"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/util"
 	"github.com/pkg/errors"
 
 	"github.com/decred/dcrd/chaincfg"
@@ -92,15 +93,12 @@ func LoadConfig() (*BuyerConfig, error) {
 	configFilePath := preCfg.ConfigFile
 
 	cfg := &BuyerConfig{
-		MatcherHost:     "localhost:8475",
-		SStxFeeLimits:   uint16(0x5800),
-		ChainParams:     &chaincfg.MainNetParams,
-		WalletCertFile:  filepath.Join(dcrutil.AppDataDir("dcrwallet", false), "rpc.cert"),
-		SourceAccount:   0,
-		MaxTime:         30,
-		MaxWaitTime:     120,
-		DataDir:         defaultDataDir,
-		MatcherCertFile: filepath.Join(defaultDataDir, "matcher.cert"),
+		SStxFeeLimits: uint16(0x5800),
+		ChainParams:   &chaincfg.MainNetParams,
+		SourceAccount: 0,
+		MaxTime:       30,
+		MaxWaitTime:   120,
+		DataDir:       defaultDataDir,
 	}
 
 	parser := flags.NewParser(cfg, flags.Default)
@@ -148,6 +146,30 @@ func LoadConfig() (*BuyerConfig, error) {
 
 	if cfg.DcrdCert == "" {
 		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "DcrdCertfile")
+	} else {
+		cfg.DcrdCert = util.CleanAndExpandPath(cfg.DcrdCert)
+	}
+
+	if cfg.WalletCertFile == "" {
+		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "WalletCertFile")
+	} else {
+		cfg.WalletCertFile = util.CleanAndExpandPath(cfg.WalletCertFile)
+	}
+
+	if cfg.MatcherCertFile == "" {
+		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "MatcherCertFile")
+	} else {
+		cfg.MatcherCertFile = util.CleanAndExpandPath(cfg.MatcherCertFile)
+	}
+
+	if cfg.MatcherHost == "" {
+		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "MatcherHost")
+	}
+
+	if cfg.DataDir == "" {
+		return nil, merry.WithMessagef(ErrMisingConfigParameter, "Missing config parameter: %s", "DataDir")
+	} else {
+		cfg.DataDir = util.CleanAndExpandPath(cfg.DataDir)
 	}
 
 	if cfg.Pass == "" {
