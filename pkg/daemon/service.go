@@ -30,14 +30,17 @@ func encodeQueueName(name string) string {
 }
 
 type SplitTicketMatcherService struct {
-	matcher         *matcher.Matcher
-	networkProvider matcher.NetworkProvider
+	matcher            *matcher.Matcher
+	networkProvider    matcher.NetworkProvider
+	allowPublicSession bool
 }
 
-func NewSplitTicketMatcherService(matcher *matcher.Matcher, networkProvider matcher.NetworkProvider) *SplitTicketMatcherService {
+func NewSplitTicketMatcherService(matcher *matcher.Matcher,
+	networkProvider matcher.NetworkProvider, allowPublicSession bool) *SplitTicketMatcherService {
 	return &SplitTicketMatcherService{
-		matcher:         matcher,
-		networkProvider: networkProvider,
+		matcher:            matcher,
+		networkProvider:    networkProvider,
+		allowPublicSession: allowPublicSession,
 	}
 }
 
@@ -73,6 +76,11 @@ func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.F
 		return nil, errors.Errorf("server is running a different protocol "+
 			"version (%d) than client (%d)", pkg.ProtocolVersion,
 			req.ProtocolVersion)
+	}
+
+	if req.SessionName == "" && !svc.allowPublicSession {
+		return nil, errors.Errorf("server does not allow participation in " +
+			"the public session")
 	}
 
 	sess, err := svc.matcher.AddParticipant(ctx, req.Amount, req.SessionName)

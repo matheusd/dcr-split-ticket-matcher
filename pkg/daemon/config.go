@@ -37,6 +37,8 @@ type Config struct {
 	MaxSessionDuration        time.Duration `long:"maxsessionduration" description:"Maximum number of seconds a session may take before being automatically closed"`
 	StakeDiffChangeStopWindow int32         `long:"stakediffchangestopwindow" description:"Stop the matching service when the the stake change is closer than this number of blocks"`
 	PublishTransactions       bool          `long:"publishtransactions" description:"Whether to actually publish transactions of successful sessions"`
+
+	AllowPublicSession bool `long:"allowpublicsession" description:"Whether to allow sessions with an empty name (public sessions) in the matcher."`
 }
 
 var (
@@ -85,7 +87,8 @@ func LoadConfig() (*Config, error) {
 
 		MaxSessionDuration:        30,
 		StakeDiffChangeStopWindow: 5,
-		PublishTransactions: false,
+		PublishTransactions:       false,
+		AllowPublicSession:        false,
 	}
 
 	parser := flags.NewParser(cfg, flags.Default)

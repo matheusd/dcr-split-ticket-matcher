@@ -150,7 +150,8 @@ func (daemon *Daemon) ListenAndServe() error {
 		server = grpc.NewServer()
 	}
 
-	svc := NewSplitTicketMatcherService(daemon.matcher, daemon.dcrd)
+	svc := NewSplitTicketMatcherService(daemon.matcher, daemon.dcrd,
+		daemon.cfg.AllowPublicSession)
 	pb.RegisterSplitTicketMatcherServiceServer(server, svc)
 
 	daemon.log.Noticef("Listening on %s", intf)
