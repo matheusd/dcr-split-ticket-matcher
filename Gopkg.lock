@@ -110,6 +110,25 @@
   version = "v1.3.0"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/mattn/go-gtk"
+  packages = [
+    "gdk",
+    "gdkpixbuf",
+    "gio",
+    "glib",
+    "gtk",
+    "pango"
+  ]
+  revision = "5a311a1830abecc430a6a598b24094f69d907e96"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/mattn/go-pointer"
+  packages = ["."]
+  revision = "1d30dc4b6f28271a3bd126071d4d0363e618415b"
+
+[[projects]]
   name = "github.com/op/go-logging"
   packages = ["."]
   revision = "b2cb9fa56473e98db8caba80237377e83fe44db5"

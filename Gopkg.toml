@@ -49,3 +49,7 @@
 [[constraint]]
   name = "github.com/go-ini/ini"
   revision = "5b3e00af70a9484542169a976dcab8d03e601a17"
+
+[[constraint]]
+  name = "github.com/mattn/go-gtk"
+  branch = "master"
