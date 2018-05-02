@@ -63,7 +63,7 @@ func LoadConfig() (*Config, error) {
 	if err != nil {
 		e, ok := err.(*flags.Error)
 		if ok && e.Type == flags.ErrHelp {
-			return nil, errors.Errorf("help requested")
+			return nil, ErrHelpRequested
 		}
 		preParser.WriteHelp(os.Stderr)
 		return nil, errors.Wrapf(err, "error parsing arguments")
