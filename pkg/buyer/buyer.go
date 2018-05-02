@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -138,22 +137,6 @@ type Reporter interface {
 	reportMatcherStatus(*pbm.StatusResponse)
 }
 
-type stdoutListWatcher struct{}
-
-func (w stdoutListWatcher) ListChanged(queues []matcher.WaitingQueue) {
-	for _, q := range queues {
-		strs := make([]string, len(q.Amounts))
-		sessName := q.Name
-		if len(sessName) > 10 {
-			sessName = sessName[:10]
-		}
-		for i, a := range q.Amounts {
-			strs[i] = a.String()
-		}
-		fmt.Printf("Waiting participants (%s): [%s]\n", sessName, strings.Join(strs, ", "))
-	}
-}
-
 type sessionWaiterResponse struct {
 	mc      *MatcherClient
 	wc      *WalletClient
@@ -237,12 +220,6 @@ func waitForSession(ctx context.Context, cfg *BuyerConfig) sessionWaiterResponse
 	if err != nil {
 		return sessionWaiterResponse{nil, nil, nil, err}
 	}
-
-	err = mc.WatchWaitingList(ctx, stdoutListWatcher{})
-	if err != nil {
-		return sessionWaiterResponse{nil, nil, nil, err}
-	}
-	time.Sleep(150 * time.Millisecond)
 
 	maxAmount, err := dcrutil.NewAmount(cfg.MaxAmount)
 	if err != nil {

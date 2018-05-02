@@ -5,11 +5,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
+	"strings"
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 )
 
@@ -18,119 +21,143 @@ func encodeSessionName(name string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-// StdOutReporter implements the BuyerReporter interface by generating descriptive
-// messages to stdout
-type StdOutReporter struct {
+// WriterReporter implements the BuyerReporter interface by generating descriptive
+// messages to a writer
+type writerReporter struct {
+	w io.Writer
 }
 
-func (rep *StdOutReporter) reportMatcherStatus(status *pb.StatusResponse) {
+// NewWriterReporter returns a reporter that writes into stdout
+func NewWriterReporter(w io.Writer) *writerReporter {
+	return &writerReporter{w}
+}
+
+func (rep *writerReporter) WaitingListChanged(queues []matcher.WaitingQueue) {
+	for _, q := range queues {
+		strs := make([]string, len(q.Amounts))
+		sessName := q.Name
+		if len(sessName) > 10 {
+			sessName = sessName[:10]
+		}
+		for i, a := range q.Amounts {
+			strs[i] = a.String()
+		}
+		fmt.Fprintf(rep.w, "Waiting participants (%s): [%s]\n", sessName, strings.Join(strs, ", "))
+	}
+}
+
+func (rep *writerReporter) reportMatcherStatus(status *pb.StatusResponse) {
 	price := dcrutil.Amount(status.TicketPrice)
-	fmt.Printf("Matcher ticket price: %s\n", price)
+	fmt.Fprintf(rep.w, "Matcher ticket price: %s\n", price)
 }
 
-func (rep *StdOutReporter) reportStage(ctx context.Context, stage BuyerStage, session *BuyerSession, cfg *BuyerConfig) {
+func (rep *writerReporter) reportStage(ctx context.Context, stage BuyerStage, session *BuyerSession, cfg *BuyerConfig) {
+
+	out := func(format string, args ...interface{}) {
+		fmt.Fprintf(rep.w, format, args...)
+	}
 
 	// initial handling of stages with null session
 	switch stage {
 	case StageUnknown:
-		fmt.Printf("ERROR: Unknown stage received\n")
+		out("ERROR: Unknown stage received\n")
 		return
 	case StageConnectingToMatcher:
-		fmt.Printf("Connecting to matcher service '%s'\n", cfg.MatcherHost)
+		out("Connecting to matcher service '%s'\n", cfg.MatcherHost)
 		return
 	case StageFindingMatches:
 		encSessName := encodeSessionName(cfg.SessionName)[:10]
-		fmt.Printf("Finding peers to split ticket buy in session '%s' (%s)\n",
+		out("Finding peers to split ticket buy in session '%s' (%s)\n",
 			cfg.SessionName, encSessName)
 		return
 	case StageConnectingToWallet:
-		fmt.Printf("Connecting to wallet %s\n", cfg.WalletHost)
+		out("Connecting to wallet %s\n", cfg.WalletHost)
 		return
 	}
 
 	// from here on, all stages need a session
 	if session == nil {
-		fmt.Printf("Received null session on stage %d\n", stage)
+		out("Received null session on stage %d\n", stage)
 		return
 	}
 
 	switch stage {
 	case StageMatchesFound:
-		fmt.Printf("Found matches in session %s. Contributing %s\n", session.ID, session.Amount)
+		out("Found matches in session %s. Contributing %s\n", session.ID, session.Amount)
 	case StageGeneratingOutputs:
-		fmt.Printf("Generating outputs from wallet\n")
+		out("Generating outputs from wallet\n")
 	case StageOutputsGenerated:
-		fmt.Printf("Outputs generated!\n")
-		fmt.Printf("Voting address: %s\n", cfg.VoteAddress)
-		fmt.Printf("Pool subsidy address: %s\n", cfg.PoolAddress)
-		fmt.Printf("Ticket commitment address: %s\n", session.ticketOutputAddress.String())
-		fmt.Printf("Split tx output address: %s\n", session.splitOutputAddress.String())
+		out("Outputs generated!\n")
+		out("Voting address: %s\n", cfg.VoteAddress)
+		out("Pool subsidy address: %s\n", cfg.PoolAddress)
+		out("Ticket commitment address: %s\n", session.ticketOutputAddress.String())
+		out("Split tx output address: %s\n", session.splitOutputAddress.String())
 	case StageGeneratingTicket:
-		fmt.Printf("Generating ticket...\n")
+		out("Generating ticket...\n")
 	case StageTicketGenerated:
-		fmt.Printf("Ticket Generated\n")
-		fmt.Printf("Secret Number: %d\n", session.secretNb)
-		fmt.Printf("Secret Number Hash: %s\n", hex.EncodeToString(session.secretNbHash[:]))
-		fmt.Printf("My index in the split: %d\n", session.myIndex)
+		out("Ticket Generated\n")
+		out("Secret Number: %d\n", session.secretNb)
+		out("Secret Number Hash: %s\n", hex.EncodeToString(session.secretNbHash[:]))
+		out("My index in the split: %d\n", session.myIndex)
 	case StageGenerateSplitOutputAddr:
-		fmt.Printf("Generating split output address\n")
+		out("Generating split output address\n")
 	case StageGenerateTicketCommitmentAddr:
-		fmt.Printf("Generating ticket commitment address\n")
+		out("Generating ticket commitment address\n")
 	case StageGenerateSplitInputs:
-		fmt.Printf("Generating split tx funds\n")
+		out("Generating split tx funds\n")
 	case StageSigningTicket:
-		fmt.Printf("Signing Ticket\n")
+		out("Signing Ticket\n")
 	case StageTicketSigned:
-		fmt.Printf("Ticket Signed\n")
+		out("Ticket Signed\n")
 	case StageSigningRevocation:
-		fmt.Printf("Signing Revocation\n")
+		out("Signing Revocation\n")
 	case StageRevocationSigned:
-		fmt.Printf("Revocation Signed\n")
+		out("Revocation Signed\n")
 	case StageFundingTicket:
-		fmt.Printf("Funding Ticket on matcher\n")
+		out("Funding Ticket on matcher\n")
 	case StageTicketFunded:
-		fmt.Printf("Ticket Funded!\n")
+		out("Ticket Funded!\n")
 	case StageSigningSplitTx:
-		fmt.Printf("Signing split tx\n")
+		out("Signing split tx\n")
 	case StageSplitTxSigned:
-		fmt.Printf("Split tx signed\n")
+		out("Split tx signed\n")
 	case StageFundingSplitTx:
-		fmt.Printf("Funding split tx\n")
+		out("Funding split tx\n")
 	case StageSplitTxFunded:
-		fmt.Printf("Split tx funded\n")
+		out("Split tx funded\n")
 
 		bts, _ := session.fundedSplitTx.Bytes()
-		fmt.Println("\nFunded Split Tx:")
-		fmt.Println(hex.EncodeToString(bts))
+		out("\nFunded Split Tx:\n")
+		out(hex.EncodeToString(bts) + "\n")
 
 		bts, _ = session.selectedTicket.Bytes()
-		fmt.Println("\nFunded Ticket:")
-		fmt.Println(hex.EncodeToString(bts))
+		out("\nFunded Ticket:")
+		out(hex.EncodeToString(bts) + "\n")
 
 		bts, _ = session.selectedRevocation.Bytes()
-		fmt.Println("\nFunded Revocation:")
-		fmt.Println(hex.EncodeToString(bts))
+		out("\nFunded Revocation:")
+		out(hex.EncodeToString(bts) + "\n")
 
-		fmt.Println("")
-		fmt.Printf("Selected coin: %s\n", dcrutil.Amount(session.selectedCoin()))
-		fmt.Printf("Selected voter index: %d\n", session.voterIndex)
+		out("\n")
+		out("Selected coin: %s\n", dcrutil.Amount(session.selectedCoin()))
+		out("Selected voter index: %d\n", session.voterIndex)
 		var sum dcrutil.Amount
 		for i, p := range session.participants {
 			sum += p.amount
-			fmt.Printf("Participant %d: cum_amount=%s secret=%d secret_hash=%s...\n",
+			out("Participant %d: cum_amount=%s secret=%d secret_hash=%s...\n",
 				i, sum, p.secretNb, hex.EncodeToString(p.secretHash[:10]))
 		}
 		commitHash := splitticket.SecretNumberHashesHash(session.secretHashes(),
 			session.mainchainHash)
-		fmt.Printf("Voter lottery commitment hash: %s\n",
+		out("Voter lottery commitment hash: %s\n",
 			hex.EncodeToString(commitHash))
 
-		fmt.Println("")
-		fmt.Printf("Split tx hash: %s\n", session.fundedSplitTx.TxHash())
-		fmt.Printf("Ticket Hash: %s\n", session.selectedTicket.TxHash())
+		out("\n")
+		out("Split tx hash: %s\n", session.fundedSplitTx.TxHash())
+		out("Ticket Hash: %s\n", session.selectedTicket.TxHash())
 
 	default:
-		fmt.Printf("Unknown stage: %d\n", stage)
+		out("Unknown stage: %d\n", stage)
 	}
 
 }

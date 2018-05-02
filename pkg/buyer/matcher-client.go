@@ -3,7 +3,6 @@ package buyer
 import (
 	"context"
 	"fmt"
-	"io"
 
 	"github.com/pkg/errors"
 
@@ -387,40 +386,6 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 	session.fundedSplitTx = fundedSplit
 	session.selectedTicket = voter.ticket
 	session.selectedRevocation = voter.revocation
-
-	return nil
-}
-
-type waitingListWatcher interface {
-	ListChanged([]matcher.WaitingQueue)
-}
-
-func (mc *MatcherClient) WatchWaitingList(ctx context.Context, watcher waitingListWatcher) error {
-	req := &pb.WatchWaitingListRequest{}
-	cli, err := mc.client.WatchWaitingList(ctx, req)
-	if err != nil {
-		return err
-	}
-	go func() {
-		for {
-			resp, err := cli.Recv()
-			if err != nil {
-				if err != io.EOF {
-					fmt.Println("Error reading waiting list: %v", err)
-				}
-				return
-			} else {
-				queues := make([]matcher.WaitingQueue, len(resp.Queues))
-				for i, q := range resp.Queues {
-					queues[i] = matcher.WaitingQueue{
-						Name:    q.Name,
-						Amounts: uint64sToAmounts(q.Amounts),
-					}
-				}
-				watcher.ListChanged(queues)
-			}
-		}
-	}()
 
 	return nil
 }

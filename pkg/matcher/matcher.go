@@ -369,7 +369,8 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	expectedInputAmount = part.CommitAmount + part.PoolFee + part.Fee
 	if inputAmount-changeAmount < expectedInputAmount {
 		return errors.Errorf("participation input amount (%s) less than the "+
-			"expected (%s)", inputAmount-changeAmount, expectedInputAmount)
+			"expected (%s)", (inputAmount - changeAmount).String(),
+			expectedInputAmount.String())
 	}
 	fmt.Println("xxxx", inputAmount, changeAmount, expectedInputAmount)
 
@@ -672,7 +673,8 @@ func (matcher *Matcher) removeSession(sess *Session, err error) {
 func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64, sessionName string) (*SessionParticipant, error) {
 	if maxAmount < matcher.cfg.MinAmount {
 		return nil, errors.Errorf("participation amount (%s) less than "+
-			"minimum required (%s)", maxAmount, matcher.cfg.MinAmount)
+			"minimum required (%s)", dcrutil.Amount(maxAmount),
+			dcrutil.Amount(matcher.cfg.MinAmount))
 	}
 
 	curStakeDiffChangeDist := splitticket.StakeDiffChangeDistance(

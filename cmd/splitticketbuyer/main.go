@@ -21,22 +21,31 @@ func main() {
 	if !buyer.DefaultConfigFileExists() {
 		fmt.Println("Initializing buyer config based on existing dcrwallet.conf")
 		err := buyer.InitConfigFromDcrwallet()
-		// err := buyer.InitConfigFromDecrediton("default-wallet")
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 	}
 
-	reporter := &buyer.StdOutReporter{}
+	reporter := buyer.NewWriterReporter(os.Stdout)
 	ctx := context.WithValue(context.Background(), buyer.ReporterCtxKey, reporter)
+	ctx, cancelFunc := context.WithCancel(ctx)
 
 	cfg, err := buyer.LoadConfig()
+	if err == nil {
+		err = cfg.ReadPassphrase()
+	}
+	if err == nil {
+		err = cfg.Validate()
+	}
 	if err != nil {
 		fmt.Printf("Error loading config file: %v\n", err)
-		return
+		os.Exit(1)
 	}
 	defer func() { zeroBytes(cfg.Passphrase) }()
+
+	go buyer.WatchMatcherWaitingList(ctx, cfg.MatcherHost, cfg.MatcherCertFile,
+		reporter)
 
 	err = buyer.BuySplitTicket(ctx, cfg)
 	if err != nil {
@@ -44,4 +53,6 @@ func main() {
 	} else {
 		fmt.Printf("Success buying split ticket!\n")
 	}
+
+	cancelFunc()
 }
