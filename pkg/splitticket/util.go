@@ -89,3 +89,25 @@ func UtxoMapOutpointsFromNetwork(client *rpcclient.Client, outpoints []*wire.Out
 
 	return res, nil
 }
+
+// FindTxFee finds the total transaction fee paid on the the given transaction
+// This function does **not** check for overflows.
+func FindTxFee(tx *wire.MsgTx, utxos UtxoMap) (dcrutil.Amount, error) {
+
+	totalOut := dcrutil.Amount(0)
+	for _, out := range tx.TxOut {
+		totalOut += dcrutil.Amount(out.Value)
+	}
+
+	totalIn := dcrutil.Amount(0)
+	for i, in := range tx.TxIn {
+		utxo, has := utxos[in.PreviousOutPoint]
+		if !has {
+			return 0, errors.Errorf("outpoint of input %d of split tx (%s)"+
+				"not found", i, in.PreviousOutPoint)
+		}
+		totalIn += utxo.Value
+	}
+
+	return totalIn - totalOut, nil
+}

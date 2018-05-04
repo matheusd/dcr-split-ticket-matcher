@@ -438,3 +438,25 @@ func CheckParticipantInTicket(split, ticket *wire.MsgTx, amount,
 
 	return nil
 }
+
+// FindTicketTxFee finds the ticket transaction fee, assuming the split
+// ticket is correct. Only safe to be called on split and ticket transactions
+// that have passed their respective check functions.
+func FindTicketTxFee(splitTx, ticket *wire.MsgTx) (dcrutil.Amount, error) {
+	splitUtxos := make(UtxoMap, len(splitTx.TxOut))
+	splitHash := splitTx.TxHash()
+	for i, out := range splitTx.TxOut {
+		outp := wire.OutPoint{
+			Hash:  splitHash,
+			Index: uint32(i),
+			Tree:  int8(stake.TxTypeRegular),
+		}
+		splitUtxos[outp] = UtxoEntry{
+			PkScript: out.PkScript,
+			Value:    dcrutil.Amount(out.Value),
+			Version:  out.Version,
+		}
+	}
+
+	return FindTxFee(ticket, splitUtxos)
+}

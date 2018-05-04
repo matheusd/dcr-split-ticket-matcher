@@ -135,6 +135,7 @@ func (session *BuyerSession) splitInputOutpoints() []wire.OutPoint {
 type Reporter interface {
 	reportStage(context.Context, BuyerStage, *BuyerSession, *BuyerConfig)
 	reportMatcherStatus(*pbm.StatusResponse)
+	reportSavedSession(string)
 }
 
 type sessionWaiterResponse struct {
@@ -276,10 +277,12 @@ func buySplitTicket(ctx context.Context, cfg *BuyerConfig, mc *MatcherClient, wc
 	}
 	rep.reportStage(ctx, StageSplitTxFunded, session, cfg)
 
-	return saveSession(session, cfg)
+	return saveSession(ctx, session, cfg)
 }
 
-func saveSession(session *BuyerSession, cfg *BuyerConfig) error {
+func saveSession(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
+
+	rep := reporterFromContext(ctx)
 
 	sessionDir := filepath.Join(cfg.DataDir, "sessions")
 
@@ -349,7 +352,7 @@ func saveSession(session *BuyerSession, cfg *BuyerConfig) error {
 	w.Flush()
 	f.Sync()
 
-	fmt.Printf("\n\nSaved session at %s\n", fname)
+	rep.reportSavedSession(fname)
 
 	return nil
 }

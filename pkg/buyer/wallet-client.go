@@ -3,6 +3,8 @@ package buyer
 import (
 	"bytes"
 	"context"
+	"math/rand"
+	"time"
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
@@ -17,12 +19,17 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+func random(min, max int) int {
+	return rand.Intn(max-min) + min
+}
+
 type WalletClient struct {
 	conn *grpc.ClientConn
 	wsvc pb.WalletServiceClient
 }
 
 func ConnectToWallet(walletHost string, walletCert string) (*WalletClient, error) {
+	rand.Seed(time.Now().Unix())
 	creds, err := credentials.NewClientTLSFromFile(walletCert, "localhost")
 	if err != nil {
 		return nil, err
@@ -448,6 +455,10 @@ func (wc *WalletClient) SignTransactions(ctx context.Context, session *BuyerSess
 	req.AdditionalScripts = append(req.AdditionalScripts, splitAddScripts...)
 	req.AdditionalScripts = append(req.AdditionalScripts, revocationAddScripts...)
 	req.AdditionalScripts = append(req.AdditionalScripts, ticketsAddScripts...)
+
+	// FIXME: remove on production... doing this in many wallets at the same time
+	// locks them up
+	time.Sleep(time.Millisecond * time.Duration(random(100, 2000)))
 
 	resp, err := wc.wsvc.SignTransactions(ctx, req)
 	if err != nil {

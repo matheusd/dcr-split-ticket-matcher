@@ -46,6 +46,10 @@ func (rep *writerReporter) WaitingListChanged(queues []matcher.WaitingQueue) {
 	}
 }
 
+func (rep *writerReporter) reportSavedSession(fname string) {
+	fmt.Fprintf(rep.w, "Saved session at %s\n", fname)
+}
+
 func (rep *writerReporter) reportMatcherStatus(status *pb.StatusResponse) {
 	price := dcrutil.Amount(status.TicketPrice)
 	fmt.Fprintf(rep.w, "Matcher ticket price: %s\n", price)
@@ -126,17 +130,35 @@ func (rep *writerReporter) reportStage(ctx context.Context, stage BuyerStage, se
 	case StageSplitTxFunded:
 		out("Split tx funded\n")
 
-		bts, _ := session.fundedSplitTx.Bytes()
+		btsSplit, _ := session.fundedSplitTx.Bytes()
 		out("\nFunded Split Tx:\n")
-		out(hex.EncodeToString(bts) + "\n")
+		out(hex.EncodeToString(btsSplit) + "\n")
 
-		bts, _ = session.selectedTicket.Bytes()
+		btsTicket, _ := session.selectedTicket.Bytes()
 		out("\nFunded Ticket:")
-		out(hex.EncodeToString(bts) + "\n")
+		out(hex.EncodeToString(btsTicket) + "\n")
 
-		bts, _ = session.selectedRevocation.Bytes()
+		btsRevoke, _ := session.selectedRevocation.Bytes()
 		out("\nFunded Revocation:")
-		out(hex.EncodeToString(bts) + "\n")
+		out(hex.EncodeToString(btsRevoke) + "\n")
+
+		splitFee, err := splitticket.FindTxFee(session.fundedSplitTx, session.splitTxUtxoMap)
+		if err != nil {
+			out("ERROR calculating split tx fee: %v", err)
+		}
+
+		ticketFee, err := splitticket.FindTicketTxFee(session.fundedSplitTx, session.selectedTicket)
+		if err != nil {
+			out("ERROR calculating ticket tx fee: %v", err)
+		}
+
+		splitFeeRate := float64(splitFee) / float64(len(btsSplit)*1e5)
+		ticketFeeRate := float64(ticketFee) / float64(len(btsTicket)*1e5)
+
+		out("Split tx size: %d bytes\n", len(btsSplit))
+		out("Split tx fee: %s (%.4f DCR/KB)\n", splitFee, splitFeeRate)
+		out("Ticket tx size: %d bytes\n", len(btsTicket))
+		out("Ticket tx fee: %s (%.4f DCR/KB)\n", ticketFee, ticketFeeRate)
 
 		out("\n")
 		out("Selected coin: %s\n", dcrutil.Amount(session.selectedCoin()))
@@ -168,6 +190,9 @@ func (rep NullReporter) reportStage(ctx context.Context, stage BuyerStage, sessi
 }
 
 func (rep NullReporter) reportMatcherStatus(status *pb.StatusResponse) {
+}
+
+func (rep NullReporter) reportSavedSession(string) {
 }
 
 func reporterFromContext(ctx context.Context) Reporter {

@@ -3,7 +3,6 @@ package matcher
 import (
 	"context"
 	"encoding/hex"
-	"fmt"
 	"math"
 	"sort"
 	"time"
@@ -372,7 +371,6 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 			"expected (%s)", (inputAmount - changeAmount).String(),
 			expectedInputAmount.String())
 	}
-	fmt.Println("xxxx", inputAmount, changeAmount, expectedInputAmount)
 
 	part.VoteAddress = req.voteAddress
 	part.PoolAddress = req.poolAddress

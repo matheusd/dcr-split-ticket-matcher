@@ -4,21 +4,25 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
-	"github.com/decred/dcrd/dcrutil"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/buyer"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 )
 
 type stdoutListWatcher struct{}
 
-func (w stdoutListWatcher) ListChanged(amounts []dcrutil.Amount) {
-	strs := make([]string, len(amounts))
-	for i, a := range amounts {
-		strs[i] = a.String()
+func (w *stdoutListWatcher) WaitingListChanged(queues []matcher.WaitingQueue) {
+	for _, q := range queues {
+		strs := make([]string, len(q.Amounts))
+		sessName := q.Name
+		if len(sessName) > 10 {
+			sessName = sessName[:10]
+		}
+		for i, a := range q.Amounts {
+			strs[i] = a.String()
+		}
+		fmt.Printf("Waiting participants (%s): [%s]\n", sessName, strings.Join(strs, ", "))
 	}
-	now := time.Now().Format("2006-01-02 15:04:05 -0700")
-	fmt.Printf("%s > Waiting participants: [%s]\n", now, strings.Join(strs, ", "))
 }
 
 func main() {
@@ -26,13 +30,11 @@ func main() {
 	matcherHost := "testnet-split-tickets.matheusd.com:8475"
 	certFile := "samples/testnet-matcher-rpc.cert"
 
-	mc, err := buyer.ConnectToMatcherService(matcherHost, certFile)
-	if err != nil {
-		panic(err)
-	}
+	// FIXME: pass the netconfig
 
 	ctx := context.Background()
-	err = mc.WatchWaitingList(ctx, stdoutListWatcher{})
+	err := buyer.WatchMatcherWaitingList(ctx,
+		matcherHost, certFile, &stdoutListWatcher{})
 	if err != nil {
 		panic(err)
 	}
