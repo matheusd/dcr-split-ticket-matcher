@@ -166,6 +166,7 @@ func LoadConfig() (*BuyerConfig, error) {
 	configFilePath := preCfg.ConfigFile
 
 	cfg := &BuyerConfig{
+		ConfigFile:    configFilePath,
 		SStxFeeLimits: uint16(0x5800),
 		ChainParams:   &chaincfg.MainNetParams,
 		SourceAccount: 0,
@@ -319,6 +320,8 @@ func InitConfigFromDcrwallet() error {
 	update("pass", "Pass", "")
 	update("testnet", "TestNet", "0")
 	update("rpccert", "WalletCertFile", filepath.Join(dcrwalletDir, "rpc.cert"))
+	update("pooladdress", "PoolAddress", "")
+	update("ticketaddress", "VoteAddress", "")
 
 	err = dst.SaveTo(defaultCfgFilePath)
 	if err != nil {

@@ -11,7 +11,7 @@ import json
 import mimetypes
 import os
 import requests
-
+import glob
 
 class UploadGH(object):
     def __init__(self, repo, token=None):
@@ -27,7 +27,8 @@ class UploadGH(object):
         path = self.endpoint + "/releases"
         params = {"tag_name": tag,
                   "name": tag,
-                  "draft": True,
+                  "draft": False,
+                  "prerelease": True,
                   "body": "Release %s" % tag}
         resp = requests.post(path, data=json.dumps(params), headers=self.headers())
         resp.raise_for_status()
@@ -83,6 +84,12 @@ class UploadGH(object):
 BUILD_REPO_OWNER = "matheusd"
 BUILD_REPO_REPO = "dcr-split-ticket-matcher"
 
+RELEASE_INFO = """# Split Ticket Service & Client
+
+This is a **beta** release of the split ticket buyer service and client. Please
+read the [instructions for joining the beta](/docs/beta.md).
+"""
+
 
 def getVersion():
     with open("pkg/version.go") as f:
@@ -112,15 +119,16 @@ def main():
         release = existRelease
 
     if not hasRelease:
-        release = destRepo.create_release(tagName)
+        release = destRepo.create_release(tagName, prerelease=True, body=RELEASE_INFO)
         print("Created Release %s" % tagName)
     else:
         print("Release %s already exists" % tagName)
 
-    fname = "dist/archives/dcr-split-ticket-%s.zip" % version
-
     upload = UploadGH(BUILD_REPO_OWNER + "/" + BUILD_REPO_REPO, os.environ["GITHUB_OATH_TOKEN"])
-    upload.upload(fname, tagName)
+    files = glob.glob("dist/archives/*-%s*" % version)
+    for file in files:
+        print("Uploading %s" % file)
+        upload.upload(file, tagName)
 
 
 if __name__ == "__main__":

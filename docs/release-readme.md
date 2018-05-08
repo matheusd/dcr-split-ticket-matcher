@@ -1,6 +1,8 @@
 # Decred Split Ticket Buyer and Service
 
-This software is a work in progress and considered **ALPHA** quality. Use at your own risk.
+This software is a work in progress and considered **BETA** quality.
+
+  This software creates and signs transactions by connecting to your wallet and is of beta quality, not yet thoroughly vetted by the larger decred community. **USE AT YOUR OWN RISK**.
 
 Original source location: https://github.com/matheusd/dcr-split-ticket-matcher
 
