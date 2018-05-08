@@ -12,6 +12,7 @@ import mimetypes
 import os
 import requests
 import glob
+from git import Repo
 
 class UploadGH(object):
     def __init__(self, repo, token=None):
@@ -104,6 +105,17 @@ def main():
     if (not ("GITHUB_OATH_TOKEN" in os.environ)):
         print("Please define the env variable GITHUB_OATH_TOKEN with the github token")
         sys.exit(1)
+
+    local = Repo(".")
+    if local.is_dirty():
+        print("Local repo is dirty. Please commit.")
+        sys.exit(1)
+
+    if local.active_branch.name != "master":
+        print("Trying to deploy when not in master (%s)." % local.active_branch.name)
+        sys.exit(1)
+
+    local.remotes.origin.push()
 
     g = login(token=os.environ["GITHUB_OATH_TOKEN"])
 
