@@ -135,11 +135,11 @@ func (rep *writerReporter) reportStage(ctx context.Context, stage BuyerStage, se
 		out(hex.EncodeToString(btsSplit) + "\n")
 
 		btsTicket, _ := session.selectedTicket.Bytes()
-		out("\nFunded Ticket:")
+		out("\nFunded Ticket:\n")
 		out(hex.EncodeToString(btsTicket) + "\n")
 
 		btsRevoke, _ := session.selectedRevocation.Bytes()
-		out("\nFunded Revocation:")
+		out("\nFunded Revocation:\n")
 		out(hex.EncodeToString(btsRevoke) + "\n")
 
 		splitFee, err := splitticket.FindTxFee(session.fundedSplitTx, session.splitTxUtxoMap)
