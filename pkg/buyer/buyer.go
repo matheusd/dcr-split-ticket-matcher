@@ -202,12 +202,12 @@ func waitForSession(ctx context.Context, cfg *BuyerConfig) sessionWaiterResponse
 	mc, err := ConnectToMatcherService(cfg.MatcherHost, cfg.MatcherCertFile,
 		cfg.networkCfg())
 	if err != nil {
-		return sessionWaiterResponse{nil, nil, nil, err}
+		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err, "error connecting to matcher")}
 	}
 
 	status, err := mc.Status(ctx)
 	if err != nil {
-		return sessionWaiterResponse{nil, nil, nil, err}
+		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err, "error getting status from matcher")}
 	}
 	rep.reportMatcherStatus(status)
 

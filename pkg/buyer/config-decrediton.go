@@ -230,9 +230,37 @@ func InitConfigFromDecrediton(walletName string) error {
 		dstSection.Key("DcrdPass").SetValue(creds.RPCPassword)
 		dstSection.Key("DcrdCert").SetValue(creds.RPCCert)
 	} else {
+		// decrediton first tries to load from ~/.dcrd/dcrd.conf
+		dcrdConfFname := filepath.Join(dcrutil.AppDataDir("dcrd", false), "dcrd.conf")
+		hasDcrdConf := false
+		_, err = os.Stat(dcrdConfFname)
+		if err == nil {
+			hasDcrdConf = true
+		} else {
+			// if that doesn't exist, it tries to load from ~/.config/decrediton/dcrd.conf
+			dcrdConfFname = filepath.Join(decreditonConfigDir(), "dcrd.conf")
+			if _, err = os.Stat(dcrdConfFname); err == nil {
+				hasDcrdConf = true
+			}
+		}
+
+		if hasDcrdConf {
+			dcrdIni, err := ini.Load(dcrdConfFname)
+			if err != nil {
+				return errors.Wrapf(err, "error reading dcrd ini at %s", dcrdConfFname)
+			}
+
+			dcrdSection, err := dcrdIni.GetSection("Application Options")
+			if err != nil {
+				return errors.Wrapf(err, "error reading Application Options "+
+					"section from dcrd")
+			}
+
+			dstSection.Key("DcrdUser").SetValue(dcrdSection.Key("rpcuser").String())
+			dstSection.Key("DcrdPass").SetValue(dcrdSection.Key("rpcpass").String())
+		}
+
 		dstSection.Key("DcrdHost").SetValue("127.0.0.1:" + activeNet.JSONRPCClientPort)
-		dstSection.Key("DcrdUser").SetValue("USER")
-		dstSection.Key("DcrdPass").SetValue("PASSWORD")
 		dstSection.Key("DcrdCert").SetValue(filepath.Join(dcrdDir, "rpc.cert"))
 	}
 

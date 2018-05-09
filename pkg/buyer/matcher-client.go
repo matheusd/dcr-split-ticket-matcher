@@ -28,14 +28,14 @@ func ConnectToMatcherService(matcherHost string, certFile string, netCfg *decred
 
 	network, err := connectToDecredNode(netCfg)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "error connecting to dcrd")
 	}
 
 	opt := grpc.WithInsecure()
 	if certFile != "" {
 		creds, err := credentials.NewClientTLSFromFile(certFile, "localhost")
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "error creating credentials")
 		}
 
 		opt = grpc.WithTransportCredentials(creds)
@@ -43,7 +43,7 @@ func ConnectToMatcherService(matcherHost string, certFile string, netCfg *decred
 
 	conn, err := grpc.Dial(matcherHost, opt)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "error connecting to matcher host")
 	}
 
 	client := pb.NewSplitTicketMatcherServiceClient(conn)

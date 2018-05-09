@@ -30,7 +30,7 @@ func main() {
 				err = cfg.Validate()
 				if err != nil {
 					fmt.Printf("Config not yet ready: %s\n", err)
-					fmt.Printf("Please edit and complete the config file as needed.")
+					fmt.Printf("Please edit and complete the config file as needed.\n")
 				}
 			}
 		}

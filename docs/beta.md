@@ -54,7 +54,7 @@ If you're **really** concerned about my binaries, you should [compile and build 
 
 # Joining the Beta
 
-So, have **really** read about the risks of joining the beta and how to manage them? Here's the last warning:
+So, have you **really** read about the risks of joining the beta and how to manage them? Here's the last warning:
 
 > This software creates and signs transactions by connecting to your wallet and is of beta quality, not yet thoroughly vetted by the larger decred community. **USE AT YOUR OWN RISK**.
 
