@@ -123,9 +123,12 @@ func FindListeningWallets(certFile string, params *chaincfg.Params) ([]string, e
 		}
 
 		defer conn.Close()
-
 		wsvc := pb.NewWalletServiceClient(conn)
-		resp, err := wsvc.Network(context.Background(), &pb.NetworkRequest{})
+
+		ctx, cancel := context.WithTimeout(context.Background(),
+			100*time.Millisecond)
+		defer cancel()
+		resp, err := wsvc.Network(ctx, &pb.NetworkRequest{})
 		if err != nil {
 			continue
 		}

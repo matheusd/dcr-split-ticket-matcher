@@ -33,6 +33,6 @@ ZIPFILE="splitticketbuyer-win64-$VERSION.zip"
 
 rm -f dist/archives/$ZIPFILE
 
-cd dist/release/win64 && tar -czf ../../archives/$ZIPFILE split-ticket-buyer
+cd dist/release/win64 && zip -9 -r ../../archives/$ZIPFILE split-ticket-buyer
 
 echo "Built win64 binaries $VERSION"
