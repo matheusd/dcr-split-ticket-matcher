@@ -12,6 +12,7 @@ import mimetypes
 import os
 import requests
 import glob
+import subprocess
 from git import Repo
 
 class UploadGH(object):
@@ -84,7 +85,7 @@ class UploadGH(object):
 # fixme: to be changed to a decred repo
 BUILD_REPO_OWNER = "matheusd"
 BUILD_REPO_REPO = "dcr-split-ticket-matcher"
-
+RELEASE_KEY = "releases@matheusd.com"
 RELEASE_INFO = """# Split Ticket Service & Client
 
 This is a **beta** release of the split ticket buyer service and client. Please
@@ -123,6 +124,25 @@ def main():
 
     version = getVersion()
     tagName = "v" + version
+
+    archDir = os.getcwd() + "/dist/archives/%s" % tagName
+    manifestFile = "%s/manifest-splittickets-%s.txt" % (archDir, tagName)
+    manifestSignFile = manifestFile + ".asc"
+    if os.path.isfile(manifestFile):
+        os.unlink(manifestFile)
+    if os.path.isfile(manifestSignFile):
+        os.unlink(manifestSignFile)
+
+    res = subprocess.run("sha256sum *", shell=True, stdout=subprocess.PIPE,
+        cwd=archDir, check=True, encoding="utf-8")
+    manifest = res.stdout
+    with open(manifestFile, "w") as f:
+        f.write(manifest)
+
+    res = subprocess.run("qubes-gpg-client-wrapper -a -u %s --sign %s" % (RELEASE_KEY, manifestFile),
+        cwd=archDir, shell=True, check=True, stdout=subprocess.PIPE, encoding="utf-8")
+    with open(manifestSignFile, "w") as f:
+        f.write(res.stdout)
 
     hasRelease = False
     release = None
