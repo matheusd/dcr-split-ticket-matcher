@@ -294,8 +294,7 @@ func buildUI() gtk.IWidget {
 		buffer := textview.GetBuffer()
 		endMark := buffer.GetMark("end")
 		buffer.GetEndIter(&end)
-		buffer.Insert(&end, msg)
-		buffer.Insert(&end, "\n")
+		buffer.Insert(&end, msg+"\n")
 		textview.ScrollToMark(endMark, 0, true, 0, 1)
 		for gtk.EventsPending() {
 			gtk.MainIterationDo(false)
