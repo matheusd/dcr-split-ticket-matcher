@@ -1,6 +1,8 @@
 package splitticket
 
 import (
+	"encoding/hex"
+
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/rpcclient"
 	"github.com/decred/dcrd/txscript"
@@ -66,24 +68,27 @@ func UtxoMapOutpointsFromNetwork(client *rpcclient.Client, outpoints []*wire.Out
 
 	for _, outp := range outpoints {
 
-		txRes, err := client.GetRawTransaction(&outp.Hash)
+		txOut, err := client.GetTxOut(&outp.Hash, outp.Index, false)
 		if err != nil {
-			return nil, errors.Wrapf(err, "error obtaining tx %s", outp.Hash)
+			return nil, errors.Wrapf(err, "error obtaining utxo %s", outp)
 		}
 
-		tx := txRes.MsgTx()
-
-		if outp.Index >= uint32(len(tx.TxOut)) {
-			return nil, errors.Errorf("tx does not have output of index %d",
-				outp.Index)
+		pkScript, err := hex.DecodeString(txOut.ScriptPubKey.Hex)
+		if err != nil {
+			return nil, errors.Wrapf(err, "error decoding pkscript of "+
+				"outpoint %s", outp)
 		}
 
-		outRes := tx.TxOut[outp.Index]
+		amount, err := dcrutil.NewAmount(txOut.Value)
+		if err != nil {
+			return nil, errors.Wrapf(err, "error decoding utxo amount of %s",
+				outp)
+		}
 
 		res[*outp] = UtxoEntry{
-			PkScript: outRes.PkScript,
-			Value:    dcrutil.Amount(outRes.Value),
-			Version:  outRes.Version,
+			PkScript: pkScript,
+			Value:    amount,
+			Version:  uint16(txOut.Version),
 		}
 	}
 
