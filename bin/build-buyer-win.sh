@@ -27,8 +27,9 @@ env GOOS=windows GOARCH=amd64 \
 if [[ $? != 0 ]] ; then exit 1 ; fi
 
 cp docs/release-readme.md dist/release/win64/split-ticket-buyer/README.md
+cp samples/win64-dlls/* dist/release/win64/split-ticket-buyer/
 
-ZIPFILE="splitticketbuyer-win64-$VERSION.tar.gz"
+ZIPFILE="splitticketbuyer-win64-$VERSION.zip"
 
 rm -f dist/archives/$ZIPFILE
 
