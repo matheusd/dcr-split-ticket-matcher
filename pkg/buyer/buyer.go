@@ -239,6 +239,26 @@ func waitForSession(ctx context.Context, cfg *BuyerConfig) sessionWaiterResponse
 	}
 	rep.reportStage(ctx, StageMatchesFound, session, cfg)
 
+	chainInfo, err := wc.currentChainInfo(ctx)
+	if err != nil {
+		return sessionWaiterResponse{nil, nil, nil, err}
+	}
+	if !chainInfo.bestBlockHash.IsEqual(session.mainchainHash) {
+		return sessionWaiterResponse{nil, nil, nil, errors.Errorf("mainchain tip "+
+			"of wallet (%s) not the same as matcher (%s)",
+			chainInfo.bestBlockHash, session.mainchainHash)}
+	}
+	if chainInfo.bestBlockHeight != session.mainchainHeight {
+		return sessionWaiterResponse{nil, nil, nil, errors.Errorf("mainchain height "+
+			"of wallet (%d) not the same as matcher (%d)",
+			chainInfo.bestBlockHeight, session.mainchainHeight)}
+	}
+	if chainInfo.ticketPrice != session.TicketPrice {
+		return sessionWaiterResponse{nil, nil, nil, errors.Errorf("ticket price"+
+			"of wallet (%s) not the same as matcher (%s)",
+			chainInfo.ticketPrice, session.TicketPrice)}
+	}
+
 	return sessionWaiterResponse{mc, wc, session, nil}
 }
 

@@ -78,9 +78,6 @@ func (mc *MatcherClient) Participate(ctx context.Context, maxAmount dcrutil.Amou
 		return nil, err
 	}
 
-	// TODO: check if mainchainHash really is the mainchain tip at this moment
-	// TODO: check if the ticket price really is the current ticket price according to the latest block
-
 	sess := &BuyerSession{
 		ID:              matcher.ParticipantID(resp.SessionId),
 		Amount:          dcrutil.Amount(resp.Amount),

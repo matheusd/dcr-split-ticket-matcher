@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
@@ -26,6 +27,12 @@ func random(min, max int) int {
 type WalletClient struct {
 	conn *grpc.ClientConn
 	wsvc pb.WalletServiceClient
+}
+
+type currentChainInfo struct {
+	bestBlockHash   *chainhash.Hash
+	bestBlockHeight uint32
+	ticketPrice     dcrutil.Amount
 }
 
 func ConnectToWallet(walletHost string, walletCert string) (*WalletClient, error) {
@@ -502,4 +509,28 @@ func (wc *WalletClient) TestPassphrase(ctx context.Context, cfg *BuyerConfig) er
 	}
 
 	return nil
+}
+
+func (wc *WalletClient) currentChainInfo(ctx context.Context) (*currentChainInfo, error) {
+	resp, err := wc.wsvc.BestBlock(ctx, &pb.BestBlockRequest{})
+	if err != nil {
+		return nil, errors.Wrapf(err, "error getting best block from wallet")
+	}
+
+	respTicket, err := wc.wsvc.TicketPrice(ctx, &pb.TicketPriceRequest{})
+	if err != nil {
+		return nil, errors.Wrapf(err, "error getting current ticket price "+
+			"from wallet")
+	}
+
+	hash, err := chainhash.NewHash(resp.Hash)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error creating hash from wallet")
+	}
+
+	return &currentChainInfo{
+		bestBlockHash:   hash,
+		bestBlockHeight: resp.Height,
+		ticketPrice:     dcrutil.Amount(respTicket.TicketPrice),
+	}, nil
 }

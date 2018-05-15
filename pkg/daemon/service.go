@@ -135,7 +135,7 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 	}
 
 	if len(req.SecretnbHash) < splitticket.SecretNbHashSize {
-		return nil, errors.Errorf("secret hash sent does not have the "+
+		return nil, errors.Errorf("secret hash sent does not have the " +
 			"correct size")
 	}
 	var secretNbHash splitticket.SecretNumberHash
