@@ -12,6 +12,10 @@ See it in action:
 
 [Published Testnet tx](https://testnet.dcrdata.org/tx/134c53c84bdf914e21b9fb04dadcbf178e4de4e2b7d225f9c2e91ec5c60787d7)
 
+[Testnet ticket w/ revocation](https://testnet.dcrdata.org/tx/09507fcf111526bb8d7b7a9d9dba5236036b7961644d66087f38ae9f38638cda)
+
+[Mainnet ticket](https://explorer.dcrdata.org/tx/957728a7b3b9ea02338552470535ca67a6bc4379b169959589b8a69060e764a8)
+
 ## Documentation
 
 [Join the Fist Phase of Beta](/docs/beta.md).
