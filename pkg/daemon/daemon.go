@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/decred/dcrd/chaincfg"
@@ -123,6 +124,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		LogBackend:                logBackend,
 		StakeDiffChangeStopWindow: cfg.StakeDiffChangeStopWindow,
 		PublishTransactions:       cfg.PublishTransactions,
+		SessionDataDir:            filepath.Join(cfg.DataDir, "sessions"),
 	}
 	d.matcher = matcher.NewMatcher(mcfg)
 

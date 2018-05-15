@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"math/big"
@@ -132,6 +133,10 @@ func (h SecretNumberHash) Equals(other SecretNumberHash) bool {
 	return bytes.Compare(h[:], other[:]) == 0
 }
 
+func (h SecretNumberHash) String() string {
+	return hex.EncodeToString(h[:])
+}
+
 type SecretNumber uint64
 
 func (nb SecretNumber) Hash(mainchainHash *chainhash.Hash) SecretNumberHash {
@@ -162,6 +167,10 @@ func (h SecretNumbersHash) SelectedCoin(max uint64) uint64 {
 	m := big.NewInt(int64(max))
 	res.Mod(n, m)
 	return res.Uint64()
+}
+
+func (h SecretNumbersHash) String() string {
+	return hex.EncodeToString(h[:])
 }
 
 type SecretNumbers []SecretNumber

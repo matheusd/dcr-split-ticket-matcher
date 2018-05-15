@@ -305,11 +305,19 @@ func saveSession(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) e
 
 	fname := filepath.Join(sessionDir, ticketHashHex)
 
-	f, err := os.Create(fname)
+	fflags := os.O_TRUNC | os.O_CREATE | os.O_WRONLY
+	f, err := os.OpenFile(fname, fflags, 0600)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	w := bufio.NewWriter(f)
+	hexWriter := hex.NewEncoder(w)
+
+	defer func() {
+		w.Flush()
+		f.Sync()
+		f.Close()
+	}()
 
 	splitHash := session.fundedSplitTx.TxHash()
 	splitBytes, err := session.fundedSplitTx.Bytes()
@@ -323,31 +331,88 @@ func saveSession(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) e
 		return err
 	}
 
-	w := bufio.NewWriter(f)
-	hexWriter := hex.NewEncoder(w)
-	w.WriteString("Split ticket session ")
-	w.WriteString(time.Now().String())
-	w.WriteString(fmt.Sprintf("Amount = %s\n", session.Amount))
-	w.WriteString(fmt.Sprintf("Session ID = %s\n", session.ID))
-	w.WriteString("\n")
+	out := func(format string, args ...interface{}) {
+		w.WriteString(fmt.Sprintf(format, args...))
+	}
 
-	w.WriteString("Split Transaction hash: ")
-	w.WriteString(splitHash.String())
-	w.WriteString("\nSplit Transaction:\n")
+	out("====== General Info ======\n")
+
+	out("Session ID = %s\n", session.ID)
+	out("Ending Time = %s\n", time.Now().String())
+	out("Mainchain Hash = %s\n", session.mainchainHash.String())
+	out("Mainchain Height = %d\n", session.mainchainHeight)
+	out("Ticket Price = %s\n", session.TicketPrice)
+	out("Number of Participants = %d\n", session.nbParticipants)
+	out("My Index = %d\n", session.myIndex)
+	out("My Secret Number = %d\n", session.secretNb)
+	out("My Secret Hash = %s\n", session.secretNbHash)
+	out("Commitment Amount = %s\n", session.Amount)
+	out("Ticket Fee = %s (total = %s)\n", session.Fee, session.Fee*dcrutil.Amount(session.nbParticipants))
+	out("Pool Fee = %s (total = %s)\n", session.PoolFee, session.PoolFee*dcrutil.Amount(session.nbParticipants))
+	out("Split Transaction hash = %s\n", splitHash.String())
+	out("Final Ticket Hash = %s\n", ticketHashHex)
+	out("Final Revocation Hash = %s\n", revocationHash.String())
+
+	out("\n")
+	out("====== Voter Selection ======\n")
+
+	commitHash := hex.EncodeToString(splitticket.SecretNumberHashesHash(
+		session.secretHashes(), session.mainchainHash))
+
+	out("Participant Amounts = %v\n", session.amounts())
+	out("Secret Hashes = %v\n", session.secretHashes())
+	out("Voter Lottery Commitment Hash = %s\n", commitHash)
+	out("Secret Numbers = %v\n", session.secretNumbers())
+	out("Selected Coin = %s\n", dcrutil.Amount(session.selectedCoin()))
+	out("Selected Voter Index = %d\n", session.voterIndex)
+
+	out("\n")
+	out("====== Final Transactions ======\n")
+
+	out("== Split Transaction ==\n")
 	hexWriter.Write(splitBytes)
-	w.WriteString("\n\n")
+	out("\n\n")
 
-	w.WriteString("Ticket hash: ")
-	w.WriteString(ticketHashHex)
-	w.WriteString("\nTicket:\n")
+	out("== Ticket ==\n")
 	hexWriter.Write(ticketBytes)
-	w.WriteString("\n\n")
+	out("\n\n")
 
-	w.WriteString("Revocation hash: ")
-	w.WriteString(revocationHash.String())
-	w.WriteString("\nRevocation:\n")
+	out("== Revocation ==\n")
 	hexWriter.Write(revocationBytes)
-	w.WriteString("\n\n")
+	out("\n\n")
+
+	out("\n")
+	out("====== My Split Inputs ======\n")
+	for i, in := range session.splitInputs {
+		out("Outpoint %d = %s\n", i, in.PreviousOutPoint)
+	}
+
+	out("\n")
+	out("====== Participant Intermediate Information ======\n")
+	for i, p := range session.participants {
+		voteScript := hex.EncodeToString(p.votePkScript)
+		poolScript := hex.EncodeToString(p.poolPkScript)
+
+		partTicket, err := p.ticket.Bytes()
+		if err != nil {
+			return errors.Wrapf(err, "error encoding participant %d ticket", i)
+		}
+
+		partRevocation, err := p.revocation.Bytes()
+		if err != nil {
+			return errors.Wrapf(err, "error encoding participant %d revocation", i)
+		}
+
+		out("\n")
+		out("== Participant %d ==\n", i)
+		out("Amount = %s\n", p.amount)
+		out("Secret Hash = %s\n", p.secretHash)
+		out("Secret Number = %d\n", p.secretNb)
+		out("Vote PkScript = %s\n", voteScript)
+		out("Pool PkScript = %s\n", poolScript)
+		out("Ticket = %s\n", hex.EncodeToString(partTicket))
+		out("Revocation = %s\n", hex.EncodeToString(partRevocation))
+	}
 
 	w.Flush()
 	f.Sync()

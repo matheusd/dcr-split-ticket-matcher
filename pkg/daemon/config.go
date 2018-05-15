@@ -27,6 +27,7 @@ type Config struct {
 	LogDir       string
 	KeyFile      string
 	CertFile     string
+	DataDir      string `long:"datadir" description:"Dir where session and other data will be saved"`
 
 	TestNet  bool   `long:"testnet" description:"Whether this is connecting to a testnet wallet/matcher service"`
 	DcrdHost string `long:"dcrdhost" description:"Address of the dcrd daemon"`
@@ -77,6 +78,7 @@ func LoadConfig() (*Config, error) {
 		LogLevel:     logging.INFO,
 		LogLevelName: logging.INFO.String(),
 		LogDir:       filepath.Join(defaultDataDir, "logs"),
+		DataDir:      defaultDataDir,
 
 		KeyFile:  filepath.Join(defaultDataDir, "rpc.key"),
 		CertFile: filepath.Join(defaultDataDir, "rpc.cert"),

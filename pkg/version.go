@@ -8,6 +8,6 @@ const (
 
 	MajorVersion = 0
 	MinorVersion = 4
-	PatchVersion = 6
-	Version      = "0.4.6"
+	PatchVersion = 7
+	Version      = "0.4.7"
 )

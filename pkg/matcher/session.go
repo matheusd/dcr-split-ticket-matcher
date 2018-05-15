@@ -1,7 +1,11 @@
 package matcher
 
 import (
+	"bufio"
+	"encoding/hex"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/decred/dcrd/chaincfg"
@@ -157,6 +161,7 @@ type Session struct {
 	MainchainHeight uint32
 	VoterIndex      int
 	PoolFee         dcrutil.Amount
+	TicketFee       dcrutil.Amount
 	ChainParams     *chaincfg.Params
 	SplitTxPoolOut  *wire.TxOut
 	TicketPoolIn    *wire.TxIn
@@ -362,10 +367,9 @@ func (sess *Session) SecretNumbers() splitticket.SecretNumbers {
 	return res
 }
 
-// FindVoterIndex finds the index of the voter, given the current setup of
-// the session.
-func (sess *Session) FindVoterIndex() int {
-	var totalCommitment, sum uint64
+// SelectedCoin returns the selected coin to vote
+func (sess *Session) SelectedCoin() dcrutil.Amount {
+	var totalCommitment uint64
 	for _, p := range sess.Participants {
 		totalCommitment += uint64(p.CommitAmount)
 	}
@@ -373,6 +377,14 @@ func (sess *Session) FindVoterIndex() int {
 	nbs := sess.SecretNumbers()
 	nbsHash := nbs.Hash(&sess.MainchainHash)
 	coinIdx := nbsHash.SelectedCoin(totalCommitment)
+	return dcrutil.Amount(coinIdx)
+}
+
+// FindVoterIndex finds the index of the voter, given the current setup of
+// the session.
+func (sess *Session) FindVoterIndex() int {
+	var sum uint64
+	coinIdx := uint64(sess.SelectedCoin())
 	for i, p := range sess.Participants {
 		sum += uint64(p.CommitAmount)
 		if coinIdx < sum {
@@ -420,4 +432,163 @@ func (sess *Session) ParticipantAmounts() []dcrutil.Amount {
 		res[i] = p.CommitAmount
 	}
 	return res
+}
+
+// SaveSession saves the session data as a text file in the given directory.
+// The name of the file will be the ticket hash.
+func (sess *Session) SaveSession(sessionDir string) error {
+
+	_, err := os.Stat(sessionDir)
+
+	if os.IsNotExist(err) {
+		err := os.MkdirAll(sessionDir, 0700)
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+
+	ticket, split, revocation, err := sess.CreateVoterTransactions()
+	if err != nil {
+		return errors.Wrapf(err, "error creating voter txs")
+	}
+
+	ticketTempl, _, err := sess.CreateTransactions()
+	if err != nil {
+		return errors.Wrapf(err, "error creating template txs")
+	}
+
+	ticketHashHex := ticket.TxHash().String()
+	ticketBytes, err := ticket.Bytes()
+	if err != nil {
+		return err
+	}
+
+	fname := filepath.Join(sessionDir, ticketHashHex)
+
+	fflags := os.O_TRUNC | os.O_CREATE | os.O_WRONLY
+	f, err := os.OpenFile(fname, fflags, 0600)
+	if err != nil {
+		return errors.Wrapf(err, "error opening file '%s'")
+	}
+	w := bufio.NewWriter(f)
+	hexWriter := hex.NewEncoder(w)
+
+	defer func() {
+		w.Flush()
+		f.Sync()
+		f.Close()
+	}()
+
+	splitHash := split.TxHash()
+	splitBytes, err := split.Bytes()
+	if err != nil {
+		return err
+	}
+
+	revocationHash := revocation.TxHash()
+	revocationBytes, err := revocation.Bytes()
+	if err != nil {
+		return err
+	}
+
+	utxos, err := sess.SplitUtxoMap()
+	if err != nil {
+		return errors.Wrapf(err, "error getting split utxo map")
+	}
+
+	out := func(format string, args ...interface{}) {
+		w.WriteString(fmt.Sprintf(format, args...))
+	}
+
+	out("====== General Info ======\n")
+
+	out("Session ID = %s\n", sess.ID)
+	out("Stt Time = %s\n", sess.StartTime.String())
+	out("End Time = %s\n", time.Now().String())
+	out("Mainchain Hash = %s\n", sess.MainchainHash.String())
+	out("Mainchain Height = %d\n", sess.MainchainHeight)
+	out("Ticket Price = %s\n", sess.TicketPrice)
+	out("Number of Participants = %d\n", len(sess.Participants))
+	out("Ticket Fee = %s\n", sess.TicketFee)
+	out("Pool Fee = %s\n", sess.PoolFee)
+	out("Split Transaction hash = %s\n", splitHash.String())
+	out("Final Ticket Hash = %s\n", ticketHashHex)
+	out("Final Revocation Hash = %s\n", revocationHash.String())
+
+	out("\n")
+	out("====== Voter Selection ======\n")
+
+	commitHash := hex.EncodeToString(splitticket.SecretNumberHashesHash(
+		sess.SecretNumberHashes(), &sess.MainchainHash))
+
+	out("Participant Amounts = %v\n", sess.ParticipantAmounts())
+	out("Secret Hashes = %v\n", sess.SecretNumberHashes())
+	out("Voter Lottery Commitment Hash = %s\n", commitHash)
+	out("Secret Numbers = %v\n", sess.SecretNumbers())
+	out("Selected Coin = %s\n", sess.SelectedCoin())
+	out("Selected Voter Index = %d\n", sess.VoterIndex)
+
+	out("\n")
+	out("====== Final Transactions ======\n")
+
+	out("== Split Transaction ==\n")
+	hexWriter.Write(splitBytes)
+	out("\n\n")
+
+	out("== Ticket ==\n")
+	hexWriter.Write(ticketBytes)
+	out("\n\n")
+
+	out("== Revocation ==\n")
+	hexWriter.Write(revocationBytes)
+	out("\n\n")
+
+	out("\n")
+	out("====== Split Inputs ======\n")
+
+	for outp, entry := range utxos {
+		out("Input %s = %s\n", outp, entry.Value)
+	}
+
+	out("\n")
+	out("====== Participant Intermediate Information ======\n")
+	for i, p := range sess.Participants {
+		p.replaceTicketIOs(ticketTempl)
+		ticketHash := ticketTempl.TxHash()
+		revocationTempl, err := CreateUnsignedRevocation(&ticketHash, ticketTempl,
+			dcrutil.Amount(RevocationFeeRate))
+		if err != nil {
+			return errors.Wrapf(err, "error creating unsigned revocation")
+		}
+
+		p.replaceRevocationInput(ticketTempl, revocationTempl)
+
+		voteScript := hex.EncodeToString(p.votePkScript)
+		poolScript := hex.EncodeToString(p.poolPkScript)
+
+		partTicket, err := ticketTempl.Bytes()
+		if err != nil {
+			return errors.Wrapf(err, "error encoding participant %d ticket", i)
+		}
+
+		partRevocation, err := revocationTempl.Bytes()
+		if err != nil {
+			return errors.Wrapf(err, "error encoding participant %d revocation", i)
+		}
+
+		out("\n")
+		out("== Participant %d ==\n", i)
+		out("Amount = %s\n", p.CommitAmount)
+		out("Change = %s\n", dcrutil.Amount(p.splitTxChange.Value))
+		out("Secret Hash = %s\n", p.SecretHash)
+		out("Secret Number = %d\n", p.SecretNb)
+		out("Vote PkScript = %s\n", voteScript)
+		out("Pool PkScript = %s\n", poolScript)
+		out("Ticket = %s\n", hex.EncodeToString(partTicket))
+		out("Revocation = %s\n", hex.EncodeToString(partRevocation))
+	}
+
+	return nil
 }

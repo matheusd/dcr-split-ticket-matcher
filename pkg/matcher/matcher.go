@@ -50,6 +50,7 @@ type Config struct {
 	MaxSessionDuration        time.Duration
 	StakeDiffChangeStopWindow int32
 	PublishTransactions       bool
+	SessionDataDir            string
 }
 
 type cancelSessionChanReq struct {
@@ -256,6 +257,7 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 		MainchainHash:   matcher.cfg.NetworkProvider.CurrentBlockHash(),
 		MainchainHeight: curHeight,
 		PoolFee:         poolFee,
+		TicketFee:       ticketTxFee,
 		ChainParams:     matcher.cfg.ChainParams,
 		TicketPoolIn:    wire.NewTxIn(&wire.OutPoint{Index: 1}, nil),       // FIXME: this should probably be removed from here and moved into the session
 		SplitTxPoolOut:  wire.NewTxOut(int64(poolFee), splitPoolOutScript), // ditto above
@@ -636,6 +638,13 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 				secrets: secrets,
 				err:     err,
 			})
+		}
+
+		if matcher.cfg.SessionDataDir != "" {
+			err = sess.SaveSession(matcher.cfg.SessionDataDir)
+			if err != nil {
+				matcher.log.Errorf("Error saving session %s: %v", sess.ID, err)
+			}
 		}
 
 		matcher.log.Noticef("Session %s successfully finished", sess.ID)
