@@ -487,3 +487,19 @@ func (wc *WalletClient) SignTransactions(ctx context.Context, session *BuyerSess
 	return nil
 
 }
+
+// TestPassphrase tests whether the configured password is correct by attempting
+// to sign a message to the voting address with the given password
+func (wc *WalletClient) TestPassphrase(ctx context.Context, cfg *BuyerConfig) error {
+	req := &pb.SignMessageRequest{
+		Address:    cfg.VoteAddress,
+		Message:    "Pretty please, sign this :P",
+		Passphrase: cfg.Passphrase,
+	}
+	_, err := wc.wsvc.SignMessage(ctx, req)
+	if err != nil {
+		return errors.Wrapf(err, "error signing message")
+	}
+
+	return nil
+}
