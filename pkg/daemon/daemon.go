@@ -1,20 +1,22 @@
 package daemon
 
 import (
+	"crypto/elliptic"
 	"crypto/tls"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/decred/dcrd/certgen"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/util"
 	"github.com/op/go-logging"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -47,7 +49,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		log: logging.MustGetLogger("dcr-split-ticket-matcher"),
 	}
 
-	logBackend := util.StandardLogBackend(true, cfg.LogDir, "dcrstmd-{date}-{time}.log", cfg.LogLevel)
+	logBackend := standardLogBackend(true, cfg.LogDir, "dcrstmd-{date}-{time}.log", cfg.LogLevel)
 	d.log.SetBackend(logBackend)
 
 	d.log.Noticef("Starting dcrstmd version %s", pkg.Version)
@@ -81,7 +83,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 
 	if cfg.KeyFile != "" {
 		if _, err = os.Stat(cfg.KeyFile); os.IsNotExist(err) {
-			err = util.GenerateRPCKeyPair(cfg.KeyFile, cfg.CertFile)
+			err = generateRPCKeyPair(cfg.KeyFile, cfg.CertFile)
 			if err != nil {
 				panic(err)
 			}
@@ -158,6 +160,50 @@ func (daemon *Daemon) ListenAndServe() error {
 
 	daemon.log.Noticef("Listening on %s", intf)
 	server.Serve(lis)
+
+	return nil
+}
+
+func generateRPCKeyPair(keyFile, certFile string) error {
+
+	curve := elliptic.P521()
+
+	// Create directories for cert and key files if they do not yet exist.
+	certDir, _ := filepath.Split(certFile)
+	keyDir, _ := filepath.Split(keyFile)
+	err := os.MkdirAll(certDir, 0700)
+	if err != nil {
+		return err
+	}
+	err = os.MkdirAll(keyDir, 0700)
+	if err != nil {
+		return err
+	}
+
+	// Generate cert pair.
+	org := "Split Ticket Buyer Org"
+	validUntil := time.Now().Add(time.Hour * 24 * 365 * 10)
+	cert, key, err := certgen.NewTLSCertPair(curve, org,
+		validUntil, nil)
+	if err != nil {
+		return err
+	}
+	_, err = tls.X509KeyPair(cert, key)
+	if err != nil {
+		return err
+	}
+
+	// Write cert and (potentially) the key files.
+	err = ioutil.WriteFile(certFile, cert, 0600)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(keyFile, key, 0600)
+	if err != nil {
+		os.Remove(certFile)
+		return err
+	}
 
 	return nil
 }

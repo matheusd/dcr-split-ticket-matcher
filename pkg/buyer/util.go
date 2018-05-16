@@ -8,9 +8,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/txscript"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
@@ -202,33 +200,6 @@ func reporterFromContext(ctx context.Context) Reporter {
 	}
 
 	return NullReporter{}
-}
-
-func dummyScriptSigner(net *chaincfg.Params) (pkScript []byte, scriptSig []byte) {
-	var err error
-
-	script := []byte{txscript.OP_NOP}
-
-	scriptAddr, err := dcrutil.NewAddressScriptHash(script, net)
-	if err != nil {
-		panic(err)
-	}
-
-	pkScript, err = txscript.PayToAddrScript(scriptAddr)
-	if err != nil {
-		panic(err)
-	}
-
-	b := txscript.NewScriptBuilder()
-	b.AddOp(txscript.OP_TRUE)
-	b.AddData(script)
-
-	scriptSig, err = b.Script()
-	if err != nil {
-		panic(err)
-	}
-
-	return
 }
 
 func uint64sToAmounts(in []uint64) []dcrutil.Amount {

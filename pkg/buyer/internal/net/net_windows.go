@@ -1,6 +1,6 @@
 // +build windows
 
-package util
+package net
 
 var (
 	listeningTCPPortsRegext = `^\s+TCP\s+[\d.]+:(\d+)\s.+\sLISTENING.*$`
