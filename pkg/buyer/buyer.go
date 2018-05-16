@@ -209,7 +209,12 @@ func waitForSession(ctx context.Context, cfg *BuyerConfig) sessionWaiterResponse
 		return sessionWaiterResponse{nil, nil, nil, err}
 	}
 
-	err = wc.TestPassphrase(ctx, cfg)
+	err = wc.testPassphrase(ctx, cfg)
+	if err != nil {
+		return sessionWaiterResponse{nil, nil, nil, err}
+	}
+
+	err = wc.testFunds(ctx, cfg)
 	if err != nil {
 		return sessionWaiterResponse{nil, nil, nil, err}
 	}

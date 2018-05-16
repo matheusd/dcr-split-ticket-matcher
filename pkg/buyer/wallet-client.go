@@ -495,9 +495,9 @@ func (wc *WalletClient) SignTransactions(ctx context.Context, session *BuyerSess
 
 }
 
-// TestPassphrase tests whether the configured password is correct by attempting
+// testPassphrase tests whether the configured password is correct by attempting
 // to sign a message to the voting address with the given password
-func (wc *WalletClient) TestPassphrase(ctx context.Context, cfg *BuyerConfig) error {
+func (wc *WalletClient) testPassphrase(ctx context.Context, cfg *BuyerConfig) error {
 	req := &pb.SignMessageRequest{
 		Address:    cfg.VoteAddress,
 		Message:    "Pretty please, sign this :P",
@@ -506,6 +506,37 @@ func (wc *WalletClient) TestPassphrase(ctx context.Context, cfg *BuyerConfig) er
 	_, err := wc.wsvc.SignMessage(ctx, req)
 	if err != nil {
 		return errors.Wrapf(err, "error signing message")
+	}
+
+	return nil
+}
+
+// testFunds tests whether the wallet has sufficient funds to contribute the
+// specified maxAmount into a split ticket session.
+func (wc *WalletClient) testFunds(ctx context.Context, cfg *BuyerConfig) error {
+
+	amount, err := dcrutil.NewAmount(cfg.MaxAmount)
+	if err != nil {
+		return errors.Wrapf(err, "error decoding maxAmount")
+	}
+	output := &pb.ConstructTransactionRequest_Output{
+		Amount: int64(amount),
+		Destination: &pb.ConstructTransactionRequest_OutputDestination{
+			Address: cfg.VoteAddress,
+		},
+	}
+	outputs := []*pb.ConstructTransactionRequest_Output{output}
+
+	req := &pb.ConstructTransactionRequest{
+		FeePerKb:              0,
+		RequiredConfirmations: 1,
+		SourceAccount:         cfg.SourceAccount,
+		NonChangeOutputs:      outputs,
+	}
+
+	_, err = wc.wsvc.ConstructTransaction(ctx, req)
+	if err != nil {
+		return errors.Wrapf(err, "error testing funds for session")
 	}
 
 	return nil
