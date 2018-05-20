@@ -1,10 +1,10 @@
 #!/bin/sh
 
+VERSION=`grep -oP "Version\s+ = \"\K[^\"]+(?=\")" pkg/version.go`
+
 rm -fR dist/release/linux64/dcrstmd
 mkdir -p dist/release/linux64/dcrstmd
-mkdir -p dist/archives
-
-VERSION=`grep -oP "Version\s+ = \"\K[^\"]+(?=\")" pkg/version.go`
+mkdir -p dist/archives/v$VERSION
 
 echo "Building service binaries $VERSION..."
 
@@ -21,8 +21,8 @@ cp docs/release-readme.md dist/release/linux64/dcrstmd/README.md
 
 ZIPFILE="dcrstmd-linux64-$VERSION.tar.gz"
 
-rm -f dist/archives/$ZIPFILE
+rm -f dist/archives/v$VERSION/$ZIPFILE
 
-cd dist/release/linux64 && tar -czf ../../archives/$ZIPFILE dcrstmd
+cd dist/release/linux64 && tar -czf ../../archives/v$VERSION/$ZIPFILE dcrstmd
 
 echo "Built service binaries $VERSION"

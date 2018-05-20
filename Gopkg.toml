@@ -42,9 +42,8 @@
   branch = "master"
 
 [[constraint]]
-  source = "https://github.com/dnldd/dcrwallet"
   name = "github.com/decred/dcrwallet"
-  branch = "signtransactions"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/go-ini/ini"

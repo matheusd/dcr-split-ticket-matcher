@@ -74,17 +74,17 @@
   revision = "ddae30b5a3581b1ecbad50b4778d64b44e30b67a"
 
 [[projects]]
-  branch = "signtransactions"
+  branch = "master"
   name = "github.com/decred/dcrwallet"
   packages = [
+    "errors",
     "internal/helpers",
     "netparams",
     "rpc/walletrpc",
     "wallet/internal/txsizes",
     "wallet/txrules"
   ]
-  revision = "9f007ee77ae84c3e90c2fd05825dad79fb4ba410"
-  source = "https://github.com/dnldd/dcrwallet"
+  revision = "444747e14509570eb51c8ea02eb3380c117c1b48"
 
 [[projects]]
   name = "github.com/go-ini/ini"
@@ -220,6 +220,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9449dc23824c4309f899cba3ba01b6029da6e322b5f996090a24bacd9e3e74f7"
+  inputs-digest = "8e647b186b2f22eacc8e1c5f321c7cc61dc2e7a2874b0fb28bd071d3a6c5651d"
   solver-name = "gps-cdcl"
   solver-version = 1
