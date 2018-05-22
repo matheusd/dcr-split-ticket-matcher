@@ -15,8 +15,9 @@ import (
 )
 
 type decreditonGlobalConfig struct {
-	Network             string `json:"network"`
-	DaemonStartAdvanced bool   `json:"daemon_start_advanced"`
+	Network             string                       `json:"network"`
+	DaemonStartAdvanced bool                         `json:"daemon_start_advanced"`
+	RemoteCredentials   *decreditonRemoteCredentials `json:"remote_credentials"`
 }
 type decreditonRemoteCredentials struct {
 	RPCUser     string `json:"rpc_user"`
@@ -223,8 +224,14 @@ func InitConfigFromDecrediton(walletName string) error {
 	dstSection.Key("TestNet").SetValue(testnetVal)
 	dstSection.Key("WalletCertFile").SetValue(filepath.Join(walletDir, "rpc.cert"))
 
-	if globalCfg.DaemonStartAdvanced {
-		creds := walletCfg.RemoteCredentials
+	var creds *decreditonRemoteCredentials
+	if globalCfg.RemoteCredentials != nil {
+		creds = globalCfg.RemoteCredentials
+	} else if walletCfg.RemoteCredentials != nil {
+		creds = walletCfg.RemoteCredentials
+	}
+
+	if globalCfg.DaemonStartAdvanced && creds != nil {
 		dstSection.Key("DcrdHost").SetValue(creds.RPCHost + ":" + creds.RPCPort)
 		dstSection.Key("DcrdUser").SetValue(creds.RPCUser)
 		dstSection.Key("DcrdPass").SetValue(creds.RPCPassword)
