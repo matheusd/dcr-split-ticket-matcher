@@ -4,11 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
 
 	"github.com/pkg/errors"
 
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/buyer/internal/net"
+	intnet "github.com/matheusd/dcr-split-ticket-matcher/pkg/buyer/internal/net"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 
@@ -26,11 +27,21 @@ type MatcherClient struct {
 	network *decredNetwork
 }
 
-func ConnectToMatcherService(matcherHost string, certFile string, netCfg *decredNetworkConfig) (*MatcherClient, error) {
+func ConnectToMatcherService(ctx context.Context, matcherHost string,
+	certFile string, netCfg *decredNetworkConfig) (*MatcherClient, error) {
+
+	rep := reporterFromContext(ctx)
 
 	network, err := connectToDecredNode(netCfg)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error connecting to dcrd")
+	}
+
+	host := intnet.RemoveHostPort(matcherHost)
+	_, addrs, err := net.LookupSRV(SplitTicketSrvService, SplitTicketSrvProto, host)
+	if (err == nil) && len(addrs) > 0 {
+		host = fmt.Sprintf("%s:%d", addrs[0].Target, addrs[0].Port)
+		rep.reportSrvRecordFound(host)
 	}
 
 	var opt grpc.DialOption
@@ -42,15 +53,14 @@ func ConnectToMatcherService(matcherHost string, certFile string, netCfg *decred
 
 		opt = grpc.WithTransportCredentials(creds)
 	} else {
-		tlsHost := net.RemoveHostPort(matcherHost)
 		tlsCfg := &tls.Config{
-			ServerName: tlsHost,
+			ServerName: host,
 		}
 		creds := credentials.NewTLS(tlsCfg)
 		opt = grpc.WithTransportCredentials(creds)
 	}
 
-	conn, err := grpc.Dial(matcherHost, opt)
+	conn, err := grpc.Dial(host, opt)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error connecting to matcher host")
 	}

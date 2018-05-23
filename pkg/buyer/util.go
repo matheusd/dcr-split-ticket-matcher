@@ -53,6 +53,10 @@ func (rep *writerReporter) reportMatcherStatus(status *pb.StatusResponse) {
 	fmt.Fprintf(rep.w, "Matcher ticket price: %s\n", price)
 }
 
+func (rep *writerReporter) reportSrvRecordFound(record string) {
+	fmt.Fprintf(rep.w, "Found SRV record to use host %s\n", record)
+}
+
 func (rep *writerReporter) reportStage(ctx context.Context, stage BuyerStage, session *BuyerSession, cfg *BuyerConfig) {
 
 	out := func(format string, args ...interface{}) {
@@ -191,6 +195,9 @@ func (rep NullReporter) reportMatcherStatus(status *pb.StatusResponse) {
 }
 
 func (rep NullReporter) reportSavedSession(string) {
+}
+
+func (rep NullReporter) reportSrvRecordFound(record string) {
 }
 
 func reporterFromContext(ctx context.Context) Reporter {

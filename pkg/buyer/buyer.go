@@ -136,6 +136,7 @@ type Reporter interface {
 	reportStage(context.Context, BuyerStage, *BuyerSession, *BuyerConfig)
 	reportMatcherStatus(*pbm.StatusResponse)
 	reportSavedSession(string)
+	reportSrvRecordFound(record string)
 }
 
 type sessionWaiterResponse struct {
@@ -225,7 +226,7 @@ func waitForSession(ctx context.Context, cfg *BuyerConfig) sessionWaiterResponse
 	}
 
 	rep.reportStage(ctx, StageConnectingToMatcher, nil, cfg)
-	mc, err := ConnectToMatcherService(cfg.MatcherHost, cfg.MatcherCertFile,
+	mc, err := ConnectToMatcherService(ctx, cfg.MatcherHost, cfg.MatcherCertFile,
 		cfg.networkCfg())
 	if err != nil {
 		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err, "error connecting to matcher")}
