@@ -93,3 +93,13 @@ func FindListeningWallets(certFile string, params *chaincfg.Params) ([]string, e
 	return hosts, nil
 
 }
+
+// RemoveHostPort removes the last :.* from the host string.
+func RemoveHostPort(host string) string {
+	idx := strings.LastIndex(host, ":")
+	if idx == -1 {
+		return host
+	}
+
+	return host[:idx]
+}

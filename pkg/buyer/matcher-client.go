@@ -2,11 +2,13 @@ package buyer
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 
 	"github.com/pkg/errors"
 
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/buyer/internal/net"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 
@@ -31,13 +33,20 @@ func ConnectToMatcherService(matcherHost string, certFile string, netCfg *decred
 		return nil, errors.Wrapf(err, "error connecting to dcrd")
 	}
 
-	opt := grpc.WithInsecure()
+	var opt grpc.DialOption
 	if certFile != "" {
 		creds, err := credentials.NewClientTLSFromFile(certFile, "localhost")
 		if err != nil {
 			return nil, errors.Wrapf(err, "error creating credentials")
 		}
 
+		opt = grpc.WithTransportCredentials(creds)
+	} else {
+		tlsHost := net.RemoveHostPort(matcherHost)
+		tlsCfg := &tls.Config{
+			ServerName: tlsHost,
+		}
+		creds := credentials.NewTLS(tlsCfg)
 		opt = grpc.WithTransportCredentials(creds)
 	}
 

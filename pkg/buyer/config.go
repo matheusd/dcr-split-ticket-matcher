@@ -123,10 +123,6 @@ func (cfg *BuyerConfig) Validate() error {
 		return missing("WalletCertFile")
 	}
 
-	if cfg.MatcherCertFile == "" {
-		return missing("MatcherCertFile")
-	}
-
 	if cfg.MatcherHost == "" {
 		return missing("MatcherHost")
 	}
