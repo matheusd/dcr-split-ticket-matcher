@@ -115,11 +115,21 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	}
 	d.log.Infof("Publishing transactions: %v", cfg.PublishTransactions)
 
+	var addrValidator matcher.PoolAddressesValidationProvider
+	if cfg.ValidatePoolAddressesOnWallet {
+		addrValidator = d.wallet
+		d.log.Infof("Validating participant addresses on wallet")
+	} else {
+		addrValidator = matcher.InsecurePoolAddressesValidator{}
+		d.log.Infof("Not validating addresses")
+	}
+
 	mcfg := &matcher.Config{
 		LogLevel:                  cfg.LogLevel,
 		MinAmount:                 uint64(minAmount),
 		NetworkProvider:           d.dcrd,
 		SignPoolSplitOutProvider:  d.wallet,
+		PoolAddrsValidator:        addrValidator,
 		ChainParams:               net,
 		PoolFee:                   poolFee,
 		MaxSessionDuration:        cfg.MaxSessionDuration * time.Second,

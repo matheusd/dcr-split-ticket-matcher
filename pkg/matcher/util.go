@@ -164,3 +164,12 @@ func TargetTicketExpirationBlock(curBlockHeight, maxExpiry uint32,
 
 	return curBlockHeight + maxExpiry
 }
+
+// InsecurePoolAddressesValidator is a validator for vote/pool addresses that
+// always accepts the addresses, so it is insecure for production use.
+type InsecurePoolAddressesValidator struct{}
+
+// ValidateParticipantAddresses fulfills the PoolAddressesValidationProvider interface
+func (v InsecurePoolAddressesValidator) ValidateParticipantAddresses(voteAddr, poolAddr dcrutil.Address) error {
+	return nil
+}

@@ -113,3 +113,41 @@ func (wallet *WalletClient) SignPoolSplitOutput(split, ticket *wire.MsgTx) ([]by
 
 	return signed.TxIn[0].SignatureScript, nil
 }
+
+// ValidateParticipantAddresses checks whether the connected wallet can sign
+// transactions with the provided addresses
+func (wallet *WalletClient) ValidateParticipantAddresses(voteAddr, poolAddr dcrutil.Address) error {
+
+	voteAddrStr := voteAddr.EncodeAddress()
+
+	resp, err := wallet.client.ValidateAddress(voteAddr)
+	fmt.Printf("%+v\n", resp)
+	if err != nil {
+		return errors.Wrapf(err, "error validating vote address %s", voteAddrStr)
+	}
+
+	if !resp.IsValid {
+		return errors.Errorf("vote address is invalid: %s", voteAddrStr)
+	}
+
+	if !resp.IsMine {
+		return errors.Errorf("vote address not controlled by matcher: %s", voteAddrStr)
+	}
+
+	poolAddrStr := poolAddr.EncodeAddress()
+	resp, err = wallet.client.ValidateAddress(poolAddr)
+	if err != nil {
+		return errors.Wrapf(err, "error validating pool address %s", poolAddrStr)
+	}
+
+	if !resp.IsValid {
+		return errors.Errorf("pool address is invalid: %s", poolAddrStr)
+	}
+
+	if !resp.IsMine {
+		return errors.Errorf("pool address not controlled by matcher: %s", poolAddrStr)
+	}
+
+	return nil
+
+}

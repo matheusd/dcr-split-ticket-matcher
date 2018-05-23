@@ -40,10 +40,11 @@ type Config struct {
 	DcrwPass string `long:"dcrwpass" description:"Password of the rpc connection to dcrwallet"`
 	DcrwCert string `long:"dcrwcert" description:"Location of the rpc.cert file of dcrwallet"`
 
-	MinAmount                 float64       `long:"minamount" description:"Minimum amount to participate on a split ticket (in DCR)"`
-	MaxSessionDuration        time.Duration `long:"maxsessionduration" description:"Maximum number of seconds a session may take before being automatically closed"`
-	StakeDiffChangeStopWindow int32         `long:"stakediffchangestopwindow" description:"Stop the matching service when the the stake change is closer than this number of blocks"`
-	PublishTransactions       bool          `long:"publishtransactions" description:"Whether to actually publish transactions of successful sessions"`
+	MinAmount                     float64       `long:"minamount" description:"Minimum amount to participate on a split ticket (in DCR)"`
+	MaxSessionDuration            time.Duration `long:"maxsessionduration" description:"Maximum number of seconds a session may take before being automatically closed"`
+	StakeDiffChangeStopWindow     int32         `long:"stakediffchangestopwindow" description:"Stop the matching service when the the stake change is closer than this number of blocks"`
+	PublishTransactions           bool          `long:"publishtransactions" description:"Whether to actually publish transactions of successful sessions"`
+	ValidatePoolAddressesOnWallet bool          `long:"validatepooladdressesonwallet" description:"Whether to validate the vote/pool addresses on the wallet"`
 
 	AllowPublicSession bool `long:"allowpublicsession" description:"Whether to allow sessions with an empty name (public sessions) in the matcher."`
 }
@@ -93,10 +94,11 @@ func LoadConfig() (*Config, error) {
 		DcrwPass: "PASSWORD",
 		DcrwCert: filepath.Join(dcrutil.AppDataDir("dcrwallet", false), "rpc.cert"),
 
-		MaxSessionDuration:        30,
-		StakeDiffChangeStopWindow: 5,
-		PublishTransactions:       false,
-		AllowPublicSession:        false,
+		MaxSessionDuration:            30,
+		StakeDiffChangeStopWindow:     5,
+		PublishTransactions:           false,
+		AllowPublicSession:            false,
+		ValidatePoolAddressesOnWallet: false,
 	}
 
 	parser := flags.NewParser(cfg, flags.Default)

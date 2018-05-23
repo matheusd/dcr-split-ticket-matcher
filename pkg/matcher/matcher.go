@@ -6,6 +6,7 @@ import (
 	"math"
 	"sort"
 	"time"
+	"fmt"
 
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 
@@ -38,11 +39,19 @@ type SignPoolSplitOutputProvider interface {
 	SignPoolSplitOutput(split, ticket *wire.MsgTx) ([]byte, error)
 }
 
+// PoolAddressesValidationProvider is the interface for operations the matcher needs to
+// validate if a given set of vote/pool addresses are valid. Implementations
+// should return nil if the addresses are valid or an error otherwise.
+type PoolAddressesValidationProvider interface {
+	ValidateParticipantAddresses(voteAddr, poolAddr dcrutil.Address) error
+}
+
 // Config stores the parameters for the matcher engine
 type Config struct {
 	MinAmount                 uint64
 	NetworkProvider           NetworkProvider
 	SignPoolSplitOutProvider  SignPoolSplitOutputProvider
+	PoolAddrsValidator        PoolAddressesValidationProvider
 	LogLevel                  logging.Level
 	LogBackend                logging.LeveledBackend
 	ChainParams               *chaincfg.Params
@@ -373,6 +382,15 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 		return errors.Errorf("participation input amount (%s) less than the "+
 			"expected (%s)", (inputAmount - changeAmount).String(),
 			expectedInputAmount.String())
+	}
+
+	err = matcher.cfg.PoolAddrsValidator.ValidateParticipantAddresses(req.voteAddress,
+		req.poolAddress)
+	fmt.Println("err on validation", err)
+	if err != nil {
+		matcher.log.Errorf("Participant %s sent invalid pool address: %s",
+			part.ID, err)
+		return errors.Wrapf(err, "invalid vote or pool address")
 	}
 
 	part.VoteAddress = req.voteAddress
