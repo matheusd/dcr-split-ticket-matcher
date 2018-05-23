@@ -502,6 +502,29 @@ func (sess *Session) SaveSession(sessionDir string) error {
 		w.WriteString(fmt.Sprintf(format, args...))
 	}
 
+	splitUtxos, err := sess.SplitUtxoMap()
+	if err != nil {
+		return errors.Wrapf(err, "error getting split utxos")
+	}
+
+	actualSplitFee, err := splitticket.FindTxFee(split, splitUtxos)
+	if err != nil {
+		return errors.Wrapf(err, "error calculating actual split fee")
+	}
+	actualSplitFeeRate := float64(actualSplitFee) / float64(len(splitBytes)*1e5)
+
+	actualTicketFee, err := splitticket.FindTicketTxFee(split, ticket)
+	if err != nil {
+		return errors.Wrapf(err, "error calculating actual ticket fee")
+	}
+	actualTicketFeeRate := float64(actualTicketFee) / float64(len(ticketBytes)*1e5)
+
+	actualRevocationFee, err := splitticket.FindRevocationTxFee(ticket, revocation)
+	if err != nil {
+		return errors.Wrapf(err, "error calculating actual revocation fee")
+	}
+	actualRevocationFeeRate := float64(actualRevocationFee) / float64(len(revocationBytes)*1e5)
+
 	out("====== General Info ======\n")
 
 	out("Session ID = %s\n", sess.ID)
@@ -511,7 +534,10 @@ func (sess *Session) SaveSession(sessionDir string) error {
 	out("Mainchain Height = %d\n", sess.MainchainHeight)
 	out("Ticket Price = %s\n", sess.TicketPrice)
 	out("Number of Participants = %d\n", len(sess.Participants))
-	out("Ticket Fee = %s\n", sess.TicketFee)
+	out("Split tx Fee = %s (%.4f DCR/KB)\n", actualSplitFee, actualSplitFeeRate)
+	out("Estimated Ticket Fee = %s\n", sess.TicketFee)
+	out("Actual Ticket Fee = %s (%.4f DCR/KB)\n", actualTicketFee, actualTicketFeeRate)
+	out("Revocation Fee = %s (%.4f DCR/KB)\n", actualRevocationFee, actualRevocationFeeRate)
 	out("Pool Fee = %s\n", sess.PoolFee)
 	out("Split Transaction hash = %s\n", splitHash.String())
 	out("Final Ticket Hash = %s\n", ticketHashHex)

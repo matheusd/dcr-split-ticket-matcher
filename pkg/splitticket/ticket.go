@@ -449,7 +449,7 @@ func FindTicketTxFee(splitTx, ticket *wire.MsgTx) (dcrutil.Amount, error) {
 		outp := wire.OutPoint{
 			Hash:  splitHash,
 			Index: uint32(i),
-			Tree:  int8(stake.TxTypeRegular),
+			Tree:  wire.TxTreeRegular,
 		}
 		splitUtxos[outp] = UtxoEntry{
 			PkScript: out.PkScript,

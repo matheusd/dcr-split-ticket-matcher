@@ -197,7 +197,8 @@ func (matcher *Matcher) notifyWaitingListWatchers() {
 }
 
 func (matcher *Matcher) addParticipant(req *addParticipantRequest) error {
-	matcher.log.Infof("Adding participant for amount %s", dcrutil.Amount(req.maxAmount))
+	matcher.log.Infof("Adding participant for amount %s on queue %s",
+		dcrutil.Amount(req.maxAmount), req.sessionName)
 	q, has := matcher.queues[req.sessionName]
 	if !has {
 		q = newSplitTicketQueue(matcher.cfg.NetworkProvider)

@@ -209,6 +209,11 @@ func waitForSession(ctx context.Context, cfg *BuyerConfig) sessionWaiterResponse
 		return sessionWaiterResponse{nil, nil, nil, err}
 	}
 
+	err = wc.testVoteAddress(ctx, cfg)
+	if err != nil {
+		return sessionWaiterResponse{nil, nil, nil, err}
+	}
+
 	err = wc.testPassphrase(ctx, cfg)
 	if err != nil {
 		return sessionWaiterResponse{nil, nil, nil, err}

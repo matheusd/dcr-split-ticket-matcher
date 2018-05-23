@@ -495,17 +495,51 @@ func (wc *WalletClient) SignTransactions(ctx context.Context, session *BuyerSess
 
 }
 
+// testVoteAddress tests whether the vote address is signable by the local
+// wallet
+func (wc *WalletClient) testVoteAddress(ctx context.Context, cfg *BuyerConfig) error {
+	resp, err := wc.wsvc.ValidateAddress(context.Background(), &pb.ValidateAddressRequest{
+		Address: cfg.VoteAddress,
+	})
+	if err != nil {
+		return errors.Wrapf(err, "error determining validity of vote address")
+	}
+
+	if !resp.IsValid {
+		return errors.Errorf("vote address is not valid")
+	}
+
+	if !resp.IsMine {
+		return errors.Errorf("vote address is not from local wallet")
+	}
+
+	return nil
+}
+
 // testPassphrase tests whether the configured password is correct by attempting
-// to sign a message to the voting address with the given password
+// to sign a message. It generates an address on the internal branch of the
+// wallet.
 func (wc *WalletClient) testPassphrase(ctx context.Context, cfg *BuyerConfig) error {
+
+	resp, err := wc.wsvc.NextAddress(ctx, &pb.NextAddressRequest{
+		Account:   cfg.SourceAccount,
+		GapPolicy: pb.NextAddressRequest_GAP_POLICY_WRAP,
+		Kind:      pb.NextAddressRequest_BIP0044_INTERNAL,
+	})
+
+	if err != nil {
+		return errors.Wrapf(err, "error generating address to test passphrase")
+	}
+
 	req := &pb.SignMessageRequest{
-		Address:    cfg.VoteAddress,
+		Address:    resp.Address,
 		Message:    "Pretty please, sign this :P",
 		Passphrase: cfg.Passphrase,
 	}
-	_, err := wc.wsvc.SignMessage(ctx, req)
+
+	_, err = wc.wsvc.SignMessage(ctx, req)
 	if err != nil {
-		return errors.Wrapf(err, "error signing message")
+		return errors.Wrapf(err, "error signing message to test passphrase")
 	}
 
 	return nil

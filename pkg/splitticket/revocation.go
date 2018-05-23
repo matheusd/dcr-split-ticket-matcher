@@ -118,3 +118,25 @@ func CheckRevocation(ticket, revocation *wire.MsgTx, params *chaincfg.Params) er
 
 	return nil
 }
+
+// FindRevocationTxFee finds the revocation transaction fee, assuming the ticket
+// is correct. Only safe to be called on ticket and revocation transactions
+// that have passed their respective check functions.
+func FindRevocationTxFee(ticket, revocation *wire.MsgTx) (dcrutil.Amount, error) {
+	ticketUtxos := make(UtxoMap, len(ticket.TxOut))
+	ticketHash := ticket.TxHash()
+	for i, out := range ticket.TxOut {
+		outp := wire.OutPoint{
+			Hash:  ticketHash,
+			Index: uint32(i),
+			Tree:  wire.TxTreeStake,
+		}
+		ticketUtxos[outp] = UtxoEntry{
+			PkScript: out.PkScript,
+			Value:    dcrutil.Amount(out.Value),
+			Version:  out.Version,
+		}
+	}
+
+	return FindTxFee(revocation, ticketUtxos)
+}
