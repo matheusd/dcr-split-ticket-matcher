@@ -40,8 +40,9 @@ func ConnectToMatcherService(ctx context.Context, matcherHost string,
 	host := intnet.RemoveHostPort(matcherHost)
 	_, addrs, err := net.LookupSRV(SplitTicketSrvService, SplitTicketSrvProto, host)
 	if (err == nil) && len(addrs) > 0 {
-		host = fmt.Sprintf("%s:%d", addrs[0].Target, addrs[0].Port)
-		rep.reportSrvRecordFound(host)
+		matcherHost = fmt.Sprintf("%s:%d", addrs[0].Target, addrs[0].Port)
+		rep.reportSrvRecordFound(matcherHost)
+		host = addrs[0].Target
 	}
 
 	var opt grpc.DialOption
@@ -60,7 +61,7 @@ func ConnectToMatcherService(ctx context.Context, matcherHost string,
 		opt = grpc.WithTransportCredentials(creds)
 	}
 
-	conn, err := grpc.Dial(host, opt)
+	conn, err := grpc.Dial(matcherHost, opt)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error connecting to matcher host")
 	}

@@ -21,13 +21,14 @@ var ErrHelpRequested = fmt.Errorf("help requested")
 type Config struct {
 	ConfigFile string `short:"C" long:"configfile" description:"Path to config file"`
 
-	Port         int `long:"port" description:"Port to run the service on"`
-	LogLevel     logging.Level
-	LogLevelName string `long:"loglevel" description:"Log Level (CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG)"`
-	LogDir       string
-	KeyFile      string
-	CertFile     string
-	DataDir      string `long:"datadir" description:"Dir where session and other data will be saved"`
+	Port             int `long:"port" description:"Port to run the service on"`
+	LogLevel         logging.Level
+	LogLevelName     string `long:"loglevel" description:"Log Level (CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG)"`
+	LogDir           string
+	KeyFile          string
+	CertFile         string
+	SplitPoolSignKey string `long:"splitpoolsignkey" description:"WIF private key for signing the split -> ticket intermediate pool fee txo"`
+	DataDir          string `long:"datadir" description:"Dir where session and other data will be saved"`
 
 	TestNet  bool   `long:"testnet" description:"Whether this is connecting to a testnet wallet/matcher service"`
 	DcrdHost string `long:"dcrdhost" description:"Address of the dcrd daemon"`

@@ -13,6 +13,7 @@ import (
 	"github.com/decred/dcrd/certgen"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/pkg/errors"
 
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
@@ -124,11 +125,19 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		d.log.Infof("Not validating addresses")
 	}
 
+	poolSigner, err := newPrivateKeySplitPoolSigner(cfg.SplitPoolSignKey, net)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error decoding private key for split "+
+			"pool signing")
+	}
+	d.log.Infof("Using address %s to move pool fee funds from split to ticket",
+		poolSigner.address.EncodeAddress())
+
 	mcfg := &matcher.Config{
 		LogLevel:                  cfg.LogLevel,
 		MinAmount:                 uint64(minAmount),
 		NetworkProvider:           d.dcrd,
-		SignPoolSplitOutProvider:  d.wallet,
+		SignPoolSplitOutProvider:  poolSigner,
 		PoolAddrsValidator:        addrValidator,
 		ChainParams:               net,
 		PoolFee:                   poolFee,
@@ -161,6 +170,7 @@ func (daemon *Daemon) ListenAndServe() error {
 		creds := credentials.NewServerTLSFromCert(daemon.rpcKeys)
 		server = grpc.NewServer(grpc.Creds(creds))
 	} else {
+		daemon.log.Warning("Security Risk: Running without TLS certificate")
 		server = grpc.NewServer()
 	}
 
