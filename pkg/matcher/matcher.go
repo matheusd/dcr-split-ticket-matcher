@@ -6,7 +6,6 @@ import (
 	"math"
 	"sort"
 	"time"
-	"fmt"
 
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 
@@ -386,7 +385,6 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 
 	err = matcher.cfg.PoolAddrsValidator.ValidateParticipantAddresses(req.voteAddress,
 		req.poolAddress)
-	fmt.Println("err on validation", err)
 	if err != nil {
 		matcher.log.Errorf("Participant %s sent invalid pool address: %s",
 			part.ID, err)
