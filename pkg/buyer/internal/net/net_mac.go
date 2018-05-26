@@ -3,7 +3,7 @@
 package net
 
 var (
-	listeningTCPPortsRegext = `^tcp\s.+\s[\d.]+:(\d+)\s.+$`
+	listeningTCPPortsRegext = `^tcp4\s.+\d+\.(\d+)\s.+LISTEN.*$`
 	netstatCmd              = "netstat"
-	netstatCmdArgs          = []string{"-nlt"}
+	netstatCmdArgs          = []string{"-an"}
 )
