@@ -25,8 +25,8 @@ type Config struct {
 	LogLevel         logging.Level
 	LogLevelName     string `long:"loglevel" description:"Log Level (CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG)"`
 	LogDir           string
-	KeyFile          string
-	CertFile         string
+	KeyFile          string `long:"keyfile" description:"Location of the rpc.key file (private key for the TLS certificate)."`
+	CertFile         string `long:"certfile" description:"Location of the rpc.cert file (TLS certificate)."`
 	SplitPoolSignKey string `long:"splitpoolsignkey" description:"WIF private key for signing the split -> ticket intermediate pool fee txo"`
 	DataDir          string `long:"datadir" description:"Dir where session and other data will be saved"`
 
@@ -96,12 +96,12 @@ func LoadConfig() (*Config, error) {
 		DcrwPass: "PASSWORD",
 		DcrwCert: filepath.Join(dcrutil.AppDataDir("dcrwallet", false), "rpc.cert"),
 
-		MaxSessionDuration:            30,
-		StakeDiffChangeStopWindow:     5,
-		PublishTransactions:           false,
-		AllowPublicSession:            false,
+		MaxSessionDuration:          30,
+		StakeDiffChangeStopWindow:   5,
+		PublishTransactions:         false,
+		AllowPublicSession:          false,
 		ValidateVoteAddressOnWallet: false,
-		PoolSubsidyWalletMasterPub: "",
+		PoolSubsidyWalletMasterPub:  "",
 	}
 
 	parser := flags.NewParser(cfg, flags.Default)

@@ -2,6 +2,8 @@
 
 This doc gives some instructions for setting up the matcher service for stakepool operators. It is current as of the beta (0.4.x/0.5.x) line of releases.
 
+Most config options are self-explanatory. The ones listed below are the critical ones.
+
 ## Vote Address Validation
 
 To validate that ticket (voting) addresses are usable by the pool, the service needs to connect to a wallet that has access to the scripts and addresses of the pool.
