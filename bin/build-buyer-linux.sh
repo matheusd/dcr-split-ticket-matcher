@@ -28,8 +28,8 @@ cp docs/release-readme.md dist/release/linux64/split-ticket-buyer/README.md
 
 ZIPFILE="splitticketbuyer-linux64-$VERSION.tar.gz"
 
-rm -f dist/archives/$ZIPFILE
+rm -f dist/archives/v$VERSION/$ZIPFILE
 
-cd dist/release/linux64 && tar -czf ../../archives/$ZIPFILE split-ticket-buyer
+cd dist/release/linux64 && tar -czf ../../archives/v$VERSION/$ZIPFILE split-ticket-buyer
 
 echo "Built Binaries $VERSION"

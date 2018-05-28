@@ -157,7 +157,7 @@ def main():
         print("Release %s already exists" % tagName)
 
     upload = UploadGH(BUILD_REPO_OWNER + "/" + BUILD_REPO_REPO, os.environ["GITHUB_OATH_TOKEN"])
-    files = glob.glob("dist/archives/*-%s*" % version)
+    files = glob.glob("%s/*" % archDir)
     for file in files:
         print("Uploading %s" % file)
         upload.upload(file, tagName)
