@@ -116,13 +116,26 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	}
 	d.log.Infof("Publishing transactions: %v", cfg.PublishTransactions)
 
-	var addrValidator matcher.PoolAddressesValidationProvider
-	if cfg.ValidatePoolAddressesOnWallet {
-		addrValidator = d.wallet
-		d.log.Infof("Validating participant addresses on wallet")
+	var voteAddrValidator matcher.VoteAddressValidationProvider
+	if cfg.ValidateVoteAddressOnWallet {
+		voteAddrValidator = d.wallet
+		d.log.Infof("Validating voter addresses on wallet")
 	} else {
-		addrValidator = matcher.InsecurePoolAddressesValidator{}
-		d.log.Infof("Not validating addresses")
+		voteAddrValidator = matcher.InsecurePoolAddressesValidator{}
+		d.log.Infof("Not validating voter addresses")
+	}
+
+	var poolAddrValidator matcher.PoolAddressValidationProvider
+	if cfg.PoolSubsidyWalletMasterPub != "" {
+		poolAddrValidator, err = newMasterPubPoolAddrValidator(cfg.PoolSubsidyWalletMasterPub, net)
+		if err != nil {
+			return nil, errors.Wrapf(err, "error deriving pool subsidy "+
+				"addresses from masterpubkey")
+		}
+		d.log.Infof("Validating pool subsidy addresses with masterPubKey")
+	} else {
+		poolAddrValidator = matcher.InsecurePoolAddressesValidator{}
+		d.log.Infof("Not validating pool subsidy addresses")
 	}
 
 	poolSigner, err := newPrivateKeySplitPoolSigner(cfg.SplitPoolSignKey, net)
@@ -138,7 +151,8 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		MinAmount:                 uint64(minAmount),
 		NetworkProvider:           d.dcrd,
 		SignPoolSplitOutProvider:  poolSigner,
-		PoolAddrsValidator:        addrValidator,
+		VoteAddrValidator:         voteAddrValidator,
+		PoolAddrValidator:         poolAddrValidator,
 		ChainParams:               net,
 		PoolFee:                   poolFee,
 		MaxSessionDuration:        cfg.MaxSessionDuration * time.Second,

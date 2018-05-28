@@ -3,18 +3,18 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/aead/siphash"
+  packages = ["."]
+  revision = "e404fcfc888570cadd1610538e2dbc89f66af814"
+
+[[projects]]
+  branch = "master"
   name = "github.com/agl/ed25519"
   packages = [
     ".",
     "edwards25519"
   ]
   revision = "5312a61534124124185d41f09206b9fef1d88403"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/btcsuite/btclog"
-  packages = ["."]
-  revision = "84c8d2346e9fc8c7b947e243b9c24e6df9fd206a"
 
 [[projects]]
   branch = "master"
@@ -29,22 +29,16 @@
   revision = "4720035b7bfd2a9bb130b1c184f8bbe41b6f0d0f"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/btcsuite/websocket"
-  packages = ["."]
-  revision = "31079b6807923eb23992c421b114992b95131b55"
-
-[[projects]]
-  branch = "master"
   name = "github.com/dchest/blake256"
   packages = ["."]
   revision = "dee3fe6eb0e98dc774a94fc231f85baf7c29d360"
+  version = "v1.0.0"
 
 [[projects]]
-  branch = "master"
   name = "github.com/decred/base58"
   packages = ["."]
   revision = "56c501706f00d9e1cfacee19a27117e12da24734"
+  version = "v1.0.0"
 
 [[projects]]
   branch = "master"
@@ -67,11 +61,14 @@
     "dcrec/secp256k1/schnorr",
     "dcrjson",
     "dcrutil",
+    "gcs",
+    "gcs/blockcf",
+    "hdkeychain",
     "rpcclient",
     "txscript",
     "wire"
   ]
-  revision = "ddae30b5a3581b1ecbad50b4778d64b44e30b67a"
+  revision = "66010e4134d6e4daee29f52782b8b59e12128d31"
 
 [[projects]]
   branch = "master"
@@ -79,12 +76,22 @@
   packages = [
     "errors",
     "internal/helpers",
+    "internal/zero",
     "netparams",
     "rpc/walletrpc",
+    "snacl",
     "wallet/internal/txsizes",
-    "wallet/txrules"
+    "wallet/txrules",
+    "wallet/udb",
+    "walletdb"
   ]
-  revision = "444747e14509570eb51c8ea02eb3380c117c1b48"
+  revision = "03d9f2fbabf9db9803bd48a03185fc8cda59d0d6"
+
+[[projects]]
+  name = "github.com/decred/slog"
+  packages = ["."]
+  revision = "fbd821ef791ba2b8ae945f5d44f4e49396d230c5"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/go-ini/ini"
@@ -101,13 +108,19 @@
     "ptypes/duration",
     "ptypes/timestamp"
   ]
-  revision = "bbd03ef6da3a115852eaf24c8a1c46aeb39aa175"
+  revision = "3a3da3a4e26776cc22a79ef46d5d58477532dede"
+
+[[projects]]
+  name = "github.com/gorilla/websocket"
+  packages = ["."]
+  revision = "ea4d1f681babbce9545c9c5f3d5194a789c89f5b"
+  version = "v1.2.0"
 
 [[projects]]
   name = "github.com/jessevdk/go-flags"
   packages = ["."]
-  revision = "96dc06278ce32a0e9d957d590bb987c81ee66407"
-  version = "v1.3.0"
+  revision = "c6ca198ec95c841fdb89fc0de7496fed11ab854e"
+  version = "v1.4.0"
 
 [[projects]]
   branch = "master"
@@ -120,7 +133,7 @@
     "gtk",
     "pango"
   ]
-  revision = "5a311a1830abecc430a6a598b24094f69d907e96"
+  revision = "0c9f6816f4f58cfdf8e67bb015f838bd05ea27b1"
 
 [[projects]]
   branch = "master"
@@ -143,22 +156,29 @@
 [[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
-  packages = ["ripemd160"]
-  revision = "88942b9c40a4c9d203b82b3731787b672d6e809b"
+  packages = [
+    "nacl/secretbox",
+    "pbkdf2",
+    "poly1305",
+    "ripemd160",
+    "salsa20/salsa",
+    "scrypt"
+  ]
+  revision = "ab813273cd59e1333f7ae7bff5d027d4aadf528c"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = [
     "context",
+    "http/httpguts",
     "http2",
     "http2/hpack",
     "idna",
     "internal/timeseries",
-    "lex/httplex",
     "trace"
   ]
-  revision = "6078986fec03a1dcc236c34816c71b0e05018fda"
+  revision = "dfa909b99c79129e1100513e5cd36307665e5723"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -185,7 +205,7 @@
   branch = "master"
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
-  revision = "f8c8703595236ae70fdf8789ecb656ea0bcdcf46"
+  revision = "694d95ba50e67b2e363f3483057db5d4910c18f9"
 
 [[projects]]
   name = "google.golang.org/grpc"
@@ -194,6 +214,7 @@
     "balancer",
     "balancer/base",
     "balancer/roundrobin",
+    "channelz",
     "codes",
     "connectivity",
     "credentials",
@@ -214,12 +235,12 @@
     "tap",
     "transport"
   ]
-  revision = "8e4536a86ab602859c20df5ebfd0bd4228d08655"
-  version = "v1.10.0"
+  revision = "41344da2231b913fa3d983840a57a6b1b7b631a1"
+  version = "v1.12.0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "8e647b186b2f22eacc8e1c5f321c7cc61dc2e7a2874b0fb28bd071d3a6c5651d"
+  inputs-digest = "53631d23d45934538825b5c94773663b59f7b3c0fee66df231416dded389619f"
   solver-name = "gps-cdcl"
   solver-version = 1

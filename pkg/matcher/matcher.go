@@ -38,11 +38,19 @@ type SignPoolSplitOutputProvider interface {
 	SignPoolSplitOutput(split, ticket *wire.MsgTx) ([]byte, error)
 }
 
-// PoolAddressesValidationProvider is the interface for operations the matcher needs to
-// validate if a given set of vote/pool addresses are valid. Implementations
-// should return nil if the addresses are valid or an error otherwise.
-type PoolAddressesValidationProvider interface {
-	ValidateParticipantAddresses(voteAddr, poolAddr dcrutil.Address) error
+// VoteAddressValidationProvider is the interface for operations the matcher needs to
+// validate if a given vote address is valid. Implementations
+// should return nil if the address is valid or an error otherwise.
+type VoteAddressValidationProvider interface {
+	ValidateVoteAddress(voteAddr dcrutil.Address) error
+}
+
+// PoolAddressValidationProvider is the interface for operations the matcher
+// needs to validate if a given pool fee/pool subsidy address is valid.
+// Implementation should return nil if the address is valid or an error
+// otherwise.
+type PoolAddressValidationProvider interface {
+	ValidatePoolSubsidyAddress(poolAddr dcrutil.Address) error
 }
 
 // Config stores the parameters for the matcher engine
@@ -50,7 +58,8 @@ type Config struct {
 	MinAmount                 uint64
 	NetworkProvider           NetworkProvider
 	SignPoolSplitOutProvider  SignPoolSplitOutputProvider
-	PoolAddrsValidator        PoolAddressesValidationProvider
+	VoteAddrValidator         VoteAddressValidationProvider
+	PoolAddrValidator         PoolAddressValidationProvider
 	LogLevel                  logging.Level
 	LogBackend                logging.LeveledBackend
 	ChainParams               *chaincfg.Params
@@ -383,12 +392,18 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 			expectedInputAmount.String())
 	}
 
-	err = matcher.cfg.PoolAddrsValidator.ValidateParticipantAddresses(req.voteAddress,
-		req.poolAddress)
+	err = matcher.cfg.VoteAddrValidator.ValidateVoteAddress(req.voteAddress)
+	if err != nil {
+		matcher.log.Errorf("Participant %s sent invalid vote address: %s",
+			part.ID, err)
+		return errors.Wrapf(err, "invalid vote address")
+	}
+
+	err = matcher.cfg.PoolAddrValidator.ValidatePoolSubsidyAddress(req.poolAddress)
 	if err != nil {
 		matcher.log.Errorf("Participant %s sent invalid pool address: %s",
 			part.ID, err)
-		return errors.Wrapf(err, "invalid vote or pool address")
+		return errors.Wrapf(err, "invalid pool address")
 	}
 
 	part.VoteAddress = req.voteAddress

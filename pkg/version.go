@@ -7,7 +7,7 @@ const (
 	ProtocolVersion = 1
 
 	MajorVersion = 0
-	MinorVersion = 4
-	PatchVersion = 7
-	Version      = "0.4.7"
+	MinorVersion = 5
+	PatchVersion = 0
+	Version      = "0.5.0"
 )
