@@ -4,7 +4,12 @@ type BuyerStage int32
 type reporterCtxKey int
 
 const (
+	// ReporterCtxKey is the key to use when passing a reporter via context
 	ReporterCtxKey = reporterCtxKey(1)
+
+	// minRequredConfirmations is the minimum number of confirmations the
+	// inputs to the split ticket must have to be usable.
+	minRequredConfirmations = 2
 )
 
 const (
@@ -30,6 +35,9 @@ const (
 	StageSplitTxSigned
 	StageFundingSplitTx
 	StageSplitTxFunded
+	StageSkippedWaiting
+	StageWaitingPublishedTxs
+	StageSessionEndedSuccessfully
 )
 
 const (

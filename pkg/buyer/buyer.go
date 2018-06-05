@@ -137,6 +137,9 @@ type Reporter interface {
 	reportMatcherStatus(*pbm.StatusResponse)
 	reportSavedSession(string)
 	reportSrvRecordFound(record string)
+	reportSplitPublished()
+	reportRightTicketPublished()
+	reportWrongTicketPublished(ticket *wire.MsgTx, session *BuyerSession)
 }
 
 type sessionWaiterResponse struct {
@@ -306,6 +309,8 @@ func buySplitTicket(ctx context.Context, cfg *BuyerConfig, mc *MatcherClient, wc
 	}
 	rep.reportStage(ctx, StageTicketFunded, session, cfg)
 
+	mc.network.monitorSession(ctx, session)
+
 	rep.reportStage(ctx, StageFundingSplitTx, session, cfg)
 	err = mc.FundSplitTx(ctx, session, cfg)
 	if err != nil {
@@ -313,7 +318,72 @@ func buySplitTicket(ctx context.Context, cfg *BuyerConfig, mc *MatcherClient, wc
 	}
 	rep.reportStage(ctx, StageSplitTxFunded, session, cfg)
 
-	return saveSession(ctx, session, cfg)
+	err = saveSession(ctx, session, cfg)
+	if err != nil {
+		return errors.Wrapf(err, "error saving session")
+	}
+
+	if cfg.SkipWaitPublishedTxs {
+		rep.reportStage(ctx, StageSkippedWaiting, session, cfg)
+		rep.reportStage(ctx, StageSessionEndedSuccessfully, session, cfg)
+		return nil
+	}
+
+	err = waitForPublishedTxs(ctx, session, cfg, mc.network)
+	if err != nil {
+		return errors.Wrapf(err, "error waiting for txs to be published")
+	}
+
+	rep.reportStage(ctx, StageSessionEndedSuccessfully, session, cfg)
+	return nil
+}
+
+func waitForPublishedTxs(ctx context.Context, session *BuyerSession,
+	cfg *BuyerConfig, net *decredNetwork) error {
+
+	var notifiedSplit, notifiedTicket bool
+	rep := reporterFromContext(ctx)
+
+	expectedTicketHash := session.selectedTicket.TxHash()
+	correctTicket := false
+
+	for !notifiedSplit && !notifiedTicket {
+		select {
+		case <-ctx.Done():
+			ctxErr := ctx.Err()
+			if ctxErr != nil {
+				return errors.Wrapf(ctxErr, "context error while waiting for"+
+					"published txs")
+			} else {
+				return errors.Errorf("context done while waiting for published" +
+					"txs")
+			}
+		default:
+			if !notifiedSplit && net.publishedSplit {
+				rep.reportSplitPublished()
+				notifiedSplit = true
+			}
+
+			if !notifiedTicket && net.publishedTicket != nil {
+				publishedHash := net.publishedTicket.TxHash()
+				if expectedTicketHash.IsEqual(&publishedHash) {
+					rep.reportRightTicketPublished()
+					correctTicket = true
+				} else {
+					rep.reportWrongTicketPublished(net.publishedTicket, session)
+				}
+				notifiedTicket = true
+			}
+
+			time.Sleep(time.Millisecond * 250)
+		}
+	}
+
+	if !correctTicket {
+		return errors.Errorf("wrong ticket published to the network")
+	}
+
+	return nil
 }
 
 func saveSession(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {

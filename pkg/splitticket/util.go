@@ -73,6 +73,10 @@ func UtxoMapOutpointsFromNetwork(client *rpcclient.Client, outpoints []*wire.Out
 			return nil, errors.Wrapf(err, "error obtaining utxo %s", outp)
 		}
 
+		if txOut == nil {
+			return nil, errors.Wrapf(err, "outpoint is spent: %s", outp)
+		}
+
 		pkScript, err := hex.DecodeString(txOut.ScriptPubKey.Hex)
 		if err != nil {
 			return nil, errors.Wrapf(err, "error decoding pkscript of "+

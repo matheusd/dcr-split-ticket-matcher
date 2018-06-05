@@ -187,7 +187,7 @@ func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *Buye
 
 	req := &pb.ConstructTransactionRequest{
 		FeePerKb:              0, // whatever is the default wallet fee
-		RequiredConfirmations: 1,
+		RequiredConfirmations: minRequredConfirmations,
 		SourceAccount:         cfg.SourceAccount,
 		NonChangeOutputs:      outputs,
 		ChangeDestination:     splitChangeDest,
@@ -563,7 +563,7 @@ func (wc *WalletClient) testFunds(ctx context.Context, cfg *BuyerConfig) error {
 
 	req := &pb.ConstructTransactionRequest{
 		FeePerKb:              0,
-		RequiredConfirmations: 1,
+		RequiredConfirmations: minRequredConfirmations,
 		SourceAccount:         cfg.SourceAccount,
 		NonChangeOutputs:      outputs,
 	}
