@@ -103,3 +103,15 @@ func RemoveHostPort(host string) string {
 
 	return host[:idx]
 }
+
+// IsSubDomain returns true if dst is a subdomain of src. It also returns true
+// if src == dst. Note that this is a very simple string check, without regard
+// for full DNS validation rules.
+func IsSubDomain(root, subdomain string) bool {
+	idx := strings.LastIndex(subdomain, root)
+	if idx == -1 {
+		return false
+	}
+
+	return idx == len(subdomain)-len(root)
+}

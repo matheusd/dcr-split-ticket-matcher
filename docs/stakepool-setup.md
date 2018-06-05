@@ -62,3 +62,5 @@ _split-tickets-grpc._tcp.foobar.example.com. 43200 IN SRV 10 100 8475 mainnet-sp
 This means a buyer can be configured with just the stakepool domain and the service should magically work, not requiring any changes in either stakepool or decred apis or on the virtual servers of the stakepool. It also trivially allows to run the split ticket service in a different server.
 
 **NOTE**: the TLS certificate that the service runs must be for the **target** domain (eg: `mainnet-split-tickets.foobar.example.com`) **not** for the apex or main stakepool domain.
+
+**NOTE**: for security reasons the target domain **MUST** be a subdomain of the original stakepool domain.

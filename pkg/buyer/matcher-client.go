@@ -42,6 +42,11 @@ func ConnectToMatcherService(ctx context.Context, matcherHost string,
 	if (err == nil) && len(addrs) > 0 {
 		matcherHost = fmt.Sprintf("%s:%d", addrs[0].Target, addrs[0].Port)
 		rep.reportSrvRecordFound(matcherHost)
+		if !intnet.IsSubDomain(host, addrs[0].Target) {
+			return nil, errors.Errorf("SRV target host %s is not a subdomain of %s",
+				addrs[0].Target, host)
+		}
+
 		host = addrs[0].Target
 	}
 
