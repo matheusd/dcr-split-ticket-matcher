@@ -3,6 +3,7 @@ package splitticket
 import (
 	"encoding/hex"
 
+	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/rpcclient"
 	"github.com/decred/dcrd/txscript"
@@ -119,4 +120,22 @@ func FindTxFee(tx *wire.MsgTx, utxos UtxoMap) (dcrutil.Amount, error) {
 	}
 
 	return totalIn - totalOut, nil
+}
+
+// StakeDiffChangeDistance returns the distance (in blocks) to the closest stake
+// diff change block (either in the past or the future, whichever is closest).
+func StakeDiffChangeDistance(blockHeight uint32, params *chaincfg.Params) int32 {
+
+	winSize := int32(params.WorkDiffWindowSize)
+
+	// the remainder decreases as the block height approaches a change block, so
+	// the lower baseDist is, the closer it is to the next change.
+	baseDist := int32(blockHeight) % winSize
+	if baseDist > winSize/2 {
+		// the previous change block is closer
+		return winSize - baseDist
+	} else {
+		// the next change block is closer
+		return baseDist
+	}
 }

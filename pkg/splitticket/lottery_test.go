@@ -26,6 +26,105 @@ func addrFromStr(str string) dcrutil.Address {
 	return addr
 }
 
+func TestSelectContributionAmount(t *testing.T) {
+	var err error
+
+	// syntatic sugar to help out making the test cases
+	mka := func(args ...dcrutil.Amount) []dcrutil.Amount {
+		return args
+	}
+
+	errTests := []struct {
+		ticketPrice dcrutil.Amount
+		partFee     dcrutil.Amount
+		poolPartFee dcrutil.Amount
+		amounts     []dcrutil.Amount
+	}{
+		// test unordered contribution amounts
+		{30, 1, 1, mka(20, 10)},
+
+		// test contributions < ticket price
+		{60, 1, 1, mka(10, 20)},
+
+		// test contributions < ticket price + pool/part fee
+		{30, 1, 1, mka(10, 20)},
+		{30, 1, 1, mka(11, 20)},
+
+		// test participant with < minimum
+		{30, 11, 1, mka(10, 20)},
+
+		// test negative amount
+		{30, 1, 1, mka(-10, 50)},
+	}
+
+	for i, tc := range errTests {
+		_, err = SelectContributionAmounts(tc.amounts, tc.ticketPrice,
+			tc.partFee, tc.poolPartFee)
+		if err == nil {
+			t.Errorf("error test case %d should have returned an error", i)
+		}
+	}
+
+	tests := []struct {
+		ticketPrice dcrutil.Amount
+		partFee     dcrutil.Amount
+		poolPartFee dcrutil.Amount
+		amounts     []dcrutil.Amount
+		res         []dcrutil.Amount
+	}{
+		// Test when everyone the split can happen equally
+		{1000, 10, 10, mka(2000, 2000, 2000, 2000), mka(240, 240, 240, 240)},
+
+		// Test the very minimum needed for a split, given a ticket price and fees
+		{1000, 10, 10, mka(260, 260, 260, 260), mka(240, 240, 240, 240)},
+
+		// Test when the division can't be exact
+		{1000, 10, 10, mka(1000, 1000, 1000), mka(324, 324, 322)},
+
+		// Test possible division problems
+		{996, 10, 10, mka(1000, 1000, 1000), mka(322, 322, 322)},
+
+		// Test various divisions when one or more contributors can't provide as
+		// much as some others
+		{1000, 10, 10, mka(100, 1000, 1000), mka(80, 445, 445)},
+		{1000, 10, 10, mka(100, 1000, 1000, 1000), mka(80, 294, 294, 292)},
+		{1000, 10, 10, mka(100, 100, 1000, 1000), mka(80, 80, 400, 400)},
+		{1000, 10, 10, mka(100, 100, 420, 420), mka(80, 80, 400, 400)},
+		{1000, 10, 10, mka(100, 100, 500, 500, 500), mka(80, 80, 264, 264, 262)},
+		{1000, 10, 10, mka(40, 50, 60, 70, 1000), mka(20, 30, 40, 50, 810)},
+		{1000, 10, 10, mka(200, 200, 200, 200, 500), mka(180, 180, 180, 180, 230)},
+		{1000, 10, 10, mka(200, 200, 200, 201, 500), mka(180, 180, 180, 181, 229)},
+	}
+
+	for i, tc := range tests {
+		res, err := SelectContributionAmounts(tc.amounts, tc.ticketPrice,
+			tc.partFee, tc.poolPartFee)
+		if err != nil {
+			t.Errorf("unexpected error in case %d: %v", i, err)
+			continue
+		}
+
+		if len(res) != len(tc.res) {
+			t.Errorf("returned different number of items (%d) than expected (%d)",
+				len(res), len(tc.res))
+		}
+
+		responseSum := dcrutil.Amount(0)
+		for j, v := range res {
+			if v != tc.res[j] {
+				t.Errorf("response element %d (%s) of test case %d different "+
+					"than expected (%s)", j, v, i, tc.res[j])
+			}
+			responseSum += v + tc.poolPartFee
+		}
+
+		if responseSum != tc.ticketPrice {
+			t.Errorf("sum of response elements + pool fee (%s) different "+
+				"than expected (%s)", responseSum, tc.ticketPrice)
+		}
+	}
+}
+
 func TestSecretNumberHashes(t *testing.T) {
 	mainchainHash := new(chainhash.Hash)
 	chainhash.Decode(mainchainHash, "000000000000437482b6d47f82f374cde539440ddb108b0a76886f0d87d126b9")
