@@ -188,27 +188,34 @@ func CalcLotteryCommitmentHash(secretNbHashes []SecretNumberHash,
 	return res
 }
 
+// CalcLotteryResultHash calculates the hash result of the lottery.
+// This value is interpreted as a 256 bit uint, such that its value (mod total
+// contribution amount) is the coin that should belong to the voter.
+func CalcLotteryResultHash(secretNbs []SecretNumber, mainchainHash *chainhash.Hash) []byte {
+	// hash the secret numbers to get a 256 bit number
+	var data [8]byte
+	h := blake256.NewSalt(mainchainHash[:16])
+	for _, nb := range secretNbs {
+		binary.LittleEndian.PutUint64(data[:], uint64(nb))
+		h.Write(data[:])
+	}
+
+	return h.Sum(nil)
+}
+
 // CalcLotteryResult discovers the the selected coin and selected index (ie, the
 // results of the voter selection lottery) given the input data.
 // Note that len(secretNbs) MUST be equal to len(contribAmounts), otherwise
 // the result may be undefined.
 func CalcLotteryResult(secretNbs []SecretNumber,
-	contribAmounts []dcrutil.Amount, maichainHash *chainhash.Hash) (dcrutil.Amount, int) {
+	contribAmounts []dcrutil.Amount, mainchainHash *chainhash.Hash) (dcrutil.Amount, int) {
 
 	var contribSum dcrutil.Amount
 	for _, c := range contribAmounts {
 		contribSum += c
 	}
 
-	// hash the secret numbers to get a 256 bit number
-	var data [8]byte
-	h := blake256.NewSalt(maichainHash[:16])
-	for _, nb := range secretNbs {
-		binary.LittleEndian.PutUint64(data[:], uint64(nb))
-		h.Write(data[:])
-	}
-
-	hash := h.Sum(nil)
+	hash := CalcLotteryResultHash(secretNbs, mainchainHash)
 	coinBig := big.NewInt(0)
 	n := big.NewInt(0)
 	n.SetBytes(hash[:])
