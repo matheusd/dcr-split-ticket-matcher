@@ -15,6 +15,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 	"google.golang.org/grpc"
@@ -194,10 +195,22 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 
 	session.participants = make([]buyerSessionParticipant, len(resp.Participants))
 	for i, p := range resp.Participants {
+		_, voteAddresses, _, err := txscript.ExtractPkScriptAddrs(
+			txscript.DefaultScriptVersion, p.VotePkScript, cfg.ChainParams)
+		if err != nil {
+			return errors.Wrapf(err, "error decoding vote pkscript of"+
+				"participant %d", i)
+		}
+		if len(voteAddresses) != 1 {
+			return errors.Errorf("wrong number of vote addresses (%d) in "+
+				"vote pkscript of participant %d", len(voteAddresses), i)
+		}
+
 		session.participants[i] = buyerSessionParticipant{
 			amount:       dcrutil.Amount(p.Amount),
 			poolPkScript: p.PoolPkScript,
 			votePkScript: p.VotePkScript,
+			voteAddress:  voteAddresses[0],
 		}
 		copy(session.participants[i].secretHash[:], p.SecretnbHash)
 	}
@@ -231,6 +244,13 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 		cfg.ChainParams)
 	if err != nil {
 		return errors.Wrapf(err, "error checking split tx")
+	}
+
+	err = splitticket.CheckSplitLotteryCommitment(session.splitTx,
+		session.secretHashes(), session.amounts(), session.voteAddresses(),
+		session.mainchainHash)
+	if err != nil {
+		return errors.Wrapf(err, "error checking lottery commitment in split")
 	}
 
 	// ensure the ticket template is valid
@@ -386,7 +406,10 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 		session.participants[i].secretNb = splitticket.SecretNumber(s)
 	}
 
-	session.voterIndex = session.findVoterIndex()
+	selCoin, selIndex := splitticket.CalcLotteryResult(session.secretNumbers(),
+		session.amounts(), session.mainchainHash)
+	session.voterIndex = selIndex
+	session.selectedCoin = selCoin
 	if session.voterIndex < 0 {
 		return errors.Errorf("error finding voter index")
 	}
@@ -399,11 +422,6 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 	if err != nil {
 		return err
 	}
-
-	// TODO: verify if the published ticket transaction (received from the network)
-	// actually is for the given voter index. Probably need to alert dcrd to
-	// watch for transactions involving all voting addresses and alert on any
-	// published that is not for the given ticket
 
 	session.fundedSplitTx = fundedSplit
 	session.selectedTicket = voter.ticket

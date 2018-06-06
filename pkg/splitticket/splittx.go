@@ -43,15 +43,8 @@ func CheckSplit(split *wire.MsgTx, utxos UtxoMap,
 		return errors.Errorf("output 0 of split tx is not an OP_RETURN")
 	}
 
-	targetVoterHash := SecretNumberHashesHash(secretHashes, mainchainHash)
-
-	// pick the range [2:] because the first byte is the OP_RETURN, the second
-	// is the push data op
-	splitVoterCommitment := split.TxOut[0].PkScript[2:]
-	if !bytes.Equal(targetVoterHash, splitVoterCommitment) {
-		return errors.Errorf("voter lottery commitment (%s) does not equal "+
-			"the expected value (%s)", hex.EncodeToString(splitVoterCommitment),
-			hex.EncodeToString(targetVoterHash))
+	if len(split.TxOut[0].PkScript) < 3 {
+		return errors.Errorf("lottery commitment output too small")
 	}
 
 	// ensure the various locks don't prevent the split from being mined
@@ -231,6 +224,29 @@ func CheckOnlySignedInSplit(split *wire.MsgTx, outpoints []wire.OutPoint) error 
 	if signedCount != len(outpoints) {
 		errors.Errorf("signed less inputs (%d) than the expected (%d)",
 			signedCount, len(outpoints))
+	}
+
+	return nil
+}
+
+// CheckSplitLotteryCommitment verifies whether the split transaction contains
+// the correct voter commitment lottery, given the information necessary to
+// derive it.
+// Only safe to be called on transactions that have passed CheckSplit().
+func CheckSplitLotteryCommitment(split *wire.MsgTx,
+	secretHashes []SecretNumberHash, amounts []dcrutil.Amount,
+	voteAddresses []dcrutil.Address, mainchainHash *chainhash.Hash) error {
+
+	expected := CalcLotteryCommitmentHash(secretHashes, amounts, voteAddresses,
+		mainchainHash)
+
+	// pick the range [2:] because the first byte is the OP_RETURN, the second
+	// is the push data op
+	splitCommitment := split.TxOut[0].PkScript[2:]
+	if !bytes.Equal(expected[:], splitCommitment) {
+		return errors.Errorf("voter lottery commitment (%s) does not equal "+
+			"the expected value (%s)", hex.EncodeToString(splitCommitment),
+			hex.EncodeToString(expected[:]))
 	}
 
 	return nil

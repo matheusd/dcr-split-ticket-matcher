@@ -27,6 +27,7 @@ type buyerSessionParticipant struct {
 	amount       dcrutil.Amount
 	ticket       *wire.MsgTx
 	revocation   *wire.MsgTx
+	voteAddress  dcrutil.Address
 }
 
 type BuyerSession struct {
@@ -65,31 +66,7 @@ type BuyerSession struct {
 	fundedSplitTx      *wire.MsgTx
 	selectedRevocation *wire.MsgTx
 	voterIndex         int
-}
-
-func (session *BuyerSession) selectedCoin() uint64 {
-	var totalCommitment uint64
-	nbs := make(splitticket.SecretNumbers, len(session.participants))
-	for i, p := range session.participants {
-		totalCommitment += uint64(p.amount)
-		nbs[i] = p.secretNb
-	}
-
-	nbsHash := nbs.Hash(session.mainchainHash)
-	return nbsHash.SelectedCoin(totalCommitment)
-}
-
-func (session *BuyerSession) findVoterIndex() int {
-	var sum uint64
-	coinIdx := session.selectedCoin()
-	for i, p := range session.participants {
-		sum += uint64(p.amount)
-		if coinIdx < sum {
-			return i
-		}
-	}
-
-	return -1
+	selectedCoin       dcrutil.Amount
 }
 
 func (session *BuyerSession) secretHashes() []splitticket.SecretNumberHash {
@@ -100,8 +77,8 @@ func (session *BuyerSession) secretHashes() []splitticket.SecretNumberHash {
 	return res
 }
 
-func (session *BuyerSession) secretNumbers() splitticket.SecretNumbers {
-	res := make(splitticket.SecretNumbers, len(session.participants))
+func (session *BuyerSession) secretNumbers() []splitticket.SecretNumber {
+	res := make([]splitticket.SecretNumber, len(session.participants))
 	for i, p := range session.participants {
 		res[i] = p.secretNb
 	}
@@ -120,6 +97,14 @@ func (session *BuyerSession) voteScripts() [][]byte {
 	res := make([][]byte, len(session.participants))
 	for i, p := range session.participants {
 		res[i] = p.votePkScript
+	}
+	return res
+}
+
+func (session *BuyerSession) voteAddresses() []dcrutil.Address {
+	res := make([]dcrutil.Address, len(session.participants))
+	for i, p := range session.participants {
+		res[i] = p.voteAddress
 	}
 	return res
 }
@@ -462,14 +447,15 @@ func saveSession(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) e
 	out("\n")
 	out("====== Voter Selection ======\n")
 
-	commitHash := hex.EncodeToString(splitticket.SecretNumberHashesHash(
-		session.secretHashes(), session.mainchainHash))
+	commitHash := splitticket.CalcLotteryCommitmentHash(
+		session.secretHashes(), session.amounts(), session.voteAddresses(),
+		session.mainchainHash)
 
 	out("Participant Amounts = %v\n", session.amounts())
 	out("Secret Hashes = %v\n", session.secretHashes())
-	out("Voter Lottery Commitment Hash = %s\n", commitHash)
+	out("Voter Lottery Commitment Hash = %s\n", hex.EncodeToString(commitHash[:]))
 	out("Secret Numbers = %v\n", session.secretNumbers())
-	out("Selected Coin = %s\n", dcrutil.Amount(session.selectedCoin()))
+	out("Selected Coin = %s\n", session.selectedCoin)
 	out("Selected Voter Index = %d\n", session.voterIndex)
 
 	out("\n")

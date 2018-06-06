@@ -199,7 +199,7 @@ func (rep *writerReporter) reportStage(ctx context.Context, stage BuyerStage, se
 		out("Revoke tx fee: %s (%.4f DCR/KB)\n", revokeFee, revokeFeeRate)
 
 		out("\n")
-		out("Selected coin: %s\n", dcrutil.Amount(session.selectedCoin()))
+		out("Selected coin: %s\n", session.selectedCoin)
 		out("Selected voter index: %d\n", session.voterIndex)
 		var sum dcrutil.Amount
 		for i, p := range session.participants {
@@ -207,10 +207,13 @@ func (rep *writerReporter) reportStage(ctx context.Context, stage BuyerStage, se
 			out("Participant %d: cum_amount=%s secret=%d secret_hash=%s...\n",
 				i, sum, p.secretNb, hex.EncodeToString(p.secretHash[:10]))
 		}
-		commitHash := splitticket.SecretNumberHashesHash(session.secretHashes(),
+
+		commitHash := splitticket.CalcLotteryCommitmentHash(
+			session.secretHashes(), session.amounts(), session.voteAddresses(),
 			session.mainchainHash)
+
 		out("Voter lottery commitment hash: %s\n",
-			hex.EncodeToString(commitHash))
+			hex.EncodeToString(commitHash[:]))
 
 		out("\n")
 		out("Split tx hash: %s\n", session.fundedSplitTx.TxHash())

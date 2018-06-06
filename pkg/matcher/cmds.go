@@ -30,7 +30,7 @@ type (
 
 	fundSplitTxResponse struct {
 		splitTx []byte
-		secrets splitticket.SecretNumbers
+		secrets []splitticket.SecretNumber
 		err     error
 	}
 

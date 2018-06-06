@@ -282,7 +282,7 @@ func CheckTicketScriptMatchAddresses(voteAddress, poolAddress dcrutil.Address,
 	voteClass, voteAddresses, voteReqSigs, err := txscript.ExtractPkScriptAddrs(
 		txscript.DefaultScriptVersion, votePkScript, params)
 	if err != nil {
-		errors.Wrapf(err, "error decoding vote pkscript")
+		return errors.Wrapf(err, "error decoding vote pkscript")
 	}
 
 	if voteClass != txscript.StakeSubmissionTy {

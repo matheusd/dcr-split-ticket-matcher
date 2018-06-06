@@ -604,8 +604,10 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 		var splitBytes []byte
 		var err error
 
+		selCoin, selIndex := sess.FindVoterCoinIndex()
 		sess.Done = true
-		sess.VoterIndex = sess.FindVoterIndex()
+		sess.VoterIndex = selIndex
+		sess.SelectedCoin = selCoin
 		voter := sess.Participants[sess.VoterIndex]
 
 		matcher.log.Infof("All inputs for split tx received. Creating split tx.")
@@ -832,7 +834,7 @@ func (matcher *Matcher) FundTicket(ctx context.Context, sessionID ParticipantID,
 
 func (matcher *Matcher) FundSplit(ctx context.Context, sessionID ParticipantID,
 	inputScriptSigs [][]byte, secretNb splitticket.SecretNumber) ([]byte,
-	splitticket.SecretNumbers, error) {
+	[]splitticket.SecretNumber, error) {
 
 	req := fundSplitTxRequest{
 		ctx:             ctx,

@@ -2,7 +2,6 @@ package splitticket
 
 import (
 	"bytes"
-	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -15,33 +14,13 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 )
 
-// ChooseVoter chooses who should vote on a ticket purchase, given an array of
-// contribution amounts that sum to the ticket price. Chance to be selected is
-// proportional to amount of contribution
-func ChooseVoter(contributions []dcrutil.Amount) int {
-	var total dcrutil.Amount
-	for _, v := range contributions {
-		total += v
-	}
+const (
+	// SecretNbHashSize is the size of the hash of a secret number
+	SecretNbHashSize = 32
 
-	selected, err := rand.Int(rand.Reader, big.NewInt(int64(total)))
-	if err != nil {
-		// entropy problems... just quit
-		panic(err)
-	}
-	sel := dcrutil.Amount(selected.Int64())
-
-	total = 0
-	for i, v := range contributions {
-		total += v
-		if sel < total {
-			return i
-		}
-	}
-
-	// we shouldn't really get here, as rand.Int() returns [0, total)
-	return len(contributions) - 1
-}
+	// LotteryCommitmentHashSize is the size in bytes of the lottery commitment
+	LotteryCommitmentHashSize = 32
+)
 
 // SelectContributionAmounts decides how to split the ticket priced at ticketPrice
 // such that each ith participant contributes at most maxAmount[i], pays
@@ -125,20 +104,11 @@ func SelectContributionAmounts(maxAmounts []dcrutil.Amount, ticketPrice, partFee
 	return contribs, nil
 }
 
-const SecretNbHashSize = 32
-
-type SecretNumberHash [SecretNbHashSize]byte
-
-func (h SecretNumberHash) Equals(other SecretNumberHash) bool {
-	return bytes.Compare(h[:], other[:]) == 0
-}
-
-func (h SecretNumberHash) String() string {
-	return hex.EncodeToString(h[:])
-}
-
+// SecretNumber is the secret number that each individual  participant chooses.
 type SecretNumber uint64
 
+// Hash gives the hash of the secret number, given the hash of a block to use
+// as salt. This is usually called with the block id of the mainchain tip.
 func (nb SecretNumber) Hash(mainchainHash *chainhash.Hash) SecretNumberHash {
 	var res SecretNumberHash
 	var data [8]byte
@@ -156,61 +126,108 @@ func (nb SecretNumber) Hash(mainchainHash *chainhash.Hash) SecretNumberHash {
 	return res
 }
 
-const SecretNumbersHashSize = 32
+// SecretNumberHash represents the hash of a secret number
+type SecretNumberHash [SecretNbHashSize]byte
 
-type SecretNumbersHash [SecretNumbersHashSize]byte
-
-func (h SecretNumbersHash) SelectedCoin(max uint64) uint64 {
-	res := big.NewInt(0)
-	n := big.NewInt(0)
-	n.SetBytes(h[:])
-	m := big.NewInt(int64(max))
-	res.Mod(n, m)
-	return res.Uint64()
+// Equals checks whether the hashes are equal.
+func (h SecretNumberHash) Equals(other SecretNumberHash) bool {
+	return bytes.Compare(h[:], other[:]) == 0
 }
 
-func (h SecretNumbersHash) String() string {
+// String converts the secret hash to a string representation.
+func (h SecretNumberHash) String() string {
 	return hex.EncodeToString(h[:])
 }
 
-type SecretNumbers []SecretNumber
+// LotteryCommitmentHash is the hash that commits all participants of a split
+// ticket session to a given lottery result, which decides the voter of the
+// session.
+// This commitment is added to the split tx as an OP_RETURN, in order for the
+// lottery results to be accountable (ie, a single participant can prove whether
+// the posted ticket was the one agreed upon by the rules of the lottery).
+type LotteryCommitmentHash [LotteryCommitmentHashSize]byte
 
-func (nbs SecretNumbers) Hash(mainchainHash *chainhash.Hash) SecretNumbersHash {
-	var res SecretNumbersHash
+// CalcLotteryCommitmentHash calculates the lottery commitment hash, given
+// all required information.
+//
+// The lottery commitment hash is calculated as follows:
+//   H(secretNbHashes || amounts || voteAddresses)
+//
+// The mainchainHash[16:] is used as salt to the calculation. The individual
+// items are concatenated in slice order.
+//
+// The number of secrets and amounts **MUST** be the same, otherwise the
+// result is undefined
+func CalcLotteryCommitmentHash(secretNbHashes []SecretNumberHash,
+	amounts []dcrutil.Amount, voteAddresses []dcrutil.Address,
+	mainchainHash *chainhash.Hash) *LotteryCommitmentHash {
+
 	var data [8]byte
 	var calculated []byte
+	res := new(LotteryCommitmentHash)
 
 	// note that block hashes are reversed, so the first bytes are the actual
 	// random bytes (ending bytes should be a string of 0000s)
 	h := blake256.NewSalt(mainchainHash[:16])
 
-	for _, nb := range nbs {
-		binary.LittleEndian.PutUint64(data[:], uint64(nb))
+	for _, hash := range secretNbHashes {
+		h.Write(hash[:])
+	}
+	for _, amount := range amounts {
+		binary.LittleEndian.PutUint64(data[:], uint64(amount))
 		h.Write(data[:])
 	}
+	for _, addr := range voteAddresses {
+		btsAddr := []byte(addr.EncodeAddress())
+		h.Write(btsAddr)
+	}
+
 	calculated = h.Sum(nil)
 	copy(res[:], calculated)
 
 	return res
 }
 
-// SecretNumberHashesHashSize is the size of the resulting hash of all secret
-// number hashes.
-const SecretNumberHashesHashSize = 32
+// CalcLotteryResult discovers the the selected coin and selected index (ie, the
+// results of the voter selection lottery) given the input data.
+// Note that len(secretNbs) MUST be equal to len(contribAmounts), otherwise
+// the result may be undefined.
+func CalcLotteryResult(secretNbs []SecretNumber,
+	contribAmounts []dcrutil.Amount, maichainHash *chainhash.Hash) (dcrutil.Amount, int) {
 
-func SecretNumberHashesHash(hashes []SecretNumberHash, mainchainHash *chainhash.Hash) []byte {
-	var calculated []byte
-
-	// note that block hashes are reversed, so the first bytes are the actual
-	// random bytes (ending bytes should be a string of 0000s)
-	h := blake256.NewSalt(mainchainHash[:16])
-
-	for _, hs := range hashes {
-		h.Write(hs[:])
+	var contribSum dcrutil.Amount
+	for _, c := range contribAmounts {
+		contribSum += c
 	}
-	calculated = h.Sum(nil)
 
-	return calculated
+	// hash the secret numbers to get a 256 bit number
+	var data [8]byte
+	h := blake256.NewSalt(maichainHash[:16])
+	for _, nb := range secretNbs {
+		binary.LittleEndian.PutUint64(data[:], uint64(nb))
+		h.Write(data[:])
+	}
+
+	hash := h.Sum(nil)
+	coinBig := big.NewInt(0)
+	n := big.NewInt(0)
+	n.SetBytes(hash[:])
+	m := big.NewInt(int64(contribSum))
+	coinBig.Mod(n, m)
+
+	coin := coinBig.Uint64()
+	index := 0
+
+	contribSum = 0
+	for i, c := range contribAmounts {
+		contribSum += c
+		if coin < uint64(contribSum) {
+			index = i
+			break
+		}
+	}
+
+	return dcrutil.Amount(coin), index
 }
 
 // StakeDiffChangeDistance returns the distance (in blocks) to the closest

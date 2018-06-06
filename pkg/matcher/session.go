@@ -160,6 +160,7 @@ type Session struct {
 	MainchainHash   chainhash.Hash
 	MainchainHeight uint32
 	VoterIndex      int
+	SelectedCoin    dcrutil.Amount
 	PoolFee         dcrutil.Amount
 	TicketFee       dcrutil.Amount
 	ChainParams     *chaincfg.Params
@@ -248,7 +249,9 @@ func (sess *Session) addVoterSelectionData(split *wire.MsgTx) {
 	for i, p := range sess.Participants {
 		hashes[i] = p.SecretHash
 	}
-	hash := splitticket.SecretNumberHashesHash(hashes, &sess.MainchainHash)
+
+	hash := splitticket.CalcLotteryCommitmentHash(sess.SecretNumberHashes(),
+		sess.ParticipantAmounts(), sess.VoteAddresses(), &sess.MainchainHash)
 
 	b := txscript.NewScriptBuilder()
 	b.
@@ -358,41 +361,20 @@ func (sess *Session) ParticipantTicketOutputs() []*ParticipantTicketOutput {
 	return res
 }
 
-// SecretNumbers returns an array of the secret number of all participants
-func (sess *Session) SecretNumbers() splitticket.SecretNumbers {
-	res := splitticket.SecretNumbers(make([]splitticket.SecretNumber, len(sess.Participants)))
+// SecretNumbers returns a slice with the secret number of all participants
+func (sess *Session) SecretNumbers() []splitticket.SecretNumber {
+	res := make([]splitticket.SecretNumber, len(sess.Participants))
 	for i, p := range sess.Participants {
 		res[i] = p.SecretNb
 	}
 	return res
 }
 
-// SelectedCoin returns the selected coin to vote
-func (sess *Session) SelectedCoin() dcrutil.Amount {
-	var totalCommitment uint64
-	for _, p := range sess.Participants {
-		totalCommitment += uint64(p.CommitAmount)
-	}
-
-	nbs := sess.SecretNumbers()
-	nbsHash := nbs.Hash(&sess.MainchainHash)
-	coinIdx := nbsHash.SelectedCoin(totalCommitment)
-	return dcrutil.Amount(coinIdx)
-}
-
-// FindVoterIndex finds the index of the voter, given the current setup of
-// the session.
-func (sess *Session) FindVoterIndex() int {
-	var sum uint64
-	coinIdx := uint64(sess.SelectedCoin())
-	for i, p := range sess.Participants {
-		sum += uint64(p.CommitAmount)
-		if coinIdx < sum {
-			return i
-		}
-	}
-
-	panic("Should never get here")
+// FindVoterCoinIndex returns the coin and index of the voter for the current
+// session. Assumes all secret numbers are known.
+func (sess *Session) FindVoterCoinIndex() (dcrutil.Amount, int) {
+	return splitticket.CalcLotteryResult(sess.SecretNumbers(),
+		sess.ParticipantAmounts(), &sess.MainchainHash)
 }
 
 // SplitUtxoMap returns the full utxo map for the split transaction's inputs
@@ -430,6 +412,16 @@ func (sess *Session) ParticipantAmounts() []dcrutil.Amount {
 	res := make([]dcrutil.Amount, len(sess.Participants))
 	for i, p := range sess.Participants {
 		res[i] = p.CommitAmount
+	}
+	return res
+}
+
+// VoteAddresses returns a slice with every participant's vote addresses in
+// order.
+func (sess *Session) VoteAddresses() []dcrutil.Address {
+	res := make([]dcrutil.Address, len(sess.Participants))
+	for i, p := range sess.Participants {
+		res[i] = p.VoteAddress
 	}
 	return res
 }
@@ -546,14 +538,14 @@ func (sess *Session) SaveSession(sessionDir string) error {
 	out("\n")
 	out("====== Voter Selection ======\n")
 
-	commitHash := hex.EncodeToString(splitticket.SecretNumberHashesHash(
-		sess.SecretNumberHashes(), &sess.MainchainHash))
+	commitHash := splitticket.CalcLotteryCommitmentHash(sess.SecretNumberHashes(),
+		sess.ParticipantAmounts(), sess.VoteAddresses(), &sess.MainchainHash)
 
 	out("Participant Amounts = %v\n", sess.ParticipantAmounts())
 	out("Secret Hashes = %v\n", sess.SecretNumberHashes())
 	out("Voter Lottery Commitment Hash = %s\n", commitHash)
 	out("Secret Numbers = %v\n", sess.SecretNumbers())
-	out("Selected Coin = %s\n", sess.SelectedCoin())
+	out("Selected Coin = %s\n", sess.SelectedCoin)
 	out("Selected Voter Index = %d\n", sess.VoterIndex)
 
 	out("\n")

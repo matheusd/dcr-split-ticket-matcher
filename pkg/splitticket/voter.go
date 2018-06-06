@@ -40,7 +40,7 @@ func (e VoterSelectionValidationError) Error() string {
 //
 // Note that the lists must be in the correct order, otherwise the lottery
 // choice will not be consistent.
-func CheckSelectedVoter(secretNbs SecretNumbers,
+func CheckSelectedVoter(secretNbs []SecretNumber,
 	secretNbHashes []SecretNumberHash,
 	amounts []dcrutil.Amount, voteScripts [][]byte,
 	ticket *wire.MsgTx, mainchainHash *chainhash.Hash) error {
@@ -72,28 +72,7 @@ func CheckSelectedVoter(secretNbs SecretNumbers,
 		}
 	}
 
-	var totalCommitment uint64
-	for _, a := range amounts {
-		totalCommitment += uint64(a)
-	}
-
-	nbsHash := secretNbs.Hash(mainchainHash)
-	selCoin := nbsHash.SelectedCoin(totalCommitment)
-
-	if selCoin >= totalCommitment {
-		return errors.WithStack(newerr("selected coin (%d) is higher than "+
-			"total commitment (%d)", selCoin, totalCommitment))
-	}
-
-	var sum uint64
-	voterIdx := -1
-	for i, a := range amounts {
-		sum += uint64(a)
-		if selCoin < sum {
-			voterIdx = i
-			break
-		}
-	}
+	_, voterIdx := CalcLotteryResult(secretNbs, amounts, mainchainHash)
 
 	expectedVoterPk := voteScripts[voterIdx]
 	voterPk := ticket.TxOut[0].PkScript

@@ -149,7 +149,7 @@ func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *Buye
 	// for that when calculating the amount of input.
 	// FIXME: currently double paying, as all participants are accounting for
 	// this. This should be of size ceil(33/nbParts)
-	nullData := bytes.Repeat([]byte{0x00}, splitticket.SecretNumberHashesHashSize)
+	nullData := bytes.Repeat([]byte{0x00}, splitticket.LotteryCommitmentHashSize)
 	script := append([]byte{txscript.OP_RETURN, txscript.OP_DATA_32}, nullData...)
 	outputs[0] = &pb.ConstructTransactionRequest_Output{
 		Amount: 0,
