@@ -2,6 +2,7 @@ package splitticket
 
 import (
 	"encoding/hex"
+	"math"
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -143,4 +144,92 @@ func TestLotteryResults(t *testing.T) {
 			t.Errorf("different index (%d) than expected (%d)", index, tc.resIndex)
 		}
 	}
+}
+
+func TestLotteryResultsStatistics(t *testing.T) {
+	chainHashes := []*chainhash.Hash{
+		chainHashFromStr("000000000000437482b6d47f82f374cde539440ddb108b0a76886f0d87d126b9"),
+		chainHashFromStr("000000000000c41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba"),
+	}
+
+	type result struct {
+		coin  dcrutil.Amount
+		index int
+	}
+
+	var amounts []dcrutil.Amount
+	var i int
+	var nbs []SecretNumber
+
+	amounts = []dcrutil.Amount{10000, 20000, 30000}
+	totalAmount := dcrutil.Amount(60000)
+	totalRepeats := 20
+	totalTries := int(totalAmount) * totalRepeats // sum(amounts) * 10 (on average this should be sufficient to find a collision mod sum(amount))
+	expectedCounts := make([]int, len(amounts))
+	for i, amt := range amounts {
+		// we expect, given `totalTries` tickets, that a voter with the given
+		// % of a full ticket be selected %*totalTries times (on average; there
+		// will be some variation due to randomness)
+		partPerc := float64(amt) / float64(totalAmount)
+		expectedCounts[i] = int(math.Floor(partPerc * float64(totalTries)))
+	}
+
+	for _, chainHash := range chainHashes {
+
+		// calculate a resultset that is likely to include all coin indexes between
+		// 0..totalAmount-1 to perform some statistics in it.
+		nbs = []SecretNumber{0, 0, 0}
+
+		// histogram of coin and voter index selection
+		byCoin := make(map[dcrutil.Amount]uint32, int(totalAmount))
+		byIndex := make(map[int]uint32, len(amounts))
+
+		for i = 0; i < int(totalTries); i++ {
+			nbs[0] = SecretNumber(i)
+			coin, index := CalcLotteryResult(nbs, amounts, chainHash)
+
+			if coin >= totalAmount {
+				t.Fatalf("lottery selected coin (%s) >= total amount (%s)",
+					coin, totalAmount)
+			}
+
+			if coin < 0 {
+				t.Fatalf("lottery selected negative coin (%s)", coin)
+			}
+
+			if index >= len(amounts) {
+				t.Fatalf("lottery selected voter index (%d) >= available (%d)",
+					index, len(amounts))
+			}
+
+			if index < 0 {
+				t.Fatalf("lottery selected negative index (%d)", index)
+			}
+
+			byCoin[coin]++
+			byIndex[index]++
+		}
+
+		if len(byIndex) < len(amounts) {
+			t.Fatal("some voters where never selected")
+		}
+
+		if len(byCoin) < int(totalAmount) {
+			t.Fatal("some coins where never selected")
+		}
+
+		maxVariancePerc := 0.25 / 100.0 // 0.25% of maximum variance from expected allowed
+		for i, expected := range expectedCounts {
+			min := uint32(math.Floor(float64(expected) * (1 - maxVariancePerc)))
+			max := uint32(math.Ceil(float64(expected) * (1 + maxVariancePerc)))
+			if byIndex[i] < min {
+				t.Errorf("found less selections (%d) than minimum expected (%d) "+
+					"for voter %d", byIndex[i], min, i)
+			} else if byIndex[i] > max {
+				t.Errorf("found more selections (%d) than maximum expected (%d) "+
+					"for voter %d", byIndex[i], max, i)
+			}
+		}
+	}
+
 }
