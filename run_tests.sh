@@ -4,7 +4,6 @@ gometalinter \
     --disable-all --vendor --deadline=10m \
     --enable=gofmt \
     --enable=vet \
-    --enable=gosimple \
     --enable=unconvert \
     --enable=ineffassign \
     --enable=golint \
@@ -14,4 +13,6 @@ gometalinter \
     --enable=structcheck \
     --enable=goconst \
     --enable=megacheck \
+    --enable=varcheck \
+    --enable=gas \
     ./...
