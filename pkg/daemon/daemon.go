@@ -63,7 +63,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		logBackend:  logBackend,
 		chainParams: net,
 	}
-	dcrd, err := ConnectToDecredNode(dcfg)
+	dcrd, err := connectToDecredNode(dcfg)
 	if err != nil {
 		panic(err)
 	}

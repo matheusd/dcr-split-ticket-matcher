@@ -22,12 +22,16 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+// MatcherClient is handles all requests and checks done by the buyer when
+// interacting to a remote matcher server.
 type MatcherClient struct {
 	client  pb.SplitTicketMatcherServiceClient
 	conn    *grpc.ClientConn
 	network *decredNetwork
 }
 
+// ConnectToMatcherService tries to connect to the given matcher host and to a
+// dcrd daemon, given the provided config options.
 func ConnectToMatcherService(ctx context.Context, matcherHost string,
 	certFile string, netCfg *decredNetworkConfig) (*MatcherClient, error) {
 
@@ -82,12 +86,12 @@ func ConnectToMatcherService(ctx context.Context, matcherHost string,
 	return mc, err
 }
 
-func (mc *MatcherClient) Status(ctx context.Context) (*pb.StatusResponse, error) {
+func (mc *MatcherClient) status(ctx context.Context) (*pb.StatusResponse, error) {
 	req := &pb.StatusRequest{}
 	return mc.client.Status(ctx, req)
 }
 
-func (mc *MatcherClient) Participate(ctx context.Context, maxAmount dcrutil.Amount, sessionName string) (*BuyerSession, error) {
+func (mc *MatcherClient) participate(ctx context.Context, maxAmount dcrutil.Amount, sessionName string) (*Session, error) {
 	req := &pb.FindMatchesRequest{
 		Amount:          uint64(maxAmount),
 		SessionName:     sessionName,
@@ -104,7 +108,7 @@ func (mc *MatcherClient) Participate(ctx context.Context, maxAmount dcrutil.Amou
 		return nil, err
 	}
 
-	sess := &BuyerSession{
+	sess := &Session{
 		ID:              matcher.ParticipantID(resp.SessionId),
 		Amount:          dcrutil.Amount(resp.Amount),
 		Fee:             dcrutil.Amount(resp.Fee),
@@ -117,7 +121,7 @@ func (mc *MatcherClient) Participate(ctx context.Context, maxAmount dcrutil.Amou
 	return sess, nil
 }
 
-func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
+func (mc *MatcherClient) generateTicket(ctx context.Context, session *Session, cfg *Config) error {
 
 	voteAddr, err := dcrutil.DecodeAddress(cfg.VoteAddress)
 	if err != nil {
@@ -283,7 +287,7 @@ func (mc *MatcherClient) GenerateTicket(ctx context.Context, session *BuyerSessi
 	return nil
 }
 
-func (mc *MatcherClient) FundTicket(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
+func (mc *MatcherClient) fundTicket(ctx context.Context, session *Session, cfg *Config) error {
 
 	var err error
 
@@ -361,7 +365,7 @@ func (mc *MatcherClient) FundTicket(ctx context.Context, session *BuyerSession, 
 	return nil
 }
 
-func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
+func (mc *MatcherClient) fundSplitTx(ctx context.Context, session *Session, cfg *Config) error {
 
 	splitTxSigs := make([][]byte, len(session.splitInputs))
 	for i, in := range session.splitInputs {
@@ -430,6 +434,6 @@ func (mc *MatcherClient) FundSplitTx(ctx context.Context, session *BuyerSession,
 	return nil
 }
 
-func (mc *MatcherClient) Close() {
+func (mc *MatcherClient) close() {
 	mc.conn.Close()
 }

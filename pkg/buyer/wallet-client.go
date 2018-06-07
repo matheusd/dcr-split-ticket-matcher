@@ -24,6 +24,8 @@ func random(min, max int) int {
 	return rand.Intn(max-min) + min
 }
 
+// WalletClient is responsible for the interactions of the buyer with the local
+// wallet daemon (dcrwallet).
 type WalletClient struct {
 	conn *grpc.ClientConn
 	wsvc pb.WalletServiceClient
@@ -35,6 +37,7 @@ type currentChainInfo struct {
 	ticketPrice     dcrutil.Amount
 }
 
+// ConnectToWallet connects to the given wallet address
 func ConnectToWallet(walletHost string, walletCert string) (*WalletClient, error) {
 	rand.Seed(time.Now().Unix())
 	creds, err := credentials.NewClientTLSFromFile(walletCert, "localhost")
@@ -57,11 +60,11 @@ func ConnectToWallet(walletHost string, walletCert string) (*WalletClient, error
 	return wc, nil
 }
 
-func (wc *WalletClient) Close() error {
+func (wc *WalletClient) close() error {
 	return wc.conn.Close()
 }
 
-func (wc *WalletClient) CheckNetwork(ctx context.Context, chainParams *chaincfg.Params) error {
+func (wc *WalletClient) checkNetwork(ctx context.Context, chainParams *chaincfg.Params) error {
 	req := &pb.NetworkRequest{}
 	resp, err := wc.wsvc.Network(ctx, req)
 	if err != nil {
@@ -76,7 +79,7 @@ func (wc *WalletClient) CheckNetwork(ctx context.Context, chainParams *chaincfg.
 	return nil
 }
 
-func (wc *WalletClient) GenerateOutputs(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
+func (wc *WalletClient) generateOutputs(ctx context.Context, session *Session, cfg *Config) error {
 	splitOutAddr, splitChangeAddr, ticketOutAdd, err := wc.generateOutputAddresses(ctx, session, cfg)
 	if err != nil {
 		return errors.Wrapf(err, "error generating output addresses")
@@ -94,7 +97,7 @@ func (wc *WalletClient) GenerateOutputs(ctx context.Context, session *BuyerSessi
 	return wc.generateSplitTxInputs(ctx, session, cfg)
 }
 
-func (wc *WalletClient) generateOutputAddresses(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) (
+func (wc *WalletClient) generateOutputAddresses(ctx context.Context, session *Session, cfg *Config) (
 	splitOut, splitChange, ticketOut dcrutil.Address, err error) {
 
 	var req *pb.NextAddressRequest
@@ -143,7 +146,7 @@ func (wc *WalletClient) generateOutputAddresses(ctx context.Context, session *Bu
 	return
 }
 
-func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
+func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *Session, cfg *Config) error {
 
 	rep := reporterFromContext(ctx)
 
@@ -229,7 +232,7 @@ func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *Buye
 	return nil
 }
 
-func (wc *WalletClient) prepareTicketsForSigning(session *BuyerSession) (
+func (wc *WalletClient) prepareTicketsForSigning(session *Session) (
 	[]*pb.SignTransactionsRequest_UnsignedTransaction,
 	[]*pb.SignTransactionsRequest_AdditionalScript, error) {
 
@@ -266,7 +269,7 @@ func (wc *WalletClient) prepareTicketsForSigning(session *BuyerSession) (
 
 func (wc *WalletClient) processSignedTickets(
 	transactions []*pb.SignTransactionsResponse_SignedTransaction,
-	session *BuyerSession) error {
+	session *Session) error {
 
 	signed := wire.NewMsgTx()
 
@@ -295,7 +298,7 @@ func (wc *WalletClient) processSignedTickets(
 	return nil
 }
 
-func (wc *WalletClient) prepareRevocationForSigning(session *BuyerSession) (
+func (wc *WalletClient) prepareRevocationForSigning(session *Session) (
 	*pb.SignTransactionsRequest_UnsignedTransaction,
 	[]*pb.SignTransactionsRequest_AdditionalScript, error) {
 
@@ -337,7 +340,7 @@ func (wc *WalletClient) prepareRevocationForSigning(session *BuyerSession) (
 
 func (wc *WalletClient) processSignedRevocation(
 	transaction *pb.SignTransactionsResponse_SignedTransaction,
-	session *BuyerSession) error {
+	session *Session) error {
 
 	signed := wire.NewMsgTx()
 	signed.FromBytes(transaction.Transaction)
@@ -352,7 +355,7 @@ func (wc *WalletClient) processSignedRevocation(
 }
 
 func (wc *WalletClient) splitPkScripts(splitCopy *wire.MsgTx,
-	session *BuyerSession) ([]*pb.SignTransactionsRequest_AdditionalScript,
+	session *Session) ([]*pb.SignTransactionsRequest_AdditionalScript,
 	error) {
 
 	scripts := make([]*pb.SignTransactionsRequest_AdditionalScript, len(splitCopy.TxIn))
@@ -375,7 +378,7 @@ func (wc *WalletClient) splitPkScripts(splitCopy *wire.MsgTx,
 
 }
 
-func (wc *WalletClient) prepareSplitForSigning(session *BuyerSession) (
+func (wc *WalletClient) prepareSplitForSigning(session *Session) (
 	*pb.SignTransactionsRequest_UnsignedTransaction,
 	[]*pb.SignTransactionsRequest_AdditionalScript, error) {
 
@@ -401,7 +404,7 @@ func (wc *WalletClient) prepareSplitForSigning(session *BuyerSession) (
 
 func (wc *WalletClient) processSignedSplit(
 	transaction *pb.SignTransactionsResponse_SignedTransaction,
-	session *BuyerSession) error {
+	session *Session) error {
 
 	signed := wire.NewMsgTx()
 	signed.FromBytes(transaction.Transaction)
@@ -441,7 +444,7 @@ func (wc *WalletClient) processSignedSplit(
 	return nil
 }
 
-func (wc *WalletClient) SignTransactions(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
+func (wc *WalletClient) signTransactions(ctx context.Context, session *Session, cfg *Config) error {
 	req := &pb.SignTransactionsRequest{
 		Passphrase: cfg.Passphrase,
 	}
@@ -501,7 +504,7 @@ func (wc *WalletClient) SignTransactions(ctx context.Context, session *BuyerSess
 
 // testVoteAddress tests whether the vote address is signable by the local
 // wallet
-func (wc *WalletClient) testVoteAddress(ctx context.Context, cfg *BuyerConfig) error {
+func (wc *WalletClient) testVoteAddress(ctx context.Context, cfg *Config) error {
 	resp, err := wc.wsvc.ValidateAddress(context.Background(), &pb.ValidateAddressRequest{
 		Address: cfg.VoteAddress,
 	})
@@ -523,7 +526,7 @@ func (wc *WalletClient) testVoteAddress(ctx context.Context, cfg *BuyerConfig) e
 // testPassphrase tests whether the configured password is correct by attempting
 // to sign a message. It generates an address on the internal branch of the
 // wallet.
-func (wc *WalletClient) testPassphrase(ctx context.Context, cfg *BuyerConfig) error {
+func (wc *WalletClient) testPassphrase(ctx context.Context, cfg *Config) error {
 
 	resp, err := wc.wsvc.NextAddress(ctx, &pb.NextAddressRequest{
 		Account:   cfg.SourceAccount,
@@ -551,7 +554,7 @@ func (wc *WalletClient) testPassphrase(ctx context.Context, cfg *BuyerConfig) er
 
 // testFunds tests whether the wallet has sufficient funds to contribute the
 // specified maxAmount into a split ticket session.
-func (wc *WalletClient) testFunds(ctx context.Context, cfg *BuyerConfig) error {
+func (wc *WalletClient) testFunds(ctx context.Context, cfg *Config) error {
 
 	amount, err := dcrutil.NewAmount(cfg.MaxAmount)
 	if err != nil {

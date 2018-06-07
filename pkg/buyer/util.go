@@ -22,16 +22,17 @@ func encodeSessionName(name string) string {
 
 // WriterReporter implements the BuyerReporter interface by generating descriptive
 // messages to a writer
-type writerReporter struct {
+type WriterReporter struct {
 	w io.Writer
 }
 
 // NewWriterReporter returns a reporter that writes into stdout
-func NewWriterReporter(w io.Writer) *writerReporter {
-	return &writerReporter{w}
+func NewWriterReporter(w io.Writer) *WriterReporter {
+	return &WriterReporter{w}
 }
 
-func (rep *writerReporter) WaitingListChanged(queues []matcher.WaitingQueue) {
+// WaitingListChanged fulfills waitingListWatcher by outputting the changes
+func (rep *WriterReporter) WaitingListChanged(queues []matcher.WaitingQueue) {
 	for _, q := range queues {
 		strs := make([]string, len(q.Amounts))
 		sessName := q.Name
@@ -45,28 +46,28 @@ func (rep *writerReporter) WaitingListChanged(queues []matcher.WaitingQueue) {
 	}
 }
 
-func (rep *writerReporter) reportSavedSession(fname string) {
+func (rep *WriterReporter) reportSavedSession(fname string) {
 	fmt.Fprintf(rep.w, "Saved session at %s\n", fname)
 }
 
-func (rep *writerReporter) reportMatcherStatus(status *pb.StatusResponse) {
+func (rep *WriterReporter) reportMatcherStatus(status *pb.StatusResponse) {
 	price := dcrutil.Amount(status.TicketPrice)
 	fmt.Fprintf(rep.w, "Matcher ticket price: %s\n", price)
 }
 
-func (rep *writerReporter) reportSrvRecordFound(record string) {
+func (rep *WriterReporter) reportSrvRecordFound(record string) {
 	fmt.Fprintf(rep.w, "Found SRV record to use host %s\n", record)
 }
 
-func (rep *writerReporter) reportSplitPublished() {
+func (rep *WriterReporter) reportSplitPublished() {
 	fmt.Fprintf(rep.w, "Split tx published in the network\n")
 }
 
-func (rep *writerReporter) reportRightTicketPublished() {
+func (rep *WriterReporter) reportRightTicketPublished() {
 	fmt.Fprintf(rep.w, "Correct ticket published in the network\n")
 }
 
-func (rep *writerReporter) reportWrongTicketPublished(ticket *wire.MsgTx, session *BuyerSession) {
+func (rep *WriterReporter) reportWrongTicketPublished(ticket *wire.MsgTx, session *Session) {
 	fmt.Fprintf(rep.w, "\n!!! WARNING !!!\n")
 	fmt.Fprintf(rep.w, "Wrong ticket published in the network!\n")
 	fmt.Fprintf(rep.w, "Please notify the community that this matcher is compromised IMMEDIATELY!!\n")
@@ -75,7 +76,7 @@ func (rep *writerReporter) reportWrongTicketPublished(ticket *wire.MsgTx, sessio
 	fmt.Fprintf(rep.w, "Expected ticket hash: %s\n", session.selectedTicket.TxHash())
 }
 
-func (rep *writerReporter) reportStage(ctx context.Context, stage BuyerStage, session *BuyerSession, cfg *BuyerConfig) {
+func (rep *WriterReporter) reportStage(ctx context.Context, stage Stage, session *Session, cfg *Config) {
 
 	out := func(format string, args ...interface{}) {
 		fmt.Fprintf(rep.w, format, args...)
@@ -225,16 +226,17 @@ func (rep *writerReporter) reportStage(ctx context.Context, stage BuyerStage, se
 
 }
 
+// NullReporter is a dummy reporter that never outputs anything.
 type NullReporter struct{}
 
-func (rep NullReporter) reportStage(ctx context.Context, stage BuyerStage, session *BuyerSession, cfg *BuyerConfig) {
+func (rep NullReporter) reportStage(ctx context.Context, stage Stage, session *Session, cfg *Config) {
 }
-func (rep NullReporter) reportMatcherStatus(status *pb.StatusResponse)                        {}
-func (rep NullReporter) reportSavedSession(string)                                            {}
-func (rep NullReporter) reportSrvRecordFound(record string)                                   {}
-func (rep NullReporter) reportSplitPublished()                                                {}
-func (rep NullReporter) reportRightTicketPublished()                                          {}
-func (rep NullReporter) reportWrongTicketPublished(ticket *wire.MsgTx, session *BuyerSession) {}
+func (rep NullReporter) reportMatcherStatus(status *pb.StatusResponse)                   {}
+func (rep NullReporter) reportSavedSession(string)                                       {}
+func (rep NullReporter) reportSrvRecordFound(record string)                              {}
+func (rep NullReporter) reportSplitPublished()                                           {}
+func (rep NullReporter) reportRightTicketPublished()                                     {}
+func (rep NullReporter) reportWrongTicketPublished(ticket *wire.MsgTx, session *Session) {}
 
 func reporterFromContext(ctx context.Context) Reporter {
 	val := ctx.Value(ReporterCtxKey)

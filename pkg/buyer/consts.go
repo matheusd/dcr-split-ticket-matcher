@@ -1,6 +1,7 @@
 package buyer
 
-type BuyerStage int32
+// Stage represents a single stage of the full ticket buying process.
+type Stage int32
 type reporterCtxKey int
 
 const (
@@ -12,8 +13,10 @@ const (
 	minRequredConfirmations = 2
 )
 
+// Following are the various stages the buyer can be in. They may not
+// necessarily pass through all of these stages.
 const (
-	StageUnknown BuyerStage = iota
+	StageUnknown Stage = iota
 	StageConnectingToMatcher
 	StageConnectingToWallet
 	StageFindingMatches

@@ -56,6 +56,7 @@ var (
 	defaultCfgFilePath = filepath.Join(defaultDataDir, "dcrstmd.conf")
 )
 
+// LoadConfig loads the daemon config from the local config file.
 func LoadConfig() (*Config, error) {
 	var err error
 

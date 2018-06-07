@@ -5,6 +5,7 @@ import (
 
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
+	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -47,16 +48,16 @@ func WatchMatcherWaitingList(ctx context.Context, matcherHost string,
 	for {
 		resp, err := cli.Recv()
 		if err != nil {
-			return err
-		} else {
-			queues := make([]matcher.WaitingQueue, len(resp.Queues))
-			for i, q := range resp.Queues {
-				queues[i] = matcher.WaitingQueue{
-					Name:    q.Name,
-					Amounts: uint64sToAmounts(q.Amounts),
-				}
-			}
-			watcher.WaitingListChanged(queues)
+			return errors.Wrapf(err, "error while receiving waiting list updates")
 		}
+
+		queues := make([]matcher.WaitingQueue, len(resp.Queues))
+		for i, q := range resp.Queues {
+			queues[i] = matcher.WaitingQueue{
+				Name:    q.Name,
+				Amounts: uint64sToAmounts(q.Amounts),
+			}
+		}
+		watcher.WaitingListChanged(queues)
 	}
 }

@@ -33,7 +33,9 @@ var (
 	ErrEmptyPassword = fmt.Errorf("empty password")
 )
 
-type BuyerConfig struct {
+// Config stores the configuration needed to perform a single ticket split
+// session as a buyer.
+type Config struct {
 	ConfigFile           string  `short:"C" long:"configfile" description:"Path to config file"`
 	WalletCertFile       string  `long:"wallet.certfile" description:"Path Wallet rpc.cert file"`
 	WalletHost           string  `long:"wallet.host" description:"Address of the wallet. Use 127.0.0.1:0 to try and automatically locate the running wallet on localhost."`
@@ -62,7 +64,7 @@ type BuyerConfig struct {
 
 // ReadPassphrase reads the passphrase from stdin (if needed), fills the
 // PassPhrase field and clears the Pass field
-func (cfg *BuyerConfig) ReadPassphrase() error {
+func (cfg *Config) ReadPassphrase() error {
 	if cfg.Pass == "" {
 		return ErrEmptyPassword
 	} else if cfg.Pass == "-" {
@@ -81,7 +83,7 @@ func (cfg *BuyerConfig) ReadPassphrase() error {
 
 // Validate checks whether the current config has enough information for
 // participation into a split ticket buying session
-func (cfg *BuyerConfig) Validate() error {
+func (cfg *Config) Validate() error {
 
 	// just a syntatic sugar to reduce typed chars
 	missing := func(pmt string) missingConfigParameterError {
@@ -144,10 +146,10 @@ func (pmt missingConfigParameterError) Error() string {
 // LoadConfig parses command line arguments, the config file (either the
 // default one or the one specificed with the -C option), merges the settings
 // and returns a new BuyerConfig object for use in a split ticket buying session
-func LoadConfig() (*BuyerConfig, error) {
+func LoadConfig() (*Config, error) {
 	var err error
 
-	preCfg := &BuyerConfig{
+	preCfg := &Config{
 		ConfigFile: defaultCfgFilePath,
 	}
 	preParser := flags.NewParser(preCfg, flags.Default)
@@ -163,7 +165,7 @@ func LoadConfig() (*BuyerConfig, error) {
 
 	configFilePath := preCfg.ConfigFile
 
-	cfg := &BuyerConfig{
+	cfg := &Config{
 		ConfigFile:           configFilePath,
 		SStxFeeLimits:        uint16(0x5800),
 		ChainParams:          &chaincfg.MainNetParams,
@@ -208,7 +210,7 @@ func LoadConfig() (*BuyerConfig, error) {
 	return cfg, nil
 }
 
-func (cfg *BuyerConfig) networkCfg() *decredNetworkConfig {
+func (cfg *Config) networkCfg() *decredNetworkConfig {
 	return &decredNetworkConfig{
 		Host:     cfg.DcrdHost,
 		User:     cfg.DcrdUser,
@@ -292,19 +294,19 @@ func InitConfigFromDcrwallet() error {
 		}
 	}
 
-	testnetRpcCert := filepath.Join(defaultDataDir, "testnet-rpc.cert")
-	mainnetRpcCert := filepath.Join(defaultDataDir, "mainnet-rpc.cert")
-	ioutil.WriteFile(testnetRpcCert, []byte(testnetMatcherRpcCert), 0644)
-	ioutil.WriteFile(mainnetRpcCert, []byte(mainnetMatcherRpcCert), 0644)
+	testnetRPCCert := filepath.Join(defaultDataDir, "testnet-rpc.cert")
+	mainnetRPCCert := filepath.Join(defaultDataDir, "mainnet-rpc.cert")
+	ioutil.WriteFile(testnetRPCCert, []byte(testnetMatcherRPCCert), 0644)
+	ioutil.WriteFile(mainnetRPCCert, []byte(mainnetMatcherRPCCert), 0644)
 
 	activeNet := netparams.MainNetParams
 	isTestNet := section.Key("testnet").Value() == "1"
 	matcherHost := "mainnet-split-tickets.matheusd.com:8475"
-	matcherCert := mainnetRpcCert
+	matcherCert := mainnetRPCCert
 	if isTestNet {
 		activeNet = netparams.TestNet2Params
 		matcherHost = "testnet-split-tickets.matheusd.com:18475"
-		matcherCert = testnetRpcCert
+		matcherCert = testnetRPCCert
 	}
 
 	dstSection.Key("MatcherHost").SetValue(matcherHost)

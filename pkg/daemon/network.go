@@ -33,7 +33,7 @@ type decredNetwork struct {
 	chainParams *chaincfg.Params
 }
 
-func ConnectToDecredNode(cfg *decredNetworkConfig) (*decredNetwork, error) {
+func connectToDecredNode(cfg *decredNetworkConfig) (*decredNetwork, error) {
 
 	log := logging.MustGetLogger("decred-network")
 	log.SetBackend(cfg.logBackend)

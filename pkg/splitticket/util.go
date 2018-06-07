@@ -134,8 +134,8 @@ func StakeDiffChangeDistance(blockHeight uint32, params *chaincfg.Params) int32 
 	if baseDist > winSize/2 {
 		// the previous change block is closer
 		return winSize - baseDist
-	} else {
-		// the next change block is closer
-		return baseDist
 	}
+
+	// the next change block is closer
+	return baseDist
 }

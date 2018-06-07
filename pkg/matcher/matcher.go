@@ -75,6 +75,8 @@ type cancelSessionChanReq struct {
 	err     error
 }
 
+// ParticipantTicketOutput returns information about a particular participant's
+// tickets.
 type ParticipantTicketOutput struct {
 	SecretHash   *splitticket.SecretNumberHash
 	VotePkScript []byte
@@ -82,6 +84,8 @@ type ParticipantTicketOutput struct {
 	Amount       dcrutil.Amount
 }
 
+// WaitingQueue returns information about participants waiting on a specific
+// queue
 type WaitingQueue struct {
 	Name    string
 	Amounts []dcrutil.Amount
@@ -106,6 +110,8 @@ type Matcher struct {
 	cancelWaitingListWatcher      chan context.Context
 }
 
+// NewMatcher creates an instance of a new split ticket matcher. Call
+// matcher.run() on a goroutine to start processing.
 func NewMatcher(cfg *Config) *Matcher {
 	m := &Matcher{
 		cfg:                 cfg,
@@ -718,6 +724,8 @@ func (matcher *Matcher) removeSession(sess *Session, err error) {
 	}
 }
 
+// AddParticipant is the public API for a matcher to add a new participant to a
+// split ticket queue.
 func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64, sessionName string) (*SessionParticipant, error) {
 	if maxAmount < matcher.cfg.MinAmount {
 		return nil, errors.Errorf("participation amount (%s) less than "+
@@ -749,6 +757,7 @@ func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64, se
 	return resp.participant, resp.err
 }
 
+// WatchWaitingList is the public matcher API for listeners of queue changes.
 func (matcher *Matcher) WatchWaitingList(ctx context.Context, watcher chan []WaitingQueue) {
 	req := watchWaitingListRequest{
 		ctx:     ctx,
@@ -811,6 +820,8 @@ func (matcher *Matcher) SetParticipantsOutputs(ctx context.Context,
 	return resp.splitTx, resp.ticket, resp.participants, resp.index, resp.err
 }
 
+// FundTicket is the matcher public API to participants in a session to fund the
+// ticket transaction.
 func (matcher *Matcher) FundTicket(ctx context.Context, sessionID ParticipantID,
 	inputsScriptSig [][]byte, revocationScriptSig []byte) ([][]byte, [][]byte, error) {
 
@@ -831,6 +842,8 @@ func (matcher *Matcher) FundTicket(ctx context.Context, sessionID ParticipantID,
 	return resp.tickets, resp.revocations, resp.err
 }
 
+// FundSplit is the public matcher API for participants to fund their respective
+// split ticket inputs.
 func (matcher *Matcher) FundSplit(ctx context.Context, sessionID ParticipantID,
 	inputScriptSigs [][]byte, secretNb splitticket.SecretNumber) ([]byte,
 	[]splitticket.SecretNumber, error) {

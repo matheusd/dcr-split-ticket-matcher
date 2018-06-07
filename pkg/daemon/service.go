@@ -29,12 +29,16 @@ func encodeQueueName(name string) string {
 	return hex.EncodeToString(hash[:])
 }
 
+// SplitTicketMatcherService implements the methods required to accept split
+// ticket session commands from a grpc service.
 type SplitTicketMatcherService struct {
 	matcher            *matcher.Matcher
 	networkProvider    matcher.NetworkProvider
 	allowPublicSession bool
 }
 
+// NewSplitTicketMatcherService creates a new instance of a service, given all
+// required options.
 func NewSplitTicketMatcherService(matcher *matcher.Matcher,
 	networkProvider matcher.NetworkProvider, allowPublicSession bool) *SplitTicketMatcherService {
 	return &SplitTicketMatcherService{
@@ -44,6 +48,7 @@ func NewSplitTicketMatcherService(matcher *matcher.Matcher,
 	}
 }
 
+// WatchWaitingList fulfills SplitTicketMatcherServiceServer
 func (svc *SplitTicketMatcherService) WatchWaitingList(req *pb.WatchWaitingListRequest, server pb.SplitTicketMatcherService_WatchWaitingListServer) error {
 
 	watcher := make(chan []matcher.WaitingQueue)
@@ -71,6 +76,7 @@ func (svc *SplitTicketMatcherService) WatchWaitingList(req *pb.WatchWaitingListR
 	}
 }
 
+// FindMatches fulfills SplitTicketMatcherServiceServer
 func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.FindMatchesRequest) (*pb.FindMatchesResponse, error) {
 	if req.ProtocolVersion != pkg.ProtocolVersion {
 		return nil, errors.Errorf("server is running a different protocol "+
@@ -101,6 +107,7 @@ func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.F
 	return res, nil
 }
 
+// GenerateTicket fulfills SplitTicketMatcherServiceServer
 func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *pb.GenerateTicketRequest) (*pb.GenerateTicketResponse, error) {
 
 	var splitChange *wire.TxOut
@@ -178,6 +185,7 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 	return resp, nil
 }
 
+// FundTicket fulfills SplitTicketMatcherServiceServer
 func (svc *SplitTicketMatcherService) FundTicket(ctx context.Context, req *pb.FundTicketRequest) (*pb.FundTicketResponse, error) {
 
 	ticketsInput := make([][]byte, len(req.Tickets))
@@ -205,6 +213,7 @@ func (svc *SplitTicketMatcherService) FundTicket(ctx context.Context, req *pb.Fu
 	return resp, nil
 }
 
+// FundSplitTx fulfills SplitTicketMatcherServiceServer
 func (svc *SplitTicketMatcherService) FundSplitTx(ctx context.Context, req *pb.FundSplitTxRequest) (*pb.FundSplitTxResponse, error) {
 	split, secrets, err := svc.matcher.FundSplit(ctx,
 		matcher.ParticipantID(req.SessionId),
@@ -225,6 +234,7 @@ func (svc *SplitTicketMatcherService) FundSplitTx(ctx context.Context, req *pb.F
 	return resp, nil
 }
 
+// Status fulfills SplitTicketMatcherServiceServer
 func (svc *SplitTicketMatcherService) Status(context.Context, *pb.StatusRequest) (*pb.StatusResponse, error) {
 	return &pb.StatusResponse{
 		TicketPrice: svc.networkProvider.CurrentTicketPrice(),

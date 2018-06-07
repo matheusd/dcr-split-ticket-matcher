@@ -30,7 +30,9 @@ type buyerSessionParticipant struct {
 	voteAddress  dcrutil.Address
 }
 
-type BuyerSession struct {
+// Session is the structure that stores data for a single split ticket
+// session in progress.
+type Session struct {
 	ID          matcher.ParticipantID
 	Amount      dcrutil.Amount
 	Fee         dcrutil.Amount
@@ -69,7 +71,7 @@ type BuyerSession struct {
 	selectedCoin       dcrutil.Amount
 }
 
-func (session *BuyerSession) secretHashes() []splitticket.SecretNumberHash {
+func (session *Session) secretHashes() []splitticket.SecretNumberHash {
 	res := make([]splitticket.SecretNumberHash, len(session.participants))
 	for i, p := range session.participants {
 		res[i] = p.secretHash
@@ -77,7 +79,7 @@ func (session *BuyerSession) secretHashes() []splitticket.SecretNumberHash {
 	return res
 }
 
-func (session *BuyerSession) secretNumbers() []splitticket.SecretNumber {
+func (session *Session) secretNumbers() []splitticket.SecretNumber {
 	res := make([]splitticket.SecretNumber, len(session.participants))
 	for i, p := range session.participants {
 		res[i] = p.secretNb
@@ -85,7 +87,7 @@ func (session *BuyerSession) secretNumbers() []splitticket.SecretNumber {
 	return res
 }
 
-func (session *BuyerSession) amounts() []dcrutil.Amount {
+func (session *Session) amounts() []dcrutil.Amount {
 	res := make([]dcrutil.Amount, len(session.participants))
 	for i, p := range session.participants {
 		res[i] = p.amount
@@ -93,7 +95,7 @@ func (session *BuyerSession) amounts() []dcrutil.Amount {
 	return res
 }
 
-func (session *BuyerSession) voteScripts() [][]byte {
+func (session *Session) voteScripts() [][]byte {
 	res := make([][]byte, len(session.participants))
 	for i, p := range session.participants {
 		res[i] = p.votePkScript
@@ -101,7 +103,7 @@ func (session *BuyerSession) voteScripts() [][]byte {
 	return res
 }
 
-func (session *BuyerSession) voteAddresses() []dcrutil.Address {
+func (session *Session) voteAddresses() []dcrutil.Address {
 	res := make([]dcrutil.Address, len(session.participants))
 	for i, p := range session.participants {
 		res[i] = p.voteAddress
@@ -109,7 +111,7 @@ func (session *BuyerSession) voteAddresses() []dcrutil.Address {
 	return res
 }
 
-func (session *BuyerSession) splitInputOutpoints() []wire.OutPoint {
+func (session *Session) splitInputOutpoints() []wire.OutPoint {
 	res := make([]wire.OutPoint, len(session.splitTx.TxIn))
 	for i, in := range session.splitTx.TxIn {
 		res[i] = in.PreviousOutPoint
@@ -117,24 +119,28 @@ func (session *BuyerSession) splitInputOutpoints() []wire.OutPoint {
 	return res
 }
 
+// Reporter is an interface that must be implemented to report status of a buyer
+// session during its progress.
 type Reporter interface {
-	reportStage(context.Context, BuyerStage, *BuyerSession, *BuyerConfig)
+	reportStage(context.Context, Stage, *Session, *Config)
 	reportMatcherStatus(*pbm.StatusResponse)
 	reportSavedSession(string)
 	reportSrvRecordFound(record string)
 	reportSplitPublished()
 	reportRightTicketPublished()
-	reportWrongTicketPublished(ticket *wire.MsgTx, session *BuyerSession)
+	reportWrongTicketPublished(ticket *wire.MsgTx, session *Session)
 }
 
 type sessionWaiterResponse struct {
 	mc      *MatcherClient
 	wc      *WalletClient
-	session *BuyerSession
+	session *Session
 	err     error
 }
 
-func BuySplitTicket(ctx context.Context, cfg *BuyerConfig) error {
+// BuySplitTicket performs the whole split ticket purchase process, given the
+// config provided. The context may be canceled at any time to abort the session.
+func BuySplitTicket(ctx context.Context, cfg *Config) error {
 
 	if cfg.WalletHost == "127.0.0.1:0" {
 		hosts, err := net.FindListeningWallets(cfg.WalletCertFile, cfg.ChainParams)
@@ -170,8 +176,8 @@ func BuySplitTicket(ctx context.Context, cfg *BuyerConfig) error {
 	cancelWait()
 
 	defer func() {
-		resp.mc.Close()
-		resp.wc.Close()
+		resp.mc.close()
+		resp.wc.close()
 	}()
 
 	ctxBuy, cancelBuy := context.WithTimeout(ctx, time.Second*time.Duration(cfg.MaxTime))
@@ -190,7 +196,7 @@ func BuySplitTicket(ctx context.Context, cfg *BuyerConfig) error {
 
 }
 
-func waitForSession(ctx context.Context, cfg *BuyerConfig) sessionWaiterResponse {
+func waitForSession(ctx context.Context, cfg *Config) sessionWaiterResponse {
 	rep := reporterFromContext(ctx)
 
 	rep.reportStage(ctx, StageConnectingToWallet, nil, cfg)
@@ -199,7 +205,7 @@ func waitForSession(ctx context.Context, cfg *BuyerConfig) sessionWaiterResponse
 		return sessionWaiterResponse{nil, nil, nil, err}
 	}
 
-	err = wc.CheckNetwork(ctx, cfg.ChainParams)
+	err = wc.checkNetwork(ctx, cfg.ChainParams)
 	if err != nil {
 		return sessionWaiterResponse{nil, nil, nil, err}
 	}
@@ -226,7 +232,7 @@ func waitForSession(ctx context.Context, cfg *BuyerConfig) sessionWaiterResponse
 		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err, "error connecting to matcher")}
 	}
 
-	status, err := mc.Status(ctx)
+	status, err := mc.status(ctx)
 	if err != nil {
 		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err, "error getting status from matcher")}
 	}
@@ -238,7 +244,7 @@ func waitForSession(ctx context.Context, cfg *BuyerConfig) sessionWaiterResponse
 	}
 
 	rep.reportStage(ctx, StageFindingMatches, nil, cfg)
-	session, err := mc.Participate(ctx, maxAmount, cfg.SessionName)
+	session, err := mc.participate(ctx, maxAmount, cfg.SessionName)
 	if err != nil {
 		return sessionWaiterResponse{nil, nil, nil, err}
 	}
@@ -267,34 +273,34 @@ func waitForSession(ctx context.Context, cfg *BuyerConfig) sessionWaiterResponse
 	return sessionWaiterResponse{mc, wc, session, nil}
 }
 
-func buySplitTicket(ctx context.Context, cfg *BuyerConfig, mc *MatcherClient, wc *WalletClient, session *BuyerSession) error {
+func buySplitTicket(ctx context.Context, cfg *Config, mc *MatcherClient, wc *WalletClient, session *Session) error {
 
 	rep := reporterFromContext(ctx)
 	var err error
 
 	rep.reportStage(ctx, StageGeneratingOutputs, session, cfg)
-	err = wc.GenerateOutputs(ctx, session, cfg)
+	err = wc.generateOutputs(ctx, session, cfg)
 	if err != nil {
 		return err
 	}
 	rep.reportStage(ctx, StageOutputsGenerated, session, cfg)
 
 	rep.reportStage(ctx, StageGeneratingTicket, session, cfg)
-	err = mc.GenerateTicket(ctx, session, cfg)
+	err = mc.generateTicket(ctx, session, cfg)
 	if err != nil {
 		return err
 	}
 	rep.reportStage(ctx, StageTicketGenerated, session, cfg)
 
 	rep.reportStage(ctx, StageSigningTicket, session, cfg)
-	err = wc.SignTransactions(ctx, session, cfg)
+	err = wc.signTransactions(ctx, session, cfg)
 	if err != nil {
 		return err
 	}
 	rep.reportStage(ctx, StageTicketSigned, session, cfg)
 
 	rep.reportStage(ctx, StageFundingTicket, session, cfg)
-	err = mc.FundTicket(ctx, session, cfg)
+	err = mc.fundTicket(ctx, session, cfg)
 	if err != nil {
 		return err
 	}
@@ -303,7 +309,7 @@ func buySplitTicket(ctx context.Context, cfg *BuyerConfig, mc *MatcherClient, wc
 	mc.network.monitorSession(ctx, session)
 
 	rep.reportStage(ctx, StageFundingSplitTx, session, cfg)
-	err = mc.FundSplitTx(ctx, session, cfg)
+	err = mc.fundSplitTx(ctx, session, cfg)
 	if err != nil {
 		return err
 	}
@@ -329,8 +335,8 @@ func buySplitTicket(ctx context.Context, cfg *BuyerConfig, mc *MatcherClient, wc
 	return nil
 }
 
-func waitForPublishedTxs(ctx context.Context, session *BuyerSession,
-	cfg *BuyerConfig, net *decredNetwork) error {
+func waitForPublishedTxs(ctx context.Context, session *Session,
+	cfg *Config, net *decredNetwork) error {
 
 	var notifiedSplit, notifiedTicket bool
 	rep := reporterFromContext(ctx)
@@ -345,10 +351,9 @@ func waitForPublishedTxs(ctx context.Context, session *BuyerSession,
 			if ctxErr != nil {
 				return errors.Wrapf(ctxErr, "context error while waiting for"+
 					"published txs")
-			} else {
-				return errors.Errorf("context done while waiting for published" +
-					"txs")
 			}
+			return errors.Errorf("context done while waiting for published" +
+				"txs")
 		default:
 			if !notifiedSplit && net.publishedSplit {
 				rep.reportSplitPublished()
@@ -377,7 +382,7 @@ func waitForPublishedTxs(ctx context.Context, session *BuyerSession,
 	return nil
 }
 
-func saveSession(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
+func saveSession(ctx context.Context, session *Session, cfg *Config) error {
 
 	rep := reporterFromContext(ctx)
 

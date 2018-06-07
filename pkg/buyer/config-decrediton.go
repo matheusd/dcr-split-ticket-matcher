@@ -82,7 +82,7 @@ func getDecreditonGlobalConfig() (*decreditonGlobalConfig, error) {
 	decreditonDir := decreditonConfigDir()
 	decreditonGlobalCfgFile := filepath.Join(decreditonDir, "config.json")
 
-	globalCfgJson, err := ioutil.ReadFile(decreditonGlobalCfgFile)
+	globalCfgJSON, err := ioutil.ReadFile(decreditonGlobalCfgFile)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error reading global config.json from "+
 			"decrediton at %s", decreditonGlobalCfgFile)
@@ -90,7 +90,7 @@ func getDecreditonGlobalConfig() (*decreditonGlobalConfig, error) {
 
 	globalCfg := &decreditonGlobalConfig{}
 
-	err = json.Unmarshal(globalCfgJson, globalCfg)
+	err = json.Unmarshal(globalCfgJSON, globalCfg)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error unmarshaling decrediton config.json")
 	}
@@ -173,16 +173,16 @@ func InitConfigFromDecrediton(walletName string) error {
 
 	walletDir := filepath.Join(walletsDir, walletName)
 
-	walletCfgJsonFname := filepath.Join(walletDir, "config.json")
-	walletCfgJson, err := ioutil.ReadFile(walletCfgJsonFname)
+	walletCfgJSONFname := filepath.Join(walletDir, "config.json")
+	walletCfgJSON, err := ioutil.ReadFile(walletCfgJSONFname)
 	if err != nil {
 		return errors.Wrapf(err, "error reading wallet config.json from "+
-			"decrediton at %s", walletCfgJsonFname)
+			"decrediton at %s", walletCfgJSONFname)
 	}
 
 	walletCfg := &decreditonWalletConfig{}
 
-	err = json.Unmarshal(walletCfgJson, walletCfg)
+	err = json.Unmarshal(walletCfgJSON, walletCfg)
 	if err != nil {
 		return errors.Wrapf(err, "error unmarshaling decrediton config.json")
 	}
@@ -202,20 +202,20 @@ func InitConfigFromDecrediton(walletName string) error {
 		return errors.Wrapf(err, "error getting dst section")
 	}
 
-	testnetRpcCert := filepath.Join(defaultDataDir, "testnet-rpc.cert")
-	mainnetRpcCert := filepath.Join(defaultDataDir, "mainnet-rpc.cert")
-	ioutil.WriteFile(testnetRpcCert, []byte(testnetMatcherRpcCert), 0644)
-	ioutil.WriteFile(mainnetRpcCert, []byte(mainnetMatcherRpcCert), 0644)
+	testnetRPCCert := filepath.Join(defaultDataDir, "testnet-rpc.cert")
+	mainnetRPCCert := filepath.Join(defaultDataDir, "mainnet-rpc.cert")
+	ioutil.WriteFile(testnetRPCCert, []byte(testnetMatcherRPCCert), 0644)
+	ioutil.WriteFile(mainnetRPCCert, []byte(mainnetMatcherRPCCert), 0644)
 
 	activeNet := netparams.MainNetParams
 	isTestNet := globalCfg.Network == "testnet"
 	matcherHost := "mainnet-split-tickets.matheusd.com:8475"
-	matcherCert := mainnetRpcCert
+	matcherCert := mainnetRPCCert
 	testnetVal := "0"
 	if isTestNet {
 		activeNet = netparams.TestNet2Params
 		matcherHost = "testnet-split-tickets.matheusd.com:18475"
-		matcherCert = testnetRpcCert
+		matcherCert = testnetRPCCert
 		testnetVal = "1"
 	}
 

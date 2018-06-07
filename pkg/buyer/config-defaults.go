@@ -52,7 +52,7 @@ DcrdPass =
 DcrdCert = /home/user/.dcrd/rpc.cert
 `
 
-var testnetMatcherRpcCert = `
+var testnetMatcherRPCCert = `
 -----BEGIN CERTIFICATE-----
 MIICfjCCAd+gAwIBAgIRAKopofGharfvO70tNQYERewwCgYIKoZIzj0EAwQwOzEf
 MB0GA1UEChMWU3BsaXQgVGlja2V0IEJ1eWVyIE9yZzEYMBYGA1UEAxMPZGVjcmVk
@@ -71,7 +71,7 @@ q5DhDo1z1XTUMqfSkTPgZtj+
 -----END CERTIFICATE-----
 `
 
-var mainnetMatcherRpcCert = `
+var mainnetMatcherRPCCert = `
 -----BEGIN CERTIFICATE-----
 MIICjzCCAfGgAwIBAgIQBe/9iEwxzSduEurpBJ8WAzAKBggqhkjOPQQDBDBBMR8w
 HQYDVQQKExZTcGxpdCBUaWNrZXQgQnV5ZXIgT3JnMR4wHAYDVQQDExVtYWlubmV0

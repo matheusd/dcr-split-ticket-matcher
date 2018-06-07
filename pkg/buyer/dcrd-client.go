@@ -70,7 +70,7 @@ func connectToDecredNode(cfg *decredNetworkConfig) (*decredNetwork, error) {
 // monitorSession monitors the given session (split and possible tickets) for
 // publishing. Assumes the split and ticket templates have been received and
 // the vote/pool pkscripts of individual participants have also been received.
-func (dcrd *decredNetwork) monitorSession(ctx context.Context, sess *BuyerSession) {
+func (dcrd *decredNetwork) monitorSession(ctx context.Context, sess *Session) {
 	dcrd.splitHash = sess.splitTx.TxHash()
 
 	dcrd.ticketsHashes = make([]chainhash.Hash, len(sess.participants))

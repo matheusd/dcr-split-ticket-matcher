@@ -35,6 +35,8 @@ func MustRandUint64() uint64 {
 	return r
 }
 
+// NewRandInt32 generates a new random int32 number or an error in case of
+// entropy exhaustion
 func NewRandInt32() (int32, error) {
 	var b [4]byte
 	_, err := rand.Read(b[:])
@@ -45,6 +47,7 @@ func NewRandInt32() (int32, error) {
 	return int32(uint32(b[0]) | uint32(b[1])<<8 | uint32(b[2])<<16 | uint32(b[3])<<24), nil
 }
 
+// MustRandInt32 generates a new int32 number or panics.
 func MustRandInt32() int32 {
 	r, err := NewRandInt32()
 	if err != nil {
@@ -53,6 +56,8 @@ func MustRandInt32() int32 {
 	return r
 }
 
+// NewRandInt16 generates a new int16 or returns an error in case of entropy
+// exhaustion
 func NewRandInt16() (int16, error) {
 	var b [2]byte
 	_, err := rand.Read(b[:])
@@ -63,6 +68,7 @@ func NewRandInt16() (int16, error) {
 	return int16(uint32(b[0]) | uint32(b[1])<<8), nil
 }
 
+// MustRandInt16 generates a new int16 or panics.
 func MustRandInt16() int16 {
 	r, err := NewRandInt16()
 	if err != nil {
@@ -71,6 +77,8 @@ func MustRandInt16() int16 {
 	return r
 }
 
+// NewRandUInt16 generates a new uint16 or returns an error in case of entropy
+// exhaustion
 func NewRandUInt16() (uint16, error) {
 	var b [2]byte
 	_, err := rand.Read(b[:])
@@ -81,6 +89,7 @@ func NewRandUInt16() (uint16, error) {
 	return uint16(uint32(b[0]) | uint32(b[1])<<8), nil
 }
 
+// MustRandUInt16 generates a new uint16 or panics.
 func MustRandUInt16() uint16 {
 	r, err := NewRandUInt16()
 	if err != nil {
@@ -89,7 +98,7 @@ func MustRandUInt16() uint16 {
 	return r
 }
 
-// createUnsignedRevocation creates an unsigned revocation transaction that
+// CreateUnsignedRevocation creates an unsigned revocation transaction that
 // revokes a missed or expired ticket.  Revocations must carry a relay fee and
 // this function can error if the revocation contains no suitable output to
 // decrease the estimated relay fee from.
