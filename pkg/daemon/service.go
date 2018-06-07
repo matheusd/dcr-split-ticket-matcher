@@ -134,7 +134,8 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 
 	splitOutpoints := make([]*wire.OutPoint, len(req.SplitTxInputs))
 	for i, in := range req.SplitTxInputs {
-		hash, err := chainhash.NewHash(in.PrevHash)
+		var hash *chainhash.Hash
+		hash, err = chainhash.NewHash(in.PrevHash)
 		if err != nil {
 			return nil, err
 		}

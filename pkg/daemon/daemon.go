@@ -83,6 +83,8 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	d.wallet = dcrw
 
 	if cfg.KeyFile != "" {
+		var cert tls.Certificate
+
 		if _, err = os.Stat(cfg.KeyFile); os.IsNotExist(err) {
 			err = generateRPCKeyPair(cfg.KeyFile, cfg.CertFile)
 			if err != nil {
@@ -92,7 +94,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 				cfg.KeyFile, cfg.CertFile)
 		}
 
-		cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
+		cert, err = tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
 		if err != nil {
 			panic(err)
 		}

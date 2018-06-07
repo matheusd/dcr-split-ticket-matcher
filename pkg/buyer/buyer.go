@@ -391,7 +391,7 @@ func saveSession(ctx context.Context, session *Session, cfg *Config) error {
 	_, err := os.Stat(sessionDir)
 
 	if os.IsNotExist(err) {
-		err := os.MkdirAll(sessionDir, 0700)
+		err = os.MkdirAll(sessionDir, 0700)
 		if err != nil {
 			return err
 		}

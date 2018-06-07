@@ -535,10 +535,13 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 
 		ticket, _, err := sess.CreateTransactions()
 
+		var revocation *wire.MsgTx
+		var buff, buffRevocation []byte
+
 		for i, p := range sess.Participants {
 			p.replaceTicketIOs(ticket)
 			ticketHash = ticket.TxHash()
-			revocation, err := CreateUnsignedRevocation(&ticketHash, ticket,
+			revocation, err = CreateUnsignedRevocation(&ticketHash, ticket,
 				dcrutil.Amount(RevocationFeeRate))
 			if err != nil {
 				matcher.log.Errorf("Error creating participant's revocation: %v", err)
@@ -547,13 +550,13 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 
 			p.replaceRevocationInput(ticket, revocation)
 
-			buff, err := ticket.Bytes()
+			buff, err = ticket.Bytes()
 			if err != nil {
 				matcher.log.Errorf("Error serializing ticket with changed IOs: %v", err)
 				return err
 			}
 
-			buffRevocation, err := revocation.Bytes()
+			buffRevocation, err = revocation.Bytes()
 			if err != nil {
 				matcher.log.Errorf("Error serializing revocation with changed input: %v", err)
 				return err

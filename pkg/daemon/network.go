@@ -62,7 +62,7 @@ func connectToDecredNode(cfg *decredNetworkConfig) (*decredNetwork, error) {
 	net.client = client
 
 	// Register for block connect and disconnect notifications.
-	if err := client.NotifyBlocks(); err != nil {
+	if err = client.NotifyBlocks(); err != nil {
 		return nil, err
 	}
 

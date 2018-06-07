@@ -252,12 +252,15 @@ func InitConfigFromDecrediton(walletName string) error {
 		}
 
 		if hasDcrdConf {
-			dcrdIni, err := ini.Load(dcrdConfFname)
+			var dcrdIni *ini.File
+			var dcrdSection *ini.Section
+
+			dcrdIni, err = ini.Load(dcrdConfFname)
 			if err != nil {
 				return errors.Wrapf(err, "error reading dcrd ini at %s", dcrdConfFname)
 			}
 
-			dcrdSection, err := dcrdIni.GetSection("Application Options")
+			dcrdSection, err = dcrdIni.GetSection("Application Options")
 			if err != nil {
 				return errors.Wrapf(err, "error reading Application Options "+
 					"section from dcrd")

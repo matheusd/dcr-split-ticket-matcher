@@ -56,20 +56,20 @@ func ConnectToMatcherService(ctx context.Context, matcherHost string,
 	}
 
 	var opt grpc.DialOption
+	var creds credentials.TransportCredentials
+
 	if certFile != "" {
-		creds, err := credentials.NewClientTLSFromFile(certFile, "localhost")
+		creds, err = credentials.NewClientTLSFromFile(certFile, "localhost")
 		if err != nil {
 			return nil, errors.Wrapf(err, "error creating credentials")
 		}
-
-		opt = grpc.WithTransportCredentials(creds)
 	} else {
 		tlsCfg := &tls.Config{
 			ServerName: host,
 		}
-		creds := credentials.NewTLS(tlsCfg)
-		opt = grpc.WithTransportCredentials(creds)
+		creds = credentials.NewTLS(tlsCfg)
 	}
+	opt = grpc.WithTransportCredentials(creds)
 
 	conn, err := grpc.Dial(matcherHost, opt)
 	if err != nil {
@@ -199,7 +199,9 @@ func (mc *MatcherClient) generateTicket(ctx context.Context, session *Session, c
 
 	session.participants = make([]buyerSessionParticipant, len(resp.Participants))
 	for i, p := range resp.Participants {
-		_, voteAddresses, _, err := txscript.ExtractPkScriptAddrs(
+		var voteAddresses []dcrutil.Address
+
+		_, voteAddresses, _, err = txscript.ExtractPkScriptAddrs(
 			txscript.DefaultScriptVersion, p.VotePkScript, cfg.ChainParams)
 		if err != nil {
 			return errors.Wrapf(err, "error decoding vote pkscript of"+

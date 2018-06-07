@@ -11,4 +11,5 @@ gometalinter \
     --enable=golint \
     --enable=interfacer \
     --enable=deadcode \
+    --enable=vetshadow \
     ./...
