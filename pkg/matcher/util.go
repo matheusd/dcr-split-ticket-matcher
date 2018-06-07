@@ -4,15 +4,8 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 
-	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/txscript"
-	"github.com/decred/dcrd/wire"
-	"github.com/decred/dcrwallet/wallet/txrules"
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher/internal/txsizes"
-	"github.com/pkg/errors"
 )
 
 // NewRandUint64 returns a new uint64 or an error
@@ -96,65 +89,6 @@ func MustRandUInt16() uint16 {
 		panic(err)
 	}
 	return r
-}
-
-// CreateUnsignedRevocation creates an unsigned revocation transaction that
-// revokes a missed or expired ticket.  Revocations must carry a relay fee and
-// this function can error if the revocation contains no suitable output to
-// decrease the estimated relay fee from.
-func CreateUnsignedRevocation(ticketHash *chainhash.Hash, ticketPurchase *wire.MsgTx, feePerKB dcrutil.Amount) (*wire.MsgTx, error) {
-	// Parse the ticket purchase transaction to determine the required output
-	// destinations for vote rewards or revocations.
-	ticketPayKinds, ticketHash160s, ticketValues, _, _, _ :=
-		stake.TxSStxStakeOutputInfo(ticketPurchase)
-
-	// Calculate the output values for the revocation.  Revocations do not
-	// contain any subsidy.
-	revocationValues := stake.CalculateRewards(ticketValues,
-		ticketPurchase.TxOut[0].Value, 0)
-
-	// Begin constructing the revocation transaction.
-	revocation := wire.NewMsgTx()
-
-	// Revocations reference the ticket purchase with the first (and only)
-	// input.
-	ticketOutPoint := wire.NewOutPoint(ticketHash, 0, wire.TxTreeStake)
-	revocation.AddTxIn(wire.NewTxIn(ticketOutPoint, nil))
-	scriptSizers := []txsizes.ScriptSizer{txsizes.PoolVotingP2SHScriptSize}
-
-	// All remaining outputs pay to the output destinations and amounts tagged
-	// by the ticket purchase.
-	for i, hash160 := range ticketHash160s {
-		scriptFn := txscript.PayToSSRtxPKHDirect
-		if ticketPayKinds[i] { // P2SH
-			scriptFn = txscript.PayToSSRtxSHDirect
-		}
-		// Error is checking for a nil hash160, just ignore it.
-		script, _ := scriptFn(hash160)
-		revocation.AddTxOut(wire.NewTxOut(revocationValues[i], script))
-	}
-
-	// Revocations must pay a fee but do so by decreasing one of the output
-	// values instead of increasing the input value and using a change output.
-	// Calculate the estimated signed serialize size.
-	sizeEstimate := txsizes.EstimateSerializeSize(scriptSizers, revocation.TxOut, false)
-	feeEstimate := txrules.FeeForSerializeSize(feePerKB, sizeEstimate)
-
-	// Reduce the output value of one of the outputs to accomodate for the relay
-	// fee.  To avoid creating dust outputs, a suitable output value is reduced
-	// by the fee estimate only if it is large enough to not create dust.  This
-	// code does not currently handle reducing the output values of multiple
-	// commitment outputs to accomodate for the fee.
-	for _, output := range revocation.TxOut {
-		if dcrutil.Amount(output.Value) > feeEstimate {
-			amount := dcrutil.Amount(output.Value) - feeEstimate
-			if !txrules.IsDustAmount(amount, len(output.PkScript), feePerKB) {
-				output.Value = int64(amount)
-				return revocation, nil
-			}
-		}
-	}
-	return nil, errors.New("no suitable revocation outputs to pay relay fee")
 }
 
 // TargetTicketExpirationBlock calculates the expected expiration block for a

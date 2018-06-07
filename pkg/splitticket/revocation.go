@@ -4,10 +4,22 @@ import (
 	"github.com/decred/dcrd/blockchain"
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
+	"github.com/decred/dcrwallet/wallet/txrules"
 	"github.com/pkg/errors"
+)
+
+const (
+	// RedeemPoolVotingScriptSize is the maximum size of a scriptSig used to redeem
+	// a ticket tx (via vote or revocation) when using a stakepool.
+	RedeemPoolVotingScriptSize = 1 + 73 + 1 + 73
+
+	// RevocationFeeRate is the fee rate in Atoms/KB of the revocation tx.
+	// 1e5 = 0.001 DCR
+	RevocationFeeRate = minRelayFeeRate
 )
 
 // CheckRevocation checks whether the revocation for the given ticket respects
@@ -121,20 +133,88 @@ func CheckRevocation(ticket, revocation *wire.MsgTx, params *chaincfg.Params) er
 // is correct. Only safe to be called on ticket and revocation transactions
 // that have passed their respective check functions.
 func FindRevocationTxFee(ticket, revocation *wire.MsgTx) (dcrutil.Amount, error) {
-	ticketUtxos := make(UtxoMap, len(ticket.TxOut))
+	if len(ticket.TxOut) == 0 {
+		return 0, errors.Errorf("ticket does not have outputs")
+	}
+
+	out := ticket.TxOut[0]
+	ticketUtxos := make(UtxoMap, 1)
 	ticketHash := ticket.TxHash()
-	for i, out := range ticket.TxOut {
-		outp := wire.OutPoint{
-			Hash:  ticketHash,
-			Index: uint32(i),
-			Tree:  wire.TxTreeStake,
-		}
-		ticketUtxos[outp] = UtxoEntry{
-			PkScript: out.PkScript,
-			Value:    dcrutil.Amount(out.Value),
-			Version:  out.Version,
-		}
+	outp := wire.OutPoint{
+		Hash:  ticketHash,
+		Index: 0,
+		Tree:  wire.TxTreeStake,
+	}
+	ticketUtxos[outp] = UtxoEntry{
+		PkScript: out.PkScript,
+		Value:    dcrutil.Amount(out.Value),
+		Version:  out.Version,
 	}
 
 	return FindTxFee(revocation, ticketUtxos)
+}
+
+// CreateUnsignedRevocation creates an unsigned revocation transaction that
+// revokes a missed or expired ticket.  Revocations must carry a relay fee and
+// this function can error if the revocation contains no suitable output to
+// decrease the estimated relay fee from.
+//
+// This is based on the dcrwallet code, copied here due to it not being
+// originally exported.
+func CreateUnsignedRevocation(ticketHash *chainhash.Hash,
+	ticketPurchase *wire.MsgTx, feePerKB dcrutil.Amount) (*wire.MsgTx, error) {
+	// Parse the ticket purchase transaction to determine the required output
+	// destinations for vote rewards or revocations.
+	ticketPayKinds, ticketHash160s, ticketValues, _, _, _ :=
+		stake.TxSStxStakeOutputInfo(ticketPurchase)
+
+	// Calculate the output values for the revocation.  Revocations do not
+	// contain any subsidy.
+	revocationValues := stake.CalculateRewards(ticketValues,
+		ticketPurchase.TxOut[0].Value, 0)
+
+	// Begin constructing the revocation transaction.
+	revocation := wire.NewMsgTx()
+
+	// Revocations reference the ticket purchase with the first (and only)
+	// input.
+	ticketOutPoint := wire.NewOutPoint(ticketHash, 0, wire.TxTreeStake)
+	revocation.AddTxIn(wire.NewTxIn(ticketOutPoint, nil))
+
+	// All remaining outputs pay to the output destinations and amounts tagged
+	// by the ticket purchase.
+	for i, hash160 := range ticketHash160s {
+		scriptFn := txscript.PayToSSRtxPKHDirect
+		if ticketPayKinds[i] { // P2SH
+			scriptFn = txscript.PayToSSRtxSHDirect
+		}
+		// Error is checking for a nil hash160, just ignore it.
+		script, _ := scriptFn(hash160)
+		revocation.AddTxOut(wire.NewTxOut(revocationValues[i], script))
+	}
+
+	// Calculate the estimated signed serialize size. Note that, since the
+	// revocation is constructed unsiged, we add the maximum possible size for
+	// a pool voting signature.
+	sizeEstimate := revocation.SerializeSize() + RedeemPoolVotingScriptSize
+	feeEstimate := txrules.FeeForSerializeSize(feePerKB, sizeEstimate)
+
+	// Revocations must pay a fee but do so by decreasing one of the output
+	// values instead of increasing the input value and using a change output.
+	//
+	// Reduce the output value of one of the outputs to accomodate for the relay
+	// fee.  To avoid creating dust outputs, a suitable output value is reduced
+	// by the fee estimate only if it is large enough to not create dust.  This
+	// code does not currently handle reducing the output values of multiple
+	// commitment outputs to accomodate for the fee.
+	for _, output := range revocation.TxOut {
+		if dcrutil.Amount(output.Value) > feeEstimate {
+			amount := dcrutil.Amount(output.Value) - feeEstimate
+			if !txrules.IsDustAmount(amount, len(output.PkScript), feePerKB) {
+				output.Value = int64(amount)
+				return revocation, nil
+			}
+		}
+	}
+	return nil, errors.New("no suitable revocation outputs to pay relay fee")
 }

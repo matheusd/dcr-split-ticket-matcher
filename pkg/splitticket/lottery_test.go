@@ -27,6 +27,8 @@ func addrFromStr(str string) dcrutil.Address {
 }
 
 func TestSelectContributionAmount(t *testing.T) {
+	t.Parallel()
+
 	var err error
 
 	// syntatic sugar to help out making the test cases
@@ -126,6 +128,8 @@ func TestSelectContributionAmount(t *testing.T) {
 }
 
 func TestSecretNumberHashes(t *testing.T) {
+	t.Parallel()
+
 	mainchainHash := new(chainhash.Hash)
 	chainhash.Decode(mainchainHash, "000000000000437482b6d47f82f374cde539440ddb108b0a76886f0d87d126b9")
 
@@ -152,6 +156,8 @@ func TestSecretNumberHashes(t *testing.T) {
 }
 
 func TestLotteryCommitment(t *testing.T) {
+	t.Parallel()
+
 	chainHashes := []*chainhash.Hash{
 		chainHashFromStr("000000000000437482b6d47f82f374cde539440ddb108b0a76886f0d87d126b9"),
 		chainHashFromStr("000000000000c41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba"),
@@ -202,6 +208,8 @@ func TestLotteryCommitment(t *testing.T) {
 }
 
 func TestLotteryResults(t *testing.T) {
+	t.Parallel()
+
 	chainHashes := []*chainhash.Hash{
 		chainHashFromStr("000000000000437482b6d47f82f374cde539440ddb108b0a76886f0d87d126b9"),
 		chainHashFromStr("000000000000c41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba"),
@@ -246,6 +254,8 @@ func TestLotteryResults(t *testing.T) {
 }
 
 func TestLotteryResultsStatistics(t *testing.T) {
+	t.Parallel()
+
 	chainHashes := []*chainhash.Hash{
 		chainHashFromStr("000000000000437482b6d47f82f374cde539440ddb108b0a76886f0d87d126b9"),
 		chainHashFromStr("000000000000c41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba"),

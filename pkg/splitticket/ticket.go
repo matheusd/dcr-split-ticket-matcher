@@ -24,6 +24,9 @@ const (
 	// MaximumTicketExpiry is the maximum expiry (in blocks) expected in a ticket
 	// transaction
 	MaximumTicketExpiry = 16
+
+	// CommitmentLimits is the limit used in ticket commitments
+	CommitmentLimits = uint16(0x5800)
 )
 
 // CheckTicket validates that the given ticket respects the rules for the

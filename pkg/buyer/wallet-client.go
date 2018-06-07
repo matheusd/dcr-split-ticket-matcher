@@ -11,7 +11,6 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 	"github.com/pkg/errors"
 
@@ -311,8 +310,8 @@ func (wc *WalletClient) prepareRevocationForSigning(session *Session) (
 
 	ticketHash := myTicket.TxHash()
 
-	revocation, err := matcher.CreateUnsignedRevocation(&ticketHash, myTicket,
-		dcrutil.Amount(matcher.RevocationFeeRate))
+	revocation, err := splitticket.CreateUnsignedRevocation(&ticketHash, myTicket,
+		splitticket.RevocationFeeRate)
 	if err != nil {
 		return nil, nil, err
 	}

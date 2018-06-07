@@ -7,13 +7,6 @@ import (
 )
 
 const (
-	// CommitmentLimits is the limit used in ticket commitments
-	CommitmentLimits = uint16(0x5800)
-
-	// RevocationFeeRate is the fee rate in Atoms/KB of the revocation tx.
-	// 1e5 = 0.001 DCR
-	RevocationFeeRate = int64(1e5)
-
 	// MaximumExpiry accepted for split and ticket transactions
 	MaximumExpiry = 16
 

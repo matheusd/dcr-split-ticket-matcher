@@ -16,3 +16,10 @@ gometalinter \
     --enable=varcheck \
     --enable=gas \
     ./...
+
+if [ $? != 0 ]; then
+    echo 'gometalinter failed'
+    exit 1
+fi
+
+go test ./...

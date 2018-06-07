@@ -97,13 +97,13 @@ func (part *SessionParticipant) createIOs() error {
 	}
 
 	poolScript, err := txscript.GenerateSStxAddrPush(part.PoolAddress,
-		part.Session.PoolFee, CommitmentLimits)
+		part.Session.PoolFee, splitticket.CommitmentLimits)
 	if err != nil {
 		return errors.Wrapf(err, "error creating ticket pool output script")
 	}
 
 	commitScript, err := txscript.GenerateSStxAddrPush(part.CommitmentAddress,
-		part.CommitAmount+part.Fee, CommitmentLimits)
+		part.CommitAmount+part.Fee, splitticket.CommitmentLimits)
 	if err != nil {
 		return errors.Wrapf(err, "error creating ticket commitment output script")
 	}
@@ -341,7 +341,7 @@ func (sess *Session) CreateVoterTransactions() (*wire.MsgTx, *wire.MsgTx, *wire.
 
 	ticketHash := ticket.TxHash()
 
-	revocation, err := CreateUnsignedRevocation(&ticketHash, ticket, dcrutil.Amount(1e5))
+	revocation, err := splitticket.CreateUnsignedRevocation(&ticketHash, ticket, dcrutil.Amount(1e5))
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "error creating unsigned revocation")
 	}
@@ -581,8 +581,8 @@ func (sess *Session) SaveSession(sessionDir string) error {
 	for i, p := range sess.Participants {
 		p.replaceTicketIOs(ticketTempl)
 		ticketHash := ticketTempl.TxHash()
-		revocationTempl, err := CreateUnsignedRevocation(&ticketHash, ticketTempl,
-			dcrutil.Amount(RevocationFeeRate))
+		revocationTempl, err := splitticket.CreateUnsignedRevocation(&ticketHash, ticketTempl,
+			splitticket.RevocationFeeRate)
 		if err != nil {
 			return errors.Wrapf(err, "error creating unsigned revocation")
 		}
