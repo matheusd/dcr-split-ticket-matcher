@@ -328,6 +328,9 @@ func CheckTicketScriptMatchAddresses(voteAddress, poolAddress dcrutil.Address,
 	}
 
 	decodedPoolAmount, err := stake.AmountFromSStxPkScrCommitment(poolPkScript)
+	if err != nil {
+		return errors.Wrapf(err, "error extracing amount from commitment script")
+	}
 	if decodedPoolAmount != poolFee {
 		return errors.Errorf("decoded pool fee (%s) is not equal to expected "+
 			"pool fee (%s)", decodedPoolAmount, poolFee)
@@ -372,6 +375,9 @@ func CheckParticipantInTicket(split, ticket *wire.MsgTx, amount,
 	contrib := amount + fee
 
 	decodedAmount, err := stake.AmountFromSStxPkScrCommitment(out.PkScript)
+	if err != nil {
+		return errors.Wrapf(err, "error extracting amount from commitment script")
+	}
 	if decodedAmount != contrib {
 		return errors.Errorf("decoded commitment amount (%s) is not equal to "+
 			"expected amount (%s)", decodedAmount, contrib)

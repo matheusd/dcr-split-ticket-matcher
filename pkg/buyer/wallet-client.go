@@ -78,12 +78,16 @@ func (wc *WalletClient) CheckNetwork(ctx context.Context, chainParams *chaincfg.
 
 func (wc *WalletClient) GenerateOutputs(ctx context.Context, session *BuyerSession, cfg *BuyerConfig) error {
 	splitOutAddr, splitChangeAddr, ticketOutAdd, err := wc.generateOutputAddresses(ctx, session, cfg)
+	if err != nil {
+		return errors.Wrapf(err, "error generating output addresses")
+	}
+
 	session.ticketOutputAddress = ticketOutAdd
 	session.splitOutputAddress = splitOutAddr
 
 	splitChangeScript, err := txscript.PayToAddrScript(splitChangeAddr)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "error creating pay2addr script")
 	}
 	session.splitChange = wire.NewTxOut(0, splitChangeScript)
 

@@ -437,7 +437,9 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 		var err error
 
 		ticket, splitTx, err = sess.CreateTransactions()
-		splitUtxos, err = sess.SplitUtxoMap()
+		if err == nil {
+			splitUtxos, err = sess.SplitUtxoMap()
+		}
 		if err == nil {
 			err = splitticket.CheckSplit(splitTx, splitUtxos, sess.SecretNumberHashes(),
 				&sess.MainchainHash, sess.MainchainHeight, matcher.cfg.ChainParams)
@@ -615,6 +617,10 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 			voter.ID)
 
 		ticket, splitTx, revocation, err := sess.CreateVoterTransactions()
+		if err != nil {
+			matcher.log.Errorf("error generating voter txs: %v", err)
+			return err
+		}
 		secrets := sess.SecretNumbers()
 
 		// we ignore the error here because this doesn't change from setParticipantOutputs()
