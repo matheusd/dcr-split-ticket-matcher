@@ -704,16 +704,16 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 	return nil
 }
 
-func (matcher *Matcher) cancelSessionOnContextDone(ctx context.Context, sessPart *SessionParticipant) {
-	go func() {
-		<-ctx.Done()
-		sess := sessPart.Session
-		if (ctx.Err() != nil) && (!sess.Canceled) && (!sess.Done) {
-			matcher.log.Warningf("Cancelling session %s due to context error on participant %s: %v", sess.ID, sessPart.ID, ctx.Err())
-			matcher.cancelSessionChan <- cancelSessionChanReq{session: sessPart.Session, err: errors.Errorf("participant disconnected")}
-		}
-	}()
-}
+// func (matcher *Matcher) cancelSessionOnContextDone(ctx context.Context, sessPart *SessionParticipant) {
+// 	go func() {
+// 		<-ctx.Done()
+// 		sess := sessPart.Session
+// 		if (ctx.Err() != nil) && (!sess.Canceled) && (!sess.Done) {
+// 			matcher.log.Warningf("Cancelling session %s due to context error on participant %s: %v", sess.ID, sessPart.ID, ctx.Err())
+// 			matcher.cancelSessionChan <- cancelSessionChanReq{session: sessPart.Session, err: errors.Errorf("participant disconnected")}
+// 		}
+// 	}()
+// }
 
 func (matcher *Matcher) removeSession(sess *Session, err error) {
 	delete(matcher.sessions, sess.ID)

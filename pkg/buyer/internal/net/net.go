@@ -65,9 +65,12 @@ func FindListeningWallets(certFile string, params *chaincfg.Params) ([]string, e
 	hosts := make([]string, 0)
 	for _, port := range ports {
 		host := fmt.Sprintf("127.0.0.1:%d", port)
-		conn, err := grpc.Dial(host, grpc.WithTransportCredentials(creds),
-			grpc.WithTimeout(time.Second))
 
+		ctx, cancel := context.WithTimeout(context.Background(),
+			100*time.Millisecond)
+		defer cancel()
+
+		conn, err := grpc.DialContext(ctx, host, grpc.WithTransportCredentials(creds))
 		if err != nil {
 			continue
 		}
@@ -75,7 +78,7 @@ func FindListeningWallets(certFile string, params *chaincfg.Params) ([]string, e
 		defer conn.Close()
 		wsvc := pb.NewWalletServiceClient(conn)
 
-		ctx, cancel := context.WithTimeout(context.Background(),
+		ctx, cancel = context.WithTimeout(context.Background(),
 			100*time.Millisecond)
 		defer cancel()
 		resp, err := wsvc.Network(ctx, &pb.NetworkRequest{})

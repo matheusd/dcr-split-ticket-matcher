@@ -251,11 +251,6 @@ func TestLotteryResultsStatistics(t *testing.T) {
 		chainHashFromStr("000000000000c41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba"),
 	}
 
-	type result struct {
-		coin  dcrutil.Amount
-		index int
-	}
-
 	var amounts []dcrutil.Amount
 	var i int
 	var nbs []SecretNumber

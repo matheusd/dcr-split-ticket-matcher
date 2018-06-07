@@ -13,4 +13,5 @@ gometalinter \
     --enable=vetshadow \
     --enable=structcheck \
     --enable=goconst \
+    --enable=megacheck \
     ./...
