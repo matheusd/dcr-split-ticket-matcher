@@ -1,5 +1,7 @@
 # DCR Split Ticket Matcher Service
 
+[![Build Status](https://travis-ci.org/matheusd/dcr-split-ticket-matcher.svg?branch=master)](https://travis-ci.org/matheusd/dcr-split-ticket-matcher)
+
 Software for decred holders to buy only a fraction of a ticket, enabling more individuals to participate in the decision making process. This is done in a (mostly) trustless way, such that the funds used do not leave the control of its owner.
 
 Currently in [beta stage](/docs/beta.md).

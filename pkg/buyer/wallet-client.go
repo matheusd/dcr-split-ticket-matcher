@@ -253,13 +253,13 @@ func (wc *WalletClient) prepareTicketsForSigning(session *Session) (
 	for i, p := range session.participants {
 		ticket.TxOut[0].PkScript = p.votePkScript
 		ticket.TxOut[1].PkScript = p.poolPkScript
-		bytes, err := ticket.Bytes()
+		bts, err := ticket.Bytes()
 		if err != nil {
 			return nil, nil, err
 		}
 
 		tickets[i] = &pb.SignTransactionsRequest_UnsignedTransaction{
-			SerializedTransaction: bytes,
+			SerializedTransaction: bts,
 		}
 	}
 

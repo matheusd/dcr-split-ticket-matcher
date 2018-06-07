@@ -1,0 +1,21 @@
+# copied from decred/dcrd
+language: go
+go:
+  - 1.x
+
+sudo: required
+services:
+  - docker
+
+env:
+  - GOVERSION=1.10
+  # - GOVERSION=1.9
+
+install: true
+
+cache:
+  directories:
+    - ~/.cache
+
+script:
+  - ./run_tests.sh $GOVERSION

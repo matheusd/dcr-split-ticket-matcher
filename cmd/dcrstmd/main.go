@@ -19,10 +19,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	daemon, err := daemon.NewDaemon(cfg)
+	d, err := daemon.NewDaemon(cfg)
 	if err != nil {
 		panic(err)
 	}
 
-	log.Fatal(daemon.ListenAndServe())
+	log.Fatal(d.ListenAndServe())
 }

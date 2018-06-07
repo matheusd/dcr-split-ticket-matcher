@@ -80,7 +80,6 @@
     "netparams",
     "rpc/walletrpc",
     "snacl",
-    "wallet/internal/txsizes",
     "wallet/txrules",
     "wallet/udb",
     "walletdb"
@@ -241,6 +240,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "53631d23d45934538825b5c94773663b59f7b3c0fee66df231416dded389619f"
+  inputs-digest = "b61af05ce2bbd8d839cf450b9315769ca8dbbf57ebe2529ba1ac099c70acc9a8"
   solver-name = "gps-cdcl"
   solver-version = 1
