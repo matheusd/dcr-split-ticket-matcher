@@ -14,6 +14,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	decreditonTestnet = "testnet"
+	decreditonMainnet = "mainnet"
+)
+
 type decreditonGlobalConfig struct {
 	Network             string                       `json:"network"`
 	DaemonStartAdvanced bool                         `json:"daemon_start_advanced"`
@@ -95,7 +100,7 @@ func getDecreditonGlobalConfig() (*decreditonGlobalConfig, error) {
 		return nil, errors.Wrapf(err, "error unmarshaling decrediton config.json")
 	}
 
-	if (globalCfg.Network != "testnet") && (globalCfg.Network != "mainnet") {
+	if (globalCfg.Network != decreditonTestnet) && (globalCfg.Network != decreditonMainnet) {
 		return nil, errors.Errorf("unrecognized network in decrediton "+
 			"config.json (%s)", globalCfg.Network)
 	}
@@ -120,7 +125,7 @@ func ListDecreditonWallets() []string {
 	}
 
 	walletDbDir := "mainnet"
-	if globalCfg.Network == "testnet" {
+	if globalCfg.Network == decreditonTestnet {
 		walletDbDir = "testnet2"
 	}
 
@@ -208,7 +213,7 @@ func InitConfigFromDecrediton(walletName string) error {
 	ioutil.WriteFile(mainnetRPCCert, []byte(mainnetMatcherRPCCert), 0644)
 
 	activeNet := netparams.MainNetParams
-	isTestNet := globalCfg.Network == "testnet"
+	isTestNet := globalCfg.Network == decreditonTestnet
 	matcherHost := "mainnet-split-tickets.matheusd.com:8475"
 	matcherCert := mainnetRPCCert
 	testnetVal := "0"

@@ -12,4 +12,5 @@ gometalinter \
     --enable=deadcode \
     --enable=vetshadow \
     --enable=structcheck \
+    --enable=goconst \
     ./...
