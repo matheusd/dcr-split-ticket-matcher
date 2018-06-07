@@ -150,7 +150,7 @@ func BuySplitTicket(ctx context.Context, cfg *BuyerConfig) error {
 		cfg.WalletHost = hosts[0]
 	}
 
-	ctxWait, _ := context.WithTimeout(ctx, time.Second*time.Duration(cfg.MaxWaitTime))
+	ctxWait, cancelWait := context.WithTimeout(ctx, time.Second*time.Duration(cfg.MaxWaitTime))
 	var resp sessionWaiterResponse
 	reschan := make(chan sessionWaiterResponse)
 	go func() { reschan <- waitForSession(ctxWait, cfg) }()
@@ -158,27 +158,33 @@ func BuySplitTicket(ctx context.Context, cfg *BuyerConfig) error {
 	select {
 	case <-ctx.Done():
 		<-reschan // Wait for f to return.
+		cancelWait()
 		return ctx.Err()
 	case resp = <-reschan:
 		if resp.err != nil {
+			cancelWait()
 			return resp.err
 		}
 	}
+
+	cancelWait()
 
 	defer func() {
 		resp.mc.Close()
 		resp.wc.Close()
 	}()
 
-	ctxBuy, _ := context.WithTimeout(ctx, time.Second*time.Duration(cfg.MaxTime))
+	ctxBuy, cancelBuy := context.WithTimeout(ctx, time.Second*time.Duration(cfg.MaxTime))
 	reschan2 := make(chan error)
 	go func() { reschan2 <- buySplitTicket(ctxBuy, cfg, resp.mc, resp.wc, resp.session) }()
 
 	select {
 	case <-ctx.Done():
 		<-reschan2 // Wait for f to return.
+		cancelBuy()
 		return ctx.Err()
 	case err := <-reschan2:
+		cancelBuy()
 		return err
 	}
 

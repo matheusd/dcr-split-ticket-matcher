@@ -184,9 +184,11 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, partPoolFee,
 	// validating elsewhere that these are correct in the actual ticket tx.
 	poolFeeRate := (float64(expectedPoolFee) / float64(ticketPrice)) * 100
 	if params.Name == "mainnet" && poolFeeRate > MaxPoolFeeRateMainnet {
-		return errors.Errorf("pool fee rate (%f) higher than expected for mainnet")
+		return errors.Errorf("pool fee rate (%f) higher than expected for "+
+			"mainnet", poolFeeRate)
 	} else if poolFeeRate > MaxPoolFeeRateTestnet {
-		return errors.Errorf("pool fee rate (%f) higher than expected for testnet")
+		return errors.Errorf("pool fee rate (%f) higher than expected for "+
+			"testnet", poolFeeRate)
 	}
 
 	// ensure the various locks don't prevent the ticket from being mined

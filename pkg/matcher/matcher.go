@@ -355,7 +355,7 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	var err error
 
 	if _, has := matcher.participants[req.sessionID]; !has {
-		return errors.Errorf("session %s not found", req.sessionID)
+		return errors.Errorf("session %s not found", req.sessionID.String())
 	}
 	part := matcher.participants[req.sessionID]
 
@@ -395,14 +395,14 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	err = matcher.cfg.VoteAddrValidator.ValidateVoteAddress(req.voteAddress)
 	if err != nil {
 		matcher.log.Errorf("Participant %s sent invalid vote address: %s",
-			part.ID, err)
+			part.ID.String(), err)
 		return errors.Wrapf(err, "invalid vote address")
 	}
 
 	err = matcher.cfg.PoolAddrValidator.ValidatePoolSubsidyAddress(req.poolAddress)
 	if err != nil {
 		matcher.log.Errorf("Participant %s sent invalid pool address: %s",
-			part.ID, err)
+			part.ID.String(), err)
 		return errors.Wrapf(err, "invalid pool address")
 	}
 
@@ -492,7 +492,7 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 
 func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 	if _, has := matcher.participants[req.sessionID]; !has {
-		return errors.Errorf("session %s not found", req.sessionID)
+		return errors.Errorf("session %s not found", req.sessionID.String())
 	}
 
 	part := matcher.participants[req.sessionID]
@@ -572,7 +572,7 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 
 func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 	if _, has := matcher.participants[req.sessionID]; !has {
-		return errors.Errorf("session %s not found", req.sessionID)
+		return errors.Errorf("session %s not found", req.sessionID.String())
 	}
 	part := matcher.participants[req.sessionID]
 	sess := part.Session
@@ -677,7 +677,8 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 		if matcher.cfg.SessionDataDir != "" {
 			err = sess.SaveSession(matcher.cfg.SessionDataDir)
 			if err != nil {
-				matcher.log.Errorf("Error saving session %s: %v", sess.ID, err)
+				matcher.log.Errorf("Error saving session %s: %v",
+					sess.ID.String(), err)
 			}
 		}
 

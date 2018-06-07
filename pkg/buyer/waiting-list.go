@@ -59,6 +59,4 @@ func WatchMatcherWaitingList(ctx context.Context, matcherHost string,
 			watcher.WaitingListChanged(queues)
 		}
 	}
-
-	return nil
 }

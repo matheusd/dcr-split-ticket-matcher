@@ -33,7 +33,7 @@ type logMsg struct {
 	args   []interface{}
 }
 
-func getDecreditonWalletName(log logFunc) {
+func getDecreditonWalletName(logf logFunc) {
 	window := gtk.NewWindow(gtk.WINDOW_TOPLEVEL)
 	window.SetResizable(false)
 	window.SetPosition(gtk.WIN_POS_CENTER)
@@ -58,13 +58,13 @@ func getDecreditonWalletName(log logFunc) {
 	button := gtk.NewButtonWithLabel("select")
 	button.Clicked(func() {
 		w := combo.GetActiveText()
-		log("Resetting config to decrediton wallet \"%s\"", w)
+		logf("Resetting config to decrediton wallet \"%s\"", w)
 		err := buyer.InitConfigFromDecrediton(w)
 		if err != nil {
-			log(err.Error())
+			logf(err.Error())
 		} else {
-			log("Successfully reset config to decrediton values")
-			reportConfig(log)
+			logf("Successfully reset config to decrediton values")
+			reportConfig(logf)
 		}
 
 		window.Destroy()
@@ -76,32 +76,32 @@ func getDecreditonWalletName(log logFunc) {
 	window.ShowAll()
 }
 
-func reportConfig(log logFunc) {
+func reportConfig(logf logFunc) {
 	cfg, err := buyer.LoadConfig()
 	if err != nil {
-		log("Error reading config: %v", err)
+		logf("Error reading config: %v", err)
 		return
 	}
 
 	networks := map[bool]string{false: "** MainNet **", true: "TestNet"}
 
-	log("")
-	log("Current Config")
-	log("Vote Address: %s", cfg.VoteAddress)
-	log("Pool Subsidy Address: %s", cfg.PoolAddress)
-	log("Network: %s", networks[cfg.TestNet])
-	log("Matcher Host: %s", cfg.MatcherHost)
+	logf("")
+	logf("Current Config")
+	logf("Vote Address: %s", cfg.VoteAddress)
+	logf("Pool Subsidy Address: %s", cfg.PoolAddress)
+	logf("Network: %s", networks[cfg.TestNet])
+	logf("Matcher Host: %s", cfg.MatcherHost)
 
 	err = cfg.Validate()
 	if err != nil {
-		log("")
-		log("** INVALID CONFIG **")
-		log(err.Error())
-		log("Please edit the config file at %s", cfg.ConfigFile)
+		logf("")
+		logf("** INVALID CONFIG **")
+		logf(err.Error())
+		logf("Please edit the config file at %s", cfg.ConfigFile)
 	}
 }
 
-func buildMainMenu(menubar *gtk.MenuBar, log logFunc) {
+func buildMainMenu(menubar *gtk.MenuBar, logf logFunc) {
 
 	cascademenu := gtk.NewMenuItemWithMnemonic("_File")
 	menubar.Append(cascademenu)
@@ -121,7 +121,7 @@ func buildMainMenu(menubar *gtk.MenuBar, log logFunc) {
 
 	menuitem = gtk.NewMenuItemWithMnemonic("Show Config")
 	menuitem.Connect("activate", func() {
-		reportConfig(log)
+		reportConfig(logf)
 	})
 	submenu.Append(menuitem)
 
@@ -129,10 +129,10 @@ func buildMainMenu(menubar *gtk.MenuBar, log logFunc) {
 	menuitem.Connect("activate", func() {
 		err := buyer.InitDefaultConfig()
 		if err != nil {
-			log(err.Error())
+			logf(err.Error())
 		} else {
-			log("Successfully reset config to factory defaults")
-			reportConfig(log)
+			logf("Successfully reset config to factory defaults")
+			reportConfig(logf)
 		}
 	})
 	submenu.Append(menuitem)
@@ -141,10 +141,10 @@ func buildMainMenu(menubar *gtk.MenuBar, log logFunc) {
 	menuitem.Connect("activate", func() {
 		err := buyer.InitConfigFromDcrwallet()
 		if err != nil {
-			log(err.Error())
+			logf(err.Error())
 		} else {
-			log("Successfully reset config to dcrwallet values")
-			reportConfig(log)
+			logf("Successfully reset config to dcrwallet values")
+			reportConfig(logf)
 		}
 	})
 	submenu.Append(menuitem)
@@ -152,22 +152,22 @@ func buildMainMenu(menubar *gtk.MenuBar, log logFunc) {
 	menuitem = gtk.NewMenuItemWithMnemonic("Load from decrediton")
 	menuitem.Connect("activate", func() {
 		fmt.Println("load from decrediton")
-		getDecreditonWalletName(log)
+		getDecreditonWalletName(logf)
 	})
 	submenu.Append(menuitem)
 
 }
 
-func participate(log logFunc, passphrase, sessionName string,
+func participate(logf logFunc, passphrase, sessionName string,
 	maxAmount float64) {
 	cfg, err := buyer.LoadConfig()
 	if err != nil {
-		log(fmt.Sprintf("Error reading config: %v", err))
+		logf(fmt.Sprintf("Error reading config: %v", err))
 		return
 	}
 
 	if passphrase == "" {
-		log("Empty Passphrase")
+		logf("Empty Passphrase")
 		return
 	}
 
@@ -177,7 +177,7 @@ func participate(log logFunc, passphrase, sessionName string,
 
 	err = cfg.Validate()
 	if err != nil {
-		reportConfig(log)
+		reportConfig(logf)
 		return
 	}
 
@@ -201,12 +201,12 @@ func participate(log logFunc, passphrase, sessionName string,
 		select {
 		case err = <-splitResultChan:
 			if err != nil {
-				log("Error trying to purchase split ticket: %v", err)
+				logf("Error trying to purchase split ticket: %v", err)
 			}
 			timer.Stop()
 			gotResult = true
 		case logMsg := <-logChan:
-			log(logMsg.format, logMsg.args...)
+			logf(logMsg.format, logMsg.args...)
 		case <-timer.C:
 			for gtk.EventsPending() {
 				if gtk.MainIterationDo(false) {
