@@ -260,7 +260,7 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 	q.waitingParticipants = nil
 
 	matcher.log.Noticef("Starting new session %s: Ticket Price=%s Fees=%s Participants=%d PoolFee=%s",
-		sessID, ticketPrice, ticketTxFee, numParts, dcrutil.Amount(poolFee))
+		sessID, ticketPrice, ticketTxFee, numParts, poolFee)
 
 	splitPoolOutAddr := matcher.cfg.SignPoolSplitOutProvider.PoolFeeAddress()
 	splitPoolOutScript, err := txscript.PayToAddrScript(splitPoolOutAddr)

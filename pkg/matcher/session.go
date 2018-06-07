@@ -296,14 +296,20 @@ func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, error) {
 		spOutIndex++
 
 		if p.splitTxChange != nil {
-			splitTx.AddTxOut(&wire.TxOut{p.splitTxChange.Value,
-				p.splitTxChange.Version, p.splitTxChange.PkScript})
+			splitTx.AddTxOut(&wire.TxOut{
+				Value:    p.splitTxChange.Value,
+				Version:  p.splitTxChange.Version,
+				PkScript: p.splitTxChange.PkScript,
+			})
 			spOutIndex++
 		}
 
 		for _, in := range p.splitTxInputs {
-			outp := &wire.OutPoint{in.PreviousOutPoint.Hash,
-				in.PreviousOutPoint.Index, in.PreviousOutPoint.Tree}
+			outp := &wire.OutPoint{
+				Hash:  in.PreviousOutPoint.Hash,
+				Index: in.PreviousOutPoint.Index,
+				Tree:  in.PreviousOutPoint.Tree,
+			}
 			splitTx.AddTxIn(wire.NewTxIn(outp, in.SignatureScript))
 		}
 	}
