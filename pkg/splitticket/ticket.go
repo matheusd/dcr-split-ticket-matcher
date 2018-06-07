@@ -365,7 +365,7 @@ func CheckParticipantInTicket(split, ticket *wire.MsgTx, amount,
 		return errors.Wrapf(err, "error decoding commitment address")
 	}
 
-	if decodedAddr.String() != commitmentAddr.String() {
+	if decodedAddr.EncodeAddress() != commitmentAddr.EncodeAddress() {
 		return errors.Errorf("commitment address (%s) at index %d not equal "+
 			"to expected address (%s)", decodedAddr, idxOutput, commitmentAddr)
 	}
@@ -409,7 +409,7 @@ func CheckParticipantInTicket(split, ticket *wire.MsgTx, amount,
 			"addresses (%d) than expected", len(addresses))
 	}
 
-	if addresses[0].String() != splitAddr.String() {
+	if addresses[0].EncodeAddress() != splitAddr.EncodeAddress() {
 		return errors.Errorf("address in output (%s) does not match the"+
 			"expected address (%s)", addresses[0], splitAddr)
 	}

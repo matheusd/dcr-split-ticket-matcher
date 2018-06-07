@@ -134,7 +134,7 @@ func CheckParticipantInSplit(split *wire.MsgTx, splitAddress dcrutil.Address,
 	changeIdx := -1
 	outputIdx := -1
 
-	expectedAddr := splitAddress.String()
+	expectedAddr := splitAddress.EncodeAddress()
 	expectedAmount := int64(commitAmount + ticketFee)
 
 	for i, out := range split.TxOut {

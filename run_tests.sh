@@ -9,4 +9,5 @@ gometalinter \
     --enable=unconvert \
     --enable=ineffassign \
     --enable=golint \
+    --enable=interfacer \
     ./...
