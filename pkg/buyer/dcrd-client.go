@@ -11,16 +11,14 @@ import (
 	"github.com/decred/dcrd/wire"
 	"github.com/pkg/errors"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/rpcclient"
 )
 
 type decredNetworkConfig struct {
-	Host        string
-	User        string
-	Pass        string
-	CertFile    string
-	chainParams *chaincfg.Params
+	Host     string
+	User     string
+	Pass     string
+	CertFile string
 }
 
 type decredNetwork struct {

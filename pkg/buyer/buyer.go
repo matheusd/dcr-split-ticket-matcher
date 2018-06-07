@@ -49,8 +49,6 @@ type Session struct {
 	poolAddress         dcrutil.Address
 	splitOutputAddress  dcrutil.Address
 	ticketOutputAddress dcrutil.Address
-	votePkScript        []byte
-	poolPkScript        []byte
 	splitChange         *wire.TxOut
 	splitInputs         []*wire.TxIn
 	participants        []buyerSessionParticipant
@@ -59,7 +57,6 @@ type Session struct {
 
 	ticketTemplate *wire.MsgTx
 	splitTx        *wire.MsgTx
-	revocation     *wire.MsgTx
 
 	ticketsScriptSig    [][]byte // one for each participant
 	revocationScriptSig []byte

@@ -1,8 +1,7 @@
 #!/bin/sh
 
 gometalinter \
-    --disable-all \
-    --vendor \
+    --disable-all --vendor --deadline=10m \
     --enable=gofmt \
     --enable=vet \
     --enable=gosimple \
@@ -12,4 +11,5 @@ gometalinter \
     --enable=interfacer \
     --enable=deadcode \
     --enable=vetshadow \
+    --enable=structcheck \
     ./...
