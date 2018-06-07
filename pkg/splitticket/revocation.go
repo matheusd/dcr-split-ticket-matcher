@@ -14,10 +14,8 @@ import (
 // the rules for split ticket buying. The ticket must have passed the
 // CheckTicket function.
 func CheckRevocation(ticket, revocation *wire.MsgTx, params *chaincfg.Params) error {
-	var err error
-
 	// ensure this looks like a decred transaction
-	err = blockchain.CheckTransactionSanity(revocation, params)
+	err := blockchain.CheckTransactionSanity(revocation, params)
 	if err != nil {
 		return errors.Wrap(err, "revocation failed sanity check")
 	}

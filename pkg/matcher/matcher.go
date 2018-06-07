@@ -793,14 +793,6 @@ func (matcher *Matcher) SetParticipantsOutputs(ctx context.Context,
 	// TODO: check if number of split inputs is < than a certain threshold
 	// (maybe 5 per part?)
 
-	// TODO: get the utxos from network and validate whether the
-	// sum(utxos) == commitment + poolFee + ticketFee + splitTxChange + SplitTxFee
-
-	outpoints := make([]*wire.OutPoint, len(splitTxOutPoints))
-	for i, o := range splitTxOutPoints {
-		outpoints[i] = o
-	}
-
 	req := setParticipantOutputsRequest{
 		ctx:              ctx,
 		sessionID:        sessionID,
@@ -809,7 +801,7 @@ func (matcher *Matcher) SetParticipantsOutputs(ctx context.Context,
 		commitAddress:    commitAddress,
 		splitTxAddress:   splitTxAddress,
 		splitTxChange:    splitTxChange,
-		splitTxOutPoints: outpoints,
+		splitTxOutPoints: splitTxOutPoints,
 		secretHash:       secretNbHash,
 		resp:             make(chan setParticipantOutputsResponse),
 	}

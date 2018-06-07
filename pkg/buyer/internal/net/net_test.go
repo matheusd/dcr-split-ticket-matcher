@@ -11,8 +11,7 @@ func TestIsSubdomain(t *testing.T) {
 		res  bool
 	}
 
-	var tests []testCase
-	tests = []testCase{
+	tests := []testCase{
 		{"example.com", "example.com", true},
 		{"example.com", "example.cot", false},
 		{"example.com", "dummy.example.com", true},

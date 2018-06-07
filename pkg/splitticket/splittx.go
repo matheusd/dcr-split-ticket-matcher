@@ -26,9 +26,7 @@ func CheckSplit(split *wire.MsgTx, utxos UtxoMap,
 	secretHashes []SecretNumberHash, mainchainHash *chainhash.Hash,
 	currentBlockHeight uint32, params *chaincfg.Params) error {
 
-	var err error
-
-	err = blockchain.CheckTransactionSanity(split, params)
+	err := blockchain.CheckTransactionSanity(split, params)
 	if err != nil {
 		return errors.Wrap(err, "split tx failed sanity check")
 	}

@@ -36,10 +36,8 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, partPoolFee,
 	partTicketFee dcrutil.Amount, partsAmounts []dcrutil.Amount,
 	currentBlockHeight uint32, params *chaincfg.Params) error {
 
-	var err error
-
 	// ensure the ticket tx looks like a valid decred tx
-	err = blockchain.CheckTransactionSanity(ticket, params)
+	err := blockchain.CheckTransactionSanity(ticket, params)
 	if err != nil {
 		return errors.Wrap(err, "ticket failed sanity check")
 	}

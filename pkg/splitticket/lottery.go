@@ -148,7 +148,7 @@ type SecretNumberHash [SecretNbHashSize]byte
 
 // Equals checks whether the hashes are equal.
 func (h SecretNumberHash) Equals(other SecretNumberHash) bool {
-	return bytes.Compare(h[:], other[:]) == 0
+	return bytes.Equal(h[:], other[:])
 }
 
 // String converts the secret hash to a string representation.

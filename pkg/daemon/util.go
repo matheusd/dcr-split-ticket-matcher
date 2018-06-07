@@ -123,7 +123,7 @@ func newMasterPubPoolAddrValidator(masterPubKey string, net *chaincfg.Params) (
 
 	end := uint32(10000)
 
-	if strings.Index(masterPubKey, ":") > -1 {
+	if strings.Contains(masterPubKey, ":") {
 		idxStart := strings.Index(masterPubKey, ":") + 1
 		newEnd, err := strconv.Atoi(masterPubKey[idxStart:])
 		if err != nil {
