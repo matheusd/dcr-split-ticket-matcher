@@ -10,4 +10,5 @@ gometalinter \
     --enable=ineffassign \
     --enable=golint \
     --enable=interfacer \
+    --enable=deadcode \
     ./...

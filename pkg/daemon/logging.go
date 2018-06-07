@@ -81,12 +81,3 @@ func standardLogBackend(toStdErr bool, dir string, baseName string, logLevel log
 
 	return logging.MultiLogger(backends...)
 }
-
-// setLoggerBackend sets the backends of the given logger, respecting the
-// desired config parameters
-func setLoggerBackend(toStdErr bool, dir string, baseName string, logLevel logging.Level,
-	logger *logging.Logger) {
-
-	backend := standardLogBackend(toStdErr, dir, baseName, logLevel)
-	logger.SetBackend(backend)
-}

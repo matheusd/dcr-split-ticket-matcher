@@ -33,11 +33,6 @@ type (
 		secrets []splitticket.SecretNumber
 		err     error
 	}
-
-	publishTicketResponse struct {
-		tx  *wire.MsgTx
-		err error
-	}
 )
 
 type (
