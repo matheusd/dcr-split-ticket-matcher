@@ -294,23 +294,15 @@ func InitConfigFromDcrwallet() error {
 		}
 	}
 
-	testnetRPCCert := filepath.Join(defaultDataDir, "testnet-rpc.cert")
-	mainnetRPCCert := filepath.Join(defaultDataDir, "mainnet-rpc.cert")
-	ioutil.WriteFile(testnetRPCCert, []byte(testnetMatcherRPCCert), 0644)
-	ioutil.WriteFile(mainnetRPCCert, []byte(mainnetMatcherRPCCert), 0644)
-
 	activeNet := netparams.MainNetParams
 	isTestNet := section.Key("testnet").Value() == "1"
 	matcherHost := "mainnet-split-tickets.matheusd.com:8475"
-	matcherCert := mainnetRPCCert
 	if isTestNet {
 		activeNet = netparams.TestNet2Params
 		matcherHost = "testnet-split-tickets.matheusd.com:18475"
-		matcherCert = testnetRPCCert
 	}
 
 	dstSection.Key("MatcherHost").SetValue(matcherHost)
-	dstSection.Key("MatcherCertFile").SetValue(matcherCert)
 
 	update("rpcconnect", "DcrdHost", "localhost:"+activeNet.JSONRPCClientPort)
 	update("cafile", "DcrdCert", filepath.Join(dcrdDir, "rpc.cert"))

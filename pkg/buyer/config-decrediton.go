@@ -207,25 +207,17 @@ func InitConfigFromDecrediton(walletName string) error {
 		return errors.Wrapf(err, "error getting dst section")
 	}
 
-	testnetRPCCert := filepath.Join(defaultDataDir, "testnet-rpc.cert")
-	mainnetRPCCert := filepath.Join(defaultDataDir, "mainnet-rpc.cert")
-	ioutil.WriteFile(testnetRPCCert, []byte(testnetMatcherRPCCert), 0644)
-	ioutil.WriteFile(mainnetRPCCert, []byte(mainnetMatcherRPCCert), 0644)
-
 	activeNet := netparams.MainNetParams
 	isTestNet := globalCfg.Network == decreditonTestnet
 	matcherHost := "mainnet-split-tickets.matheusd.com:8475"
-	matcherCert := mainnetRPCCert
 	testnetVal := "0"
 	if isTestNet {
 		activeNet = netparams.TestNet2Params
-		matcherHost = "testnet-split-tickets.matheusd.com:18475"
-		matcherCert = testnetRPCCert
+		matcherHost = "matheusd.com:18475"
 		testnetVal = "1"
 	}
 
 	dstSection.Key("MatcherHost").SetValue(matcherHost)
-	dstSection.Key("MatcherCertFile").SetValue(matcherCert)
 	dstSection.Key("TestNet").SetValue(testnetVal)
 	dstSection.Key("WalletCertFile").SetValue(filepath.Join(walletDir, "rpc.cert"))
 

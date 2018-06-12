@@ -697,7 +697,8 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 			}
 		}
 
-		matcher.log.Noticef("Session %s successfully finished", sess.ID)
+		matcher.log.Noticef("Session %s successfully finished as ticket %s",
+			sess.ID, ticket.TxHash())
 		matcher.removeSession(sess, nil)
 	}
 

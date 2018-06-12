@@ -44,15 +44,19 @@ func ConnectToMatcherService(ctx context.Context, matcherHost string,
 
 	host := intnet.RemoveHostPort(matcherHost)
 	_, addrs, err := net.LookupSRV(SplitTicketSrvService, SplitTicketSrvProto, host)
-	if (err == nil) && len(addrs) > 0 {
-		matcherHost = fmt.Sprintf("%s:%d", addrs[0].Target, addrs[0].Port)
+	if (err == nil) && (len(addrs) > 0) && (len(addrs[0].Target) > 0) {
+		target := addrs[0].Target
+		if target[len(target)-1:] == "." && (host[len(host)-1:] != ".") {
+			target = target[:len(target)-1]
+		}
+		matcherHost = fmt.Sprintf("%s:%d", target, addrs[0].Port)
 		rep.reportSrvRecordFound(matcherHost)
-		if !intnet.IsSubDomain(host, addrs[0].Target) {
+		if !intnet.IsSubDomain(host, target) {
 			return nil, errors.Errorf("SRV target host %s is not a subdomain of %s",
-				addrs[0].Target, host)
+				target, host)
 		}
 
-		host = addrs[0].Target
+		host = target
 	}
 
 	var opt grpc.DialOption

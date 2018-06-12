@@ -1,6 +1,6 @@
 #!/bin/sh
 
-VERSION=`grep -oP "Version\s+ = \"\K[^\"]+(?=\")" pkg/version.go`
+VERSION=`grep -oP "const Version = \"\K[^\"]+(?=\")" pkg/version.go`
 
 rm -fR dist/release/linux64/dcrstmd
 mkdir -p dist/release/linux64/dcrstmd
