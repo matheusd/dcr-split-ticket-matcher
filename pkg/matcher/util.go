@@ -121,3 +121,11 @@ func (v InsecurePoolAddressesValidator) ValidateVoteAddress(voteAddr dcrutil.Add
 func (v InsecurePoolAddressesValidator) ValidatePoolSubsidyAddress(poolAddr dcrutil.Address) error {
 	return nil
 }
+
+func encodedAddresses(addrs []dcrutil.Address) []string {
+	res := make([]string, len(addrs))
+	for i, addr := range addrs {
+		res[i] = addr.EncodeAddress()
+	}
+	return res
+}

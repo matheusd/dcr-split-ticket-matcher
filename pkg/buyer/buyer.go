@@ -461,6 +461,7 @@ func saveSession(ctx context.Context, session *Session, cfg *Config) error {
 
 	out("Participant Amounts = %v\n", session.amounts())
 	out("Secret Hashes = %v\n", session.secretHashes())
+	out("Voter Addresses = %v\n", encodedVoteAddresses(session.voteAddresses()))
 	out("Voter Lottery Commitment Hash = %s\n", hex.EncodeToString(commitHash[:]))
 	out("Secret Numbers = %v\n", session.secretNumbers())
 	out("Selected Coin = %s\n", session.selectedCoin)
@@ -508,6 +509,7 @@ func saveSession(ctx context.Context, session *Session, cfg *Config) error {
 		out("Amount = %s\n", p.amount)
 		out("Secret Hash = %s\n", p.secretHash)
 		out("Secret Number = %d\n", p.secretNb)
+		out("Vote Address = %s\n", p.voteAddress.EncodeAddress())
 		out("Vote PkScript = %s\n", voteScript)
 		out("Pool PkScript = %s\n", poolScript)
 		out("Ticket = %s\n", hex.EncodeToString(partTicket))

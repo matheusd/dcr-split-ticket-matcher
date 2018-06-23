@@ -254,3 +254,11 @@ func uint64sToAmounts(in []uint64) []dcrutil.Amount {
 	}
 	return res
 }
+
+func encodedVoteAddresses(addrs []dcrutil.Address) []string {
+	res := make([]string, len(addrs))
+	for i, addr := range addrs {
+		res[i] = addr.EncodeAddress()
+	}
+	return res
+}
