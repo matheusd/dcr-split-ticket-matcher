@@ -341,7 +341,7 @@ func waitForPublishedTxs(ctx context.Context, session *Session,
 	expectedTicketHash := session.selectedTicket.TxHash()
 	correctTicket := false
 
-	for !notifiedSplit && !notifiedTicket {
+	for !notifiedSplit || !notifiedTicket {
 		select {
 		case <-ctx.Done():
 			ctxErr := ctx.Err()
