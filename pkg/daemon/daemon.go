@@ -38,11 +38,15 @@ type Daemon struct {
 func NewDaemon(cfg *Config) (*Daemon, error) {
 
 	net := &chaincfg.MainNetParams
-	poolFee := 5.0
-
 	if cfg.TestNet {
 		net = &chaincfg.TestNet2Params
-		poolFee = 7.5
+	}
+
+	if cfg.PoolFee < 0.1 {
+		// A pool fee of 0 would create a dust output (and potentially be unable
+		// to be reduced on a revocation). So let's just ignore that case for the
+		// moment.
+		return nil, errors.Errorf("Cannot use pool fee less than 0.1%")
 	}
 
 	d := &Daemon{
@@ -117,6 +121,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		d.log.Infof("Running on mainnet")
 	}
 	d.log.Infof("Publishing transactions: %v", cfg.PublishTransactions)
+	d.log.Infof("Using pool fee of %.2f%%", cfg.PoolFee)
 
 	var voteAddrValidator matcher.VoteAddressValidationProvider
 	if cfg.ValidateVoteAddressOnWallet {
@@ -156,7 +161,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		VoteAddrValidator:         voteAddrValidator,
 		PoolAddrValidator:         poolAddrValidator,
 		ChainParams:               net,
-		PoolFee:                   poolFee,
+		PoolFee:                   cfg.PoolFee,
 		MaxSessionDuration:        cfg.MaxSessionDuration * time.Second,
 		LogBackend:                logBackend,
 		StakeDiffChangeStopWindow: cfg.StakeDiffChangeStopWindow,

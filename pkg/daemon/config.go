@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
+
 	flags "github.com/btcsuite/go-flags"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/op/go-logging"
@@ -47,6 +49,7 @@ type Config struct {
 	PublishTransactions         bool          `long:"publishtransactions" description:"Whether to actually publish transactions of successful sessions"`
 	ValidateVoteAddressOnWallet bool          `long:"validatevoteaddressonwallet" description:"Whether to validate the vote addresses of participants on the wallet"`
 	PoolSubsidyWalletMasterPub  string        `long:"poolsubsidywalletmasterpub" description:"MasterPubKey for deriving addresses where the pool fee is payed to. If empty, pool fee addresses are not validated. Append a :[index] to generate addresses up to the provided index (default: 10000)."`
+	PoolFee                     float64       `long:"poolfee" description:"Pool fee as a percentage (eg: 5.0 = 5%)"`
 
 	AllowPublicSession bool `long:"allowpublicsession" description:"Whether to allow sessions with an empty name (public sessions) in the matcher."`
 }
@@ -103,6 +106,7 @@ func LoadConfig() (*Config, error) {
 		AllowPublicSession:          false,
 		ValidateVoteAddressOnWallet: false,
 		PoolSubsidyWalletMasterPub:  "",
+		PoolFee:                     splitticket.MaxPoolFeeRateMainnet,
 	}
 
 	parser := flags.NewParser(cfg, flags.Default)
