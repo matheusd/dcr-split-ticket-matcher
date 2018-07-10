@@ -1,6 +1,17 @@
 # Building
 
-Standard instructions as other decred projects.
+
+Before building the GUI client, you'll probably need some gtk headers installed:
+
+```
+# fedora
+$ sudo dnf install gtk2-devel
+
+# debian/ubuntu
+$ sudo apt-get install libgtk2.0-dev libglib2.0-dev libgtksourceview2.0-dev
+```
+
+For everything else, follow the standard instructions as other decred projects.
 
 ```
 $ mkdir -p $GOPATH/src/github.com/matheusd/dcr-split-ticket-matcher

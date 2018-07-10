@@ -46,7 +46,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		// A pool fee of 0 would create a dust output (and potentially be unable
 		// to be reduced on a revocation). So let's just ignore that case for the
 		// moment.
-		return nil, errors.Errorf("Cannot use pool fee less than 0.1%")
+		return nil, errors.New("Cannot use pool fee less than 0.1%")
 	}
 
 	d := &Daemon{

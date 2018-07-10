@@ -214,13 +214,13 @@ func CheckOnlySignedInSplit(split *wire.MsgTx, outpoints []wire.OutPoint) error 
 
 		signedCount++
 		if _, has := expected[in.PreviousOutPoint]; !has {
-			errors.Errorf("signed input %s not in the expected list of inputs "+
+			return errors.Errorf("signed input %s not in the expected list of inputs "+
 				"to be signed", in.PreviousOutPoint)
 		}
 	}
 
 	if signedCount != len(outpoints) {
-		errors.Errorf("signed less inputs (%d) than the expected (%d)",
+		return errors.Errorf("signed less inputs (%d) than the expected (%d)",
 			signedCount, len(outpoints))
 	}
 

@@ -244,7 +244,7 @@ func (sess *Session) addCommonTicketOutputs(ticket *wire.MsgTx) error {
 
 // addVoterSelectionData creates the OP_RETURN output on the split tx with the
 // voter hash to allow for fraud detection
-func (sess *Session) addVoterSelectionData(split *wire.MsgTx) {
+func (sess *Session) addVoterSelectionData(split *wire.MsgTx) error {
 	hashes := make([]splitticket.SecretNumberHash, len(sess.Participants))
 	for i, p := range sess.Participants {
 		hashes[i] = p.SecretHash
@@ -260,11 +260,12 @@ func (sess *Session) addVoterSelectionData(split *wire.MsgTx) {
 
 	script, err := b.Script()
 	if err != nil {
-		panic(err) // TODO: handle this bettter
+		return errors.Wrapf(err, "error creating OP_RETURN script")
 	}
 
 	out := wire.NewTxOut(0, script)
 	split.AddTxOut(out)
+	return nil
 }
 
 // CreateTransactions creates the ticket and split tx transactions with all the
@@ -277,8 +278,16 @@ func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, error) {
 
 	ticket.Expiry = sess.TicketExpiry
 
-	sess.addCommonTicketOutputs(ticket)
-	sess.addVoterSelectionData(splitTx)
+	err := sess.addCommonTicketOutputs(ticket)
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "error adding common ticket outputs")
+	}
+
+	err = sess.addVoterSelectionData(splitTx)
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "error adding voter selection data to split tx")
+	}
+
 	spOutIndex++
 
 	// this is the output that will correspond to the pool fee commitment
