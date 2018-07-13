@@ -51,6 +51,9 @@ type Config struct {
 	PoolSubsidyWalletMasterPub  string        `long:"poolsubsidywalletmasterpub" description:"MasterPubKey for deriving addresses where the pool fee is payed to. If empty, pool fee addresses are not validated. Append a :[index] to generate addresses up to the provided index (default: 10000)."`
 	PoolFee                     float64       `long:"poolfee" description:"Pool fee as a percentage (eg: 5.0 = 5%)"`
 
+	StakepooldIntegratorHost string `long:"stakepooldintegratorhost" description:"Host to connect to for stakepoold validation"`
+	StakepooldIntegratorCert string `long:"stakepooldintegratorcert" description:"Certificate to use when connecting the stakepool integrator host"`
+
 	AllowPublicSession bool `long:"allowpublicsession" description:"Whether to allow sessions with an empty name (public sessions) in the matcher."`
 }
 

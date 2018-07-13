@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package integratorrpc;
+
+service VotePoolIntegratorService {
+    rpc ValidateVoteAddress(ValidateVoteAddressRequest) returns (ValidateVoteAddressResponse);
+    rpc ValidatePoolSubsidyAddress(ValidatePoolSubsidyAddressRequest) returns (ValidatePoolSubsidyAddressResponse);
+}
+
+message ValidateVoteAddressRequest {
+    string address = 1;
+}
+
+message ValidateVoteAddressResponse {
+    string error = 1;
+}
+
+message ValidatePoolSubsidyAddressRequest {
+    string address = 1;
+}
+
+message ValidatePoolSubsidyAddressResponse {
+    string error = 1;
+}

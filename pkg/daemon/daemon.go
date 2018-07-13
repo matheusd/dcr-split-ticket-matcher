@@ -1,23 +1,21 @@
 package daemon
 
 import (
-	"crypto/elliptic"
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
 	"net"
-	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/decred/dcrd/certgen"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/pkg/errors"
 
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/util"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/poolintegrator"
 	"github.com/op/go-logging"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -54,7 +52,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		log: logging.MustGetLogger("dcr-split-ticket-matcher"),
 	}
 
-	logBackend := standardLogBackend(true, cfg.LogDir, "dcrstmd-{date}-{time}.log", cfg.LogLevel)
+	logBackend := util.StandardLogBackend(true, cfg.LogDir, "dcrstmd-{date}-{time}.log", cfg.LogLevel)
 	d.log.SetBackend(logBackend)
 
 	d.log.Noticef("Starting dcrstmd version %s", pkg.Version)
@@ -87,25 +85,16 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	d.wallet = dcrw
 
 	if cfg.KeyFile != "" {
-		var cert tls.Certificate
-
-		if _, err = os.Stat(cfg.KeyFile); os.IsNotExist(err) {
-			err = generateRPCKeyPair(cfg.KeyFile, cfg.CertFile)
-			if err != nil {
-				panic(err)
-			}
+		var cert *tls.Certificate
+		cert, err = util.LoadRPCKeyPair(cfg.KeyFile, cfg.CertFile)
+		if err == util.ErrKeyPairCreated {
 			d.log.Noticef("Generated key (%s) and cert (%s) files",
 				cfg.KeyFile, cfg.CertFile)
-		}
-
-		cert, err = tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
-		if err != nil {
+		} else if err != nil {
 			panic(err)
 		}
 
-		d.log.Noticef("Loaded key file at %s", cfg.KeyFile)
-
-		d.rpcKeys = &cert
+		d.rpcKeys = cert
 	}
 
 	minAmount, err := dcrutil.NewAmount(cfg.MinAmount)
@@ -123,10 +112,22 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	d.log.Infof("Publishing transactions: %v", cfg.PublishTransactions)
 	d.log.Infof("Using pool fee of %.2f%%", cfg.PoolFee)
 
+	var stakepooldIntegrator *poolintegrator.Client
+	if (cfg.StakepooldIntegratorHost != "") && (cfg.StakepooldIntegratorCert != "") {
+		stakepooldIntegrator, err = poolintegrator.NewClient(cfg.StakepooldIntegratorHost,
+			cfg.StakepooldIntegratorCert)
+		if err != nil {
+			return nil, errors.Wrap(err, "error initializing sakepoold integrator client")
+		}
+	}
+
 	var voteAddrValidator matcher.VoteAddressValidationProvider
 	if cfg.ValidateVoteAddressOnWallet {
 		voteAddrValidator = d.wallet
 		d.log.Infof("Validating voter addresses on wallet")
+	} else if stakepooldIntegrator != nil {
+		voteAddrValidator = stakepooldIntegrator
+		d.log.Infof("Using stakepoold integrator to validate vote addresses")
 	} else {
 		voteAddrValidator = matcher.InsecurePoolAddressesValidator{}
 		d.log.Infof("Not validating voter addresses")
@@ -134,12 +135,15 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 
 	var poolAddrValidator matcher.PoolAddressValidationProvider
 	if cfg.PoolSubsidyWalletMasterPub != "" {
-		poolAddrValidator, err = newMasterPubPoolAddrValidator(cfg.PoolSubsidyWalletMasterPub, net)
+		poolAddrValidator, err = util.NewMasterPubPoolAddrValidator(cfg.PoolSubsidyWalletMasterPub, net)
 		if err != nil {
 			return nil, errors.Wrapf(err, "error deriving pool subsidy "+
 				"addresses from masterpubkey")
 		}
 		d.log.Infof("Validating pool subsidy addresses with masterPubKey")
+	} else if stakepooldIntegrator != nil {
+		poolAddrValidator = stakepooldIntegrator
+		d.log.Info("Using stakepoold integrator to validate pool subsidy addresses")
 	} else {
 		poolAddrValidator = matcher.InsecurePoolAddressesValidator{}
 		d.log.Infof("Not validating pool subsidy addresses")
@@ -200,51 +204,5 @@ func (daemon *Daemon) ListenAndServe() error {
 	pb.RegisterSplitTicketMatcherServiceServer(server, svc)
 
 	daemon.log.Noticef("Listening on %s", intf)
-	server.Serve(lis)
-
-	return nil
-}
-
-func generateRPCKeyPair(keyFile, certFile string) error {
-
-	curve := elliptic.P521()
-
-	// Create directories for cert and key files if they do not yet exist.
-	certDir, _ := filepath.Split(certFile)
-	keyDir, _ := filepath.Split(keyFile)
-	err := os.MkdirAll(certDir, 0700)
-	if err != nil {
-		return err
-	}
-	err = os.MkdirAll(keyDir, 0700)
-	if err != nil {
-		return err
-	}
-
-	// Generate cert pair.
-	org := "Split Ticket Buyer Org"
-	validUntil := time.Now().Add(time.Hour * 24 * 365 * 10)
-	cert, key, err := certgen.NewTLSCertPair(curve, org,
-		validUntil, nil)
-	if err != nil {
-		return err
-	}
-	_, err = tls.X509KeyPair(cert, key)
-	if err != nil {
-		return err
-	}
-
-	// Write cert and (potentially) the key files.
-	err = ioutil.WriteFile(certFile, cert, 0600)
-	if err != nil {
-		return err
-	}
-
-	err = ioutil.WriteFile(keyFile, key, 0600)
-	if err != nil {
-		os.Remove(certFile)
-		return err
-	}
-
-	return nil
+	return server.Serve(lis)
 }

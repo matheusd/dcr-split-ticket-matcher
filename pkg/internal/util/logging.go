@@ -1,4 +1,4 @@
-package daemon
+package util
 
 import (
 	"fmt"
@@ -54,9 +54,9 @@ func logFileBackend(dir string, baseName string) logging.Backend {
 	return fmtd
 }
 
-// standardLogBackend returns a standard backend that can output to stderr and
+// StandardLogBackend returns a standard backend that can output to stderr and
 // to a file
-func standardLogBackend(toStdErr bool, dir string, baseName string, logLevel logging.Level) logging.LeveledBackend {
+func StandardLogBackend(toStdErr bool, dir string, baseName string, logLevel logging.Level) logging.LeveledBackend {
 	var backends []logging.Backend
 
 	if toStdErr {
