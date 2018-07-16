@@ -135,3 +135,20 @@ func StakeDiffChangeDistance(blockHeight uint32, params *chaincfg.Params) int32 
 	// the next change block is closer
 	return baseDist
 }
+
+// TargetTicketExpirationBlock calculates the expected expiration block for a
+// ticket, given the current block height and a maximum expiry value.
+//
+// The calculated value is guaranteed to be < maxExpiry, but may be
+// significantly less if the current block height is close to a change in stake
+// difficulty.
+func TargetTicketExpirationBlock(curBlockHeight, maxExpiry uint32,
+	params *chaincfg.Params) uint32 {
+
+	dist := curBlockHeight % uint32(params.WorkDiffWindowSize)
+	if dist < maxExpiry {
+		return curBlockHeight + dist
+	}
+
+	return curBlockHeight + maxExpiry
+}

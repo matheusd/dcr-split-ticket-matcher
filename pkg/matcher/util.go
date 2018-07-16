@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 )
 
@@ -89,23 +88,6 @@ func MustRandUInt16() uint16 {
 		panic(err)
 	}
 	return r
-}
-
-// TargetTicketExpirationBlock calculates the expected expiration block for a
-// ticket, given the current block height and a maximum expiry value.
-//
-// The calculated value is guaranteed to be < maxExpiry, but may be
-// significantly less if the current block height is close to a change in stake
-// difficulty.
-func TargetTicketExpirationBlock(curBlockHeight, maxExpiry uint32,
-	params *chaincfg.Params) uint32 {
-
-	dist := curBlockHeight % uint32(params.WorkDiffWindowSize)
-	if dist < maxExpiry {
-		return curBlockHeight + dist
-	}
-
-	return curBlockHeight + maxExpiry
 }
 
 // InsecurePoolAddressesValidator is a validator for vote/pool addresses that

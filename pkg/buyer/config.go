@@ -45,6 +45,7 @@ type Config struct {
 	SStxFeeLimits        uint16  `long:"sstxfeelimits" description:"Fee limit allowance for sstx purchases"`
 	VoteAddress          string  `long:"voteaddress" description:"Voting address of the stakepool"`
 	PoolAddress          string  `long:"pooladdress" description:"Pool fee address of the stakepool"`
+	PoolFeeRate          float64 `long:"poolfeerate" description:"Pool fee rate (percentage) that the given pool has advertised as using"`
 	TestNet              bool    `long:"testnet" description:"Whether this is connecting to a testnet wallet/matcher service"`
 	MaxTime              int     `long:"maxtime" description:"Maximum amount of time (in seconds) to wait for the completion of the split buy"`
 	MaxWaitTime          int     `long:"maxwaittime" description:"Maximum amount of time (in seconds) to wait until a new split ticket session is initiated"`
@@ -173,6 +174,7 @@ func LoadConfig() (*Config, error) {
 		MaxWaitTime:          120,
 		DataDir:              defaultDataDir,
 		SkipWaitPublishedTxs: false,
+		PoolFeeRate:          5.0,
 	}
 
 	parser := flags.NewParser(cfg, flags.Default)
@@ -188,6 +190,9 @@ func LoadConfig() (*Config, error) {
 
 	if cfg.TestNet {
 		cfg.ChainParams = &chaincfg.TestNet2Params
+		if cfg.PoolFeeRate == 5.0 {
+			cfg.PoolFeeRate = 7.5
+		}
 	}
 
 	if cfg.DcrdCert != "" {

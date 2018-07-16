@@ -2,6 +2,7 @@ package buyer
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/user"
@@ -34,10 +35,11 @@ type decreditonRemoteCredentials struct {
 }
 
 type decreditonStakepool struct {
-	Host          string `json:"Host"`
-	Network       string `json:"Network"`
-	PoolAddress   string `json:"PoolAddress"`
-	TicketAddress string `json:"TicketAddress"`
+	Host          string  `json:"Host"`
+	Network       string  `json:"Network"`
+	PoolAddress   string  `json:"PoolAddress"`
+	TicketAddress string  `json:"TicketAddress"`
+	PoolFees      float64 `json:"PoolFees"`
 }
 
 type decreditonWalletConfig struct {
@@ -323,6 +325,7 @@ func InitConfigFromDecrediton(walletName, poolHost string) error {
 			dstSection.Key("VoteAddress").SetValue(pool.TicketAddress)
 			dstSection.Key("PoolAddress").SetValue(pool.PoolAddress)
 			dstSection.Key("MatcherHost").SetValue(host)
+			dstSection.Key("PoolFeeRate").SetValue(fmt.Sprintf("%.2f", pool.PoolFees))
 
 			break
 		}

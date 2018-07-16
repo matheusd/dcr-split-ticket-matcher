@@ -291,6 +291,14 @@ func (mc *MatcherClient) generateTicket(ctx context.Context, session *Session, c
 		return errors.Wrapf(err, "error checking my participation in split")
 	}
 
+	// ensure pool fee is not higher than expected
+	err = splitticket.CheckTicketPoolFeeRate(session.splitTx,
+		session.ticketTemplate, cfg.PoolFeeRate, session.mainchainHeight,
+		cfg.ChainParams)
+	if err != nil {
+		return errors.Wrapf(err, "error checking pool fee rate in ticket")
+	}
+
 	return nil
 }
 

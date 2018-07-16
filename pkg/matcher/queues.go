@@ -1,6 +1,9 @@
 package matcher
 
-import "github.com/decred/dcrd/dcrutil"
+import (
+	"github.com/decred/dcrd/dcrutil"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
+)
 
 // splitTicketQueue is the queue of participants waiting for a split ticket
 // session. May be named or not.
@@ -24,7 +27,7 @@ func (q *splitTicketQueue) enoughForNewSession() bool {
 		availableSum += r.maxAmount
 	}
 
-	ticketFee := SessionFeeEstimate(len(q.waitingParticipants))
+	ticketFee := splitticket.SessionFeeEstimate(len(q.waitingParticipants))
 	neededAmount := uint64(ticketPrice + ticketFee)
 	return availableSum > neededAmount
 }

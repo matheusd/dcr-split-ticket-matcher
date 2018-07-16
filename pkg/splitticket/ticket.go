@@ -3,6 +3,7 @@ package splitticket
 import (
 	"bytes"
 	"encoding/hex"
+	"math"
 
 	"github.com/decred/dcrd/blockchain"
 	"github.com/decred/dcrd/blockchain/stake"
@@ -10,6 +11,7 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
+	"github.com/decred/dcrwallet/wallet/txrules"
 	"github.com/pkg/errors"
 )
 
@@ -117,8 +119,9 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, partPoolFee,
 		// (CheckTransactionSanity does this for outputs)
 		newAmountIn := totalAmountIn + out.Value
 		if (newAmountIn <= 0) || (newAmountIn >= dcrutil.MaxAmount) {
-			return errors.Errorf("input amount of ticket overflows maximum " +
-				"tx input amount")
+			return errors.Errorf("input amount of ticket overflows maximum "+
+				"tx input amount (%d = %d + %d)", newAmountIn, totalAmountIn,
+				out.Value)
 		}
 		totalAmountIn = newAmountIn
 		amountsIn = append(amountsIn, out.Value)
@@ -179,19 +182,6 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, partPoolFee,
 		}
 	}
 
-	// ensure that the pool fee is congruent with what is observed in the real
-	// network (5% max on mainnet, 7.5% max on testnet/simnet). We can check
-	// using the poolFee/ticketPrice on the arguments because we're also
-	// validating elsewhere that these are correct in the actual ticket tx.
-	poolFeeRate := (float64(expectedPoolFee) / float64(ticketPrice)) * 100
-	if params.Name == "mainnet" && poolFeeRate > MaxPoolFeeRateMainnet {
-		return errors.Errorf("pool fee rate (%f) higher than expected for "+
-			"mainnet", poolFeeRate)
-	} else if poolFeeRate > MaxPoolFeeRateTestnet {
-		return errors.Errorf("pool fee rate (%f) higher than expected for "+
-			"testnet", poolFeeRate)
-	}
-
 	// ensure the various locks don't prevent the ticket from being mined
 	if ticket.Expiry == 0 {
 		return errors.Errorf("expiry for the ticket is 0")
@@ -249,7 +239,9 @@ func CheckSignedTicket(split, ticket *wire.MsgTx, params *chaincfg.Params) error
 	}
 
 	// ensure that the ticket fee being used will actually allow the ticket to be
-	// mined (fee rate much lower than 0.001 DCR/KB might block the ticket)
+	// mined (fee rate much lower than 0.001 DCR/KB might block the ticket).
+	// This needs to be done after signing to verify that after accounting for
+	// the actual signatures, the ticket can be published.
 	totalAmountOut := ticket.TxOut[0].Value
 	if totalAmountOut >= totalAmountIn {
 		return errors.Errorf("total output amount in ticket (%s) >= "+
@@ -269,6 +261,48 @@ func CheckSignedTicket(split, ticket *wire.MsgTx, params *chaincfg.Params) error
 	if txFee > 2*minFee {
 		return errors.Errorf("ticket fee (%s) higher than 2 times minimum required amount (%s)",
 			dcrutil.Amount(txFee), dcrutil.Amount(2*minFee))
+	}
+
+	return nil
+}
+
+// CheckTicketPoolFeeRate checks whether the pool fee recorded in the given
+// ticket is acceptable by a voting pool using the given poolFeeRate as subsidy
+// requirement and at most 5% more than the poolFeeRate.
+// Only safe to be called on tickets that passed CheckTicket.
+func CheckTicketPoolFeeRate(split, ticket *wire.MsgTx, poolFeeRate float64,
+	currentBlockHeight uint32, params *chaincfg.Params) error {
+
+	var totalAmountIn int64
+	for _, in := range ticket.TxIn {
+		out := split.TxOut[in.PreviousOutPoint.Index]
+		totalAmountIn += out.Value
+	}
+
+	totalAmountOut := ticket.TxOut[0].Value
+	txFee := totalAmountIn - totalAmountOut
+	actualPoolFee, err := stake.AmountFromSStxPkScrCommitment(
+		ticket.TxOut[1].PkScript)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse pool fee commitment")
+	}
+
+	minPoolFee := txrules.StakePoolTicketFee(dcrutil.Amount(totalAmountOut),
+		dcrutil.Amount(txFee), int32(currentBlockHeight), poolFeeRate, params)
+	if actualPoolFee < minPoolFee {
+		return errors.Errorf("actual pool fee (%s) less than than minimum "+
+			"required (%s)", actualPoolFee, minPoolFee)
+	}
+
+	// maxPoolFeeIncrease records how much higher the absolute pool fee can be
+	// before we start erroring out. The lower this value, the better (means we
+	// detect a voting pool increasing the fees even a little bit)
+	maxPoolFeeIncrease := 1.01
+
+	maxPoolFee := dcrutil.Amount(math.Floor(float64(minPoolFee) * maxPoolFeeIncrease))
+	if actualPoolFee > maxPoolFee {
+		return errors.Errorf("actual pool fee (%s) more than than maximum "+
+			"allowed (%s)", actualPoolFee, maxPoolFee)
 	}
 
 	return nil
@@ -302,7 +336,7 @@ func CheckTicketScriptMatchAddresses(voteAddress, poolAddress dcrutil.Address,
 		return errors.Errorf("more than 1 signature required on vote pkscript")
 	}
 
-	if voteAddress.String() != voteAddresses[0].String() {
+	if voteAddress.EncodeAddress() != voteAddresses[0].EncodeAddress() {
 		return errors.Errorf("decoded vote address on script (%s) does not "+
 			"match the expected vote address (%s)", voteAddresses[0],
 			voteAddress)
@@ -322,7 +356,7 @@ func CheckTicketScriptMatchAddresses(voteAddress, poolAddress dcrutil.Address,
 		return errors.Wrapf(err, "error decoding pool commitment address")
 	}
 
-	if poolAddress.String() != decodedPoolAddr.String() {
+	if poolAddress.EncodeAddress() != decodedPoolAddr.EncodeAddress() {
 		return errors.Errorf("decoded pool address on script (%s) does not "+
 			"match the expected pool address (%s)", decodedPoolAddr,
 			poolAddress)

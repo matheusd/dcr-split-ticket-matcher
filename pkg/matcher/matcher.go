@@ -3,7 +3,6 @@ package matcher
 import (
 	"context"
 	"encoding/hex"
-	"math"
 	"sort"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
-	"github.com/decred/dcrwallet/wallet/txrules"
 	logging "github.com/op/go-logging"
 	"github.com/pkg/errors"
 )
@@ -220,9 +218,7 @@ func (matcher *Matcher) notifyWaitingListWatchers() {
 }
 
 func (matcher *Matcher) addParticipant(req *addParticipantRequest) error {
-	var err error
-
-	err = matcher.cfg.VoteAddrValidator.ValidateVoteAddress(req.voteAddress)
+	err := matcher.cfg.VoteAddrValidator.ValidateVoteAddress(req.voteAddress)
 	if err != nil {
 		matcher.log.Errorf("Participant sent invalid vote address: %s", err)
 		return errors.Wrapf(err, "invalid vote address")
@@ -263,19 +259,18 @@ func (matcher *Matcher) addParticipant(req *addParticipantRequest) error {
 
 func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 	numParts := len(q.waitingParticipants)
-	partFee := SessionParticipantFee(numParts)
+	partFee := splitticket.SessionParticipantFee(numParts)
 	ticketTxFee := partFee * dcrutil.Amount(numParts)
 	ticketPrice := dcrutil.Amount(matcher.cfg.NetworkProvider.CurrentTicketPrice())
 	blockHeight := matcher.cfg.NetworkProvider.CurrentBlockHeight()
 	poolFeePerc := matcher.cfg.PoolFee
-	minPoolFee := txrules.StakePoolTicketFee(ticketPrice, ticketTxFee, int32(blockHeight),
-		poolFeePerc, matcher.cfg.ChainParams)
-	poolFeePart := dcrutil.Amount(math.Ceil(float64(minPoolFee) / float64(numParts)))
+	poolFeePart := splitticket.SessionParticipantPoolFee(numParts, ticketPrice,
+		int(blockHeight), poolFeePerc, matcher.cfg.ChainParams)
 	poolFee := poolFeePart * dcrutil.Amount(numParts) // ensure every participant pays the same amount
 	sessID := matcher.newSessionID()
 	parts := q.waitingParticipants
 	curHeight := matcher.cfg.NetworkProvider.CurrentBlockHeight()
-	expiry := TargetTicketExpirationBlock(curHeight, MaximumExpiry,
+	expiry := splitticket.TargetTicketExpirationBlock(curHeight, MaximumExpiry,
 		matcher.cfg.ChainParams)
 	q.waitingParticipants = nil
 
