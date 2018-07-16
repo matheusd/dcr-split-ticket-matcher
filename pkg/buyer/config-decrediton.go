@@ -7,6 +7,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrwallet/netparams"
@@ -312,9 +313,16 @@ func InitConfigFromDecrediton(walletName, poolHost string) error {
 			(pool.Network == globalCfg.Network) &&
 			((poolHost == "") || (poolHost == pool.Host)) {
 
+			host := pool.Host
+			if strings.Index(host, "https://") == 0 {
+				host = host[8:]
+			} else if strings.Index(host, "http://") == 0 {
+				host = host[7:]
+			}
+
 			dstSection.Key("VoteAddress").SetValue(pool.TicketAddress)
 			dstSection.Key("PoolAddress").SetValue(pool.PoolAddress)
-			dstSection.Key("MatcherHost").SetValue(pool.Host)
+			dstSection.Key("MatcherHost").SetValue(host)
 
 			break
 		}

@@ -67,7 +67,6 @@ func getDecreditonWalletName(logf logFunc) {
 
 	combo.Connect("changed", func() {
 		w := combo.GetActiveText()
-		fmt.Println("changed combo", w)
 		walletPools := buyer.ListDecreditonWalletStakepools(w)
 		for i := 0; i < 100; i++ {
 			comboPool.RemoveText(0)
@@ -75,7 +74,6 @@ func getDecreditonWalletName(logf logFunc) {
 		for _, p := range walletPools {
 			comboPool.AppendText(p)
 		}
-		fmt.Println("added pools", walletPools)
 	})
 
 	button := gtk.NewButtonWithLabel("select")
