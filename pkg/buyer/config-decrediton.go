@@ -147,13 +147,51 @@ func ListDecreditonWallets() []string {
 
 }
 
+// ListDecreditonWalletStakepools lists the stakepools configured for the given
+// decrediton wallet.
+func ListDecreditonWalletStakepools(walletName string) []string {
+	decreditonDir := decreditonConfigDir()
+	globalCfg, err := getDecreditonGlobalConfig()
+	if err != nil {
+		return nil
+	}
+
+	walletsDir := filepath.Join(decreditonDir, "wallets", globalCfg.Network)
+	walletDir := filepath.Join(walletsDir, walletName)
+
+	walletCfgJSONFname := filepath.Join(walletDir, "config.json")
+	walletCfgJSON, err := ioutil.ReadFile(walletCfgJSONFname)
+	if err != nil {
+		return nil
+	}
+
+	walletCfg := &decreditonWalletConfig{}
+
+	err = json.Unmarshal(walletCfgJSON, walletCfg)
+	if err != nil {
+		return nil
+	}
+
+	res := make([]string, 0)
+	for _, pool := range walletCfg.StakePools {
+		if (pool.PoolAddress != "") &&
+			(pool.TicketAddress != "") &&
+			(pool.Network == globalCfg.Network) {
+
+			res = append(res, pool.Host)
+		}
+	}
+
+	return res
+}
+
 // InitConfigFromDecrediton replaces the config with the default one plus
 // all available entries read from an installed decrediton. Requires a
 // decrediton version >= 1.2.0.
 //
 // The data for the given walletName (of the currently selected network)
 // will be used.
-func InitConfigFromDecrediton(walletName string) error {
+func InitConfigFromDecrediton(walletName, poolHost string) error {
 	decreditonDir := decreditonConfigDir()
 	dcrdDir := dcrutil.AppDataDir("dcrd", false)
 
@@ -209,15 +247,12 @@ func InitConfigFromDecrediton(walletName string) error {
 
 	activeNet := netparams.MainNetParams
 	isTestNet := globalCfg.Network == decreditonTestnet
-	matcherHost := "mainnet-split-tickets.matheusd.com:8475"
 	testnetVal := "0"
 	if isTestNet {
 		activeNet = netparams.TestNet2Params
-		matcherHost = "matheusd.com:18475"
 		testnetVal = "1"
 	}
 
-	dstSection.Key("MatcherHost").SetValue(matcherHost)
 	dstSection.Key("TestNet").SetValue(testnetVal)
 	dstSection.Key("WalletCertFile").SetValue(filepath.Join(walletDir, "rpc.cert"))
 
@@ -274,10 +309,13 @@ func InitConfigFromDecrediton(walletName string) error {
 	for _, pool := range walletCfg.StakePools {
 		if (pool.PoolAddress != "") &&
 			(pool.TicketAddress != "") &&
-			(pool.Network == globalCfg.Network) {
+			(pool.Network == globalCfg.Network) &&
+			((poolHost == "") || (poolHost == pool.Host)) {
 
 			dstSection.Key("VoteAddress").SetValue(pool.TicketAddress)
 			dstSection.Key("PoolAddress").SetValue(pool.PoolAddress)
+			dstSection.Key("MatcherHost").SetValue(pool.Host)
+
 			break
 		}
 	}

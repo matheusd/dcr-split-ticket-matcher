@@ -48,18 +48,42 @@ func getDecreditonWalletName(logf logFunc) {
 
 	wallets := buyer.ListDecreditonWallets()
 
-	combo := gtk.NewComboBoxEntryNewText()
+	label := gtk.NewLabel("Wallet")
+	label.ModifyFontEasy("DejaVu Serif 15")
+	vbox.PackStart(label, false, false, 2)
+
+	combo := gtk.NewComboBoxText()
 	for _, w := range wallets {
 		combo.AppendText(w)
 	}
-	//combo.Connect("changed", func() {})
 	vbox.PackStart(combo, false, false, 2)
+
+	label = gtk.NewLabel("Voting Pool")
+	label.ModifyFontEasy("DejaVu Serif 15")
+	vbox.PackStart(label, false, false, 2)
+
+	comboPool := gtk.NewComboBoxText()
+	vbox.PackStart(comboPool, false, false, 2)
+
+	combo.Connect("changed", func() {
+		w := combo.GetActiveText()
+		fmt.Println("changed combo", w)
+		walletPools := buyer.ListDecreditonWalletStakepools(w)
+		for i := 0; i < 100; i++ {
+			comboPool.RemoveText(0)
+		}
+		for _, p := range walletPools {
+			comboPool.AppendText(p)
+		}
+		fmt.Println("added pools", walletPools)
+	})
 
 	button := gtk.NewButtonWithLabel("select")
 	button.Clicked(func() {
 		w := combo.GetActiveText()
-		logf("Resetting config to decrediton wallet \"%s\"", w)
-		err := buyer.InitConfigFromDecrediton(w)
+		p := comboPool.GetActiveText()
+		logf("Resetting config to decrediton wallet '%s' pool '%s'", w, p)
+		err := buyer.InitConfigFromDecrediton(w, p)
 		if err != nil {
 			logf(err.Error())
 		} else {
