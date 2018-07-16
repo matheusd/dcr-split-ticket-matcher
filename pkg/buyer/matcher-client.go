@@ -95,11 +95,14 @@ func (mc *MatcherClient) status(ctx context.Context) (*pb.StatusResponse, error)
 	return mc.client.Status(ctx, req)
 }
 
-func (mc *MatcherClient) participate(ctx context.Context, maxAmount dcrutil.Amount, sessionName string) (*Session, error) {
+func (mc *MatcherClient) participate(ctx context.Context, maxAmount dcrutil.Amount,
+	sessionName string, voteAddress, poolAddress string) (*Session, error) {
 	req := &pb.FindMatchesRequest{
 		Amount:          uint64(maxAmount),
 		SessionName:     sessionName,
 		ProtocolVersion: pkg.ProtocolVersion,
+		VoteAddress:     voteAddress,
+		PoolAddress:     poolAddress,
 	}
 
 	resp, err := mc.client.FindMatches(ctx, req)
@@ -148,8 +151,6 @@ func (mc *MatcherClient) generateTicket(ctx context.Context, session *Session, c
 			Script: session.splitChange.PkScript,
 			Value:  uint64(session.splitChange.Value),
 		},
-		VoteAddress:       session.voteAddress.String(),
-		PoolAddress:       session.poolAddress.String(),
 		CommitmentAddress: session.ticketOutputAddress.String(),
 		SplitTxAddress:    session.splitOutputAddress.String(),
 		SecretnbHash:      session.secretNbHash[:],

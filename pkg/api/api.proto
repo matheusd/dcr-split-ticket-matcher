@@ -35,6 +35,8 @@ message FindMatchesRequest {
     uint32 protocol_version = 1;
     uint64 amount = 2;
     string session_name = 3;
+    string vote_address = 4;
+    string pool_address = 5;
 }
 
 message FindMatchesResponse {
@@ -50,13 +52,11 @@ message FindMatchesResponse {
 
 message GenerateTicketRequest {
     uint32 session_id = 1;
-    string vote_address = 2;
-    string pool_address = 3;
-    string commitment_address = 4;
-    string split_tx_address = 5;
-    TxOut split_tx_change = 6;
-    repeated OutPoint split_tx_inputs = 7;
-    bytes secretnb_hash = 8;
+    string commitment_address = 2;
+    string split_tx_address = 3;
+    TxOut split_tx_change = 4;
+    repeated OutPoint split_tx_inputs = 5;
+    bytes secretnb_hash = 6;
 }
 
 message GenerateTicketResponse {

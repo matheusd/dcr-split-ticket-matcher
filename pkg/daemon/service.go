@@ -78,6 +78,9 @@ func (svc *SplitTicketMatcherService) WatchWaitingList(req *pb.WatchWaitingListR
 
 // FindMatches fulfills SplitTicketMatcherServiceServer
 func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.FindMatchesRequest) (*pb.FindMatchesResponse, error) {
+	var voteAddr, poolAddr dcrutil.Address
+	var err error
+
 	if req.ProtocolVersion != pkg.ProtocolVersion {
 		return nil, errors.Errorf("server is running a different protocol "+
 			"version (%d) than client (%d)", pkg.ProtocolVersion,
@@ -89,7 +92,16 @@ func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.F
 			"the public session")
 	}
 
-	sess, err := svc.matcher.AddParticipant(ctx, req.Amount, req.SessionName)
+	if voteAddr, err = dcrutil.DecodeAddress(req.VoteAddress); err != nil {
+		return nil, errors.Wrap(err, "error decoding vote address")
+	}
+
+	if poolAddr, err = dcrutil.DecodeAddress(req.PoolAddress); err != nil {
+		return nil, errors.Wrap(err, "error decoding pool address")
+	}
+
+	sess, err := svc.matcher.AddParticipant(ctx, req.Amount, req.SessionName,
+		voteAddr, poolAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -111,18 +123,10 @@ func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.F
 func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *pb.GenerateTicketRequest) (*pb.GenerateTicketResponse, error) {
 
 	var splitChange *wire.TxOut
-	var voteAddr, poolAddr, commitAddr, splitAddr dcrutil.Address
+	var commitAddr, splitAddr dcrutil.Address
 	var err error
 
 	splitChange = wire.NewTxOut(int64(req.SplitTxChange.Value), req.SplitTxChange.Script)
-
-	if voteAddr, err = dcrutil.DecodeAddress(req.VoteAddress); err != nil {
-		return nil, errors.Wrap(err, "error decoding vote address")
-	}
-
-	if poolAddr, err = dcrutil.DecodeAddress(req.PoolAddress); err != nil {
-		return nil, errors.Wrap(err, "error decoding pool address")
-	}
 
 	if commitAddr, err = dcrutil.DecodeAddress(req.CommitmentAddress); err != nil {
 		return nil, errors.Wrap(err, "error decoding commitment address")
@@ -150,7 +154,7 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 	copy(secretNbHash[:], req.SecretnbHash)
 
 	split, ticketTempl, parts, partIndex, err := svc.matcher.SetParticipantsOutputs(ctx,
-		matcher.ParticipantID(req.SessionId), voteAddr, poolAddr, commitAddr,
+		matcher.ParticipantID(req.SessionId), commitAddr,
 		splitAddr, splitChange, splitOutpoints, secretNbHash)
 	if err != nil {
 		return nil, err

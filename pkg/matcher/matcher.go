@@ -220,6 +220,20 @@ func (matcher *Matcher) notifyWaitingListWatchers() {
 }
 
 func (matcher *Matcher) addParticipant(req *addParticipantRequest) error {
+	var err error
+
+	err = matcher.cfg.VoteAddrValidator.ValidateVoteAddress(req.voteAddress)
+	if err != nil {
+		matcher.log.Errorf("Participant sent invalid vote address: %s", err)
+		return errors.Wrapf(err, "invalid vote address")
+	}
+
+	err = matcher.cfg.PoolAddrValidator.ValidatePoolSubsidyAddress(req.poolAddress)
+	if err != nil {
+		matcher.log.Errorf("Participant sent invalid pool address: %s", err)
+		return errors.Wrapf(err, "invalid pool address")
+	}
+
 	matcher.log.Infof("Adding participant for amount %s on queue %s",
 		dcrutil.Amount(req.maxAmount), req.sessionName)
 	q, has := matcher.queues[req.sessionName]
@@ -315,6 +329,8 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 			Session:      sess,
 			Index:        i,
 			ID:           id,
+			VoteAddress:  r.voteAddress,
+			PoolAddress:  r.poolAddress,
 		}
 		sess.Participants[i] = sessPart
 		matcher.participants[id] = sessPart
@@ -398,22 +414,6 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 			expectedInputAmount.String())
 	}
 
-	err = matcher.cfg.VoteAddrValidator.ValidateVoteAddress(req.voteAddress)
-	if err != nil {
-		matcher.log.Errorf("Participant %s sent invalid vote address: %s",
-			part.ID.String(), err)
-		return errors.Wrapf(err, "invalid vote address")
-	}
-
-	err = matcher.cfg.PoolAddrValidator.ValidatePoolSubsidyAddress(req.poolAddress)
-	if err != nil {
-		matcher.log.Errorf("Participant %s sent invalid pool address: %s",
-			part.ID.String(), err)
-		return errors.Wrapf(err, "invalid pool address")
-	}
-
-	part.VoteAddress = req.voteAddress
-	part.PoolAddress = req.poolAddress
 	part.CommitmentAddress = req.commitAddress
 	part.SplitTxAddress = req.splitTxAddress
 	part.SecretHash = req.secretHash
@@ -730,7 +730,8 @@ func (matcher *Matcher) removeSession(sess *Session, err error) {
 
 // AddParticipant is the public API for a matcher to add a new participant to a
 // split ticket queue.
-func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64, sessionName string) (*SessionParticipant, error) {
+func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64,
+	sessionName string, voteAddress, poolAddress dcrutil.Address) (*SessionParticipant, error) {
 	if maxAmount < matcher.cfg.MinAmount {
 		return nil, errors.Errorf("participation amount (%s) less than "+
 			"minimum required (%s)", dcrutil.Amount(maxAmount),
@@ -749,10 +750,20 @@ func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64, se
 			"decred network")
 	}
 
+	if voteAddress == nil {
+		return nil, errors.New("empty vote address")
+	}
+
+	if poolAddress == nil {
+		return nil, errors.New("empty pool address")
+	}
+
 	req := addParticipantRequest{
 		ctx:         ctx,
 		maxAmount:   maxAmount,
 		sessionName: sessionName,
+		voteAddress: voteAddress,
+		poolAddress: poolAddress,
 		resp:        make(chan addParticipantResponse),
 	}
 	matcher.addParticipantRequests <- req
@@ -776,19 +787,11 @@ func (matcher *Matcher) WatchWaitingList(ctx context.Context, watcher chan []Wai
 // outputs, then generates the ticket tx and returns the index of the input
 // that should receive this participants funds
 func (matcher *Matcher) SetParticipantsOutputs(ctx context.Context,
-	sessionID ParticipantID, voteAddress, poolAddress, commitAddress,
+	sessionID ParticipantID, commitAddress,
 	splitTxAddress dcrutil.Address, splitTxChange *wire.TxOut,
 	splitTxOutPoints []*wire.OutPoint,
 	secretNbHash splitticket.SecretNumberHash) (*wire.MsgTx, *wire.MsgTx,
 	[]*ParticipantTicketOutput, uint32, error) {
-
-	if voteAddress == nil {
-		return nil, nil, nil, 0, errors.New("empty vote address")
-	}
-
-	if poolAddress == nil {
-		return nil, nil, nil, 0, errors.New("empty pool address")
-	}
 
 	if commitAddress == nil {
 		return nil, nil, nil, 0, errors.New("empty commitment address")
@@ -809,8 +812,6 @@ func (matcher *Matcher) SetParticipantsOutputs(ctx context.Context,
 	req := setParticipantOutputsRequest{
 		ctx:              ctx,
 		sessionID:        sessionID,
-		voteAddress:      voteAddress,
-		poolAddress:      poolAddress,
 		commitAddress:    commitAddress,
 		splitTxAddress:   splitTxAddress,
 		splitTxChange:    splitTxChange,

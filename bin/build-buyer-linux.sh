@@ -1,10 +1,10 @@
 #!/bin/sh
 
+VERSION=`grep -oP "const Version = \"\K[^\"]+(?=\")" pkg/version.go`
+
 rm -fR dist/release/linux64/split-ticket-buyer
 mkdir -p dist/release/linux64/split-ticket-buyer
-mkdir -p dist/archives
-
-VERSION=`grep -oP "Version\s+ = \"\K[^\"]+(?=\")" pkg/version.go`
+mkdir -p dist/archives/v$VERSION
 
 echo "Building binaries $VERSION..."
 

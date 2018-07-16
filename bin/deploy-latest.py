@@ -96,7 +96,7 @@ read the [instructions for joining the beta](/docs/beta.md).
 def getVersion():
     with open("pkg/version.go") as f:
         for l in f.readlines():
-            m = re.match(r'^\s+Version\s+= "(.+)"$', l)
+            m = re.match(r'^const Version\s+= "(.+)"$', l)
             if m:
                 return m.group(1)
     return ""

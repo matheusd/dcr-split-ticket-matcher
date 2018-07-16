@@ -241,7 +241,8 @@ func waitForSession(ctx context.Context, cfg *Config) sessionWaiterResponse {
 	}
 
 	rep.reportStage(ctx, StageFindingMatches, nil, cfg)
-	session, err := mc.participate(ctx, maxAmount, cfg.SessionName)
+	session, err := mc.participate(ctx, maxAmount, cfg.SessionName, cfg.VoteAddress,
+		cfg.PoolAddress)
 	if err != nil {
 		return sessionWaiterResponse{nil, nil, nil, err}
 	}

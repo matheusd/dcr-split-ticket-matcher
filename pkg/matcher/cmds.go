@@ -40,13 +40,13 @@ type (
 		ctx         context.Context
 		maxAmount   uint64
 		sessionName string
+		voteAddress dcrutil.Address
+		poolAddress dcrutil.Address
 		resp        chan addParticipantResponse
 	}
 
 	setParticipantOutputsRequest struct {
 		ctx              context.Context
-		voteAddress      dcrutil.Address
-		poolAddress      dcrutil.Address
 		commitAddress    dcrutil.Address
 		splitTxAddress   dcrutil.Address
 		splitTxOutPoints []*wire.OutPoint
