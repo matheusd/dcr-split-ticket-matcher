@@ -31,8 +31,8 @@ cp samples/win64-dlls/* dist/release/win64/split-ticket-buyer/
 
 ZIPFILE="splitticketbuyer-win64-$VERSION.zip"
 
-rm -f dist/archives/$ZIPFILE
+rm -f dist/archives/v$VERSION/$ZIPFILE
 
-cd dist/release/win64 && zip -9 -r ../../archives/$ZIPFILE split-ticket-buyer
+cd dist/release/win64 && zip -9 -r ../../archives/v$VERSION/$ZIPFILE split-ticket-buyer
 
 echo "Built win64 binaries $VERSION"
