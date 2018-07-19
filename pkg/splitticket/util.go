@@ -14,11 +14,7 @@ import (
 // currentScriptFlags are the flags for script execution currently enabled on
 // the decred network. This might need updating in case the consensus rules
 // change.
-var currentScriptFlags = txscript.ScriptBip16 |
-	txscript.ScriptDiscourageUpgradableNops |
-	txscript.ScriptVerifyDERSignatures |
-	txscript.ScriptVerifyStrictEncoding |
-	txscript.ScriptVerifyMinimalData |
+var currentScriptFlags = txscript.ScriptDiscourageUpgradableNops |
 	txscript.ScriptVerifyCleanStack |
 	txscript.ScriptVerifyCheckLockTimeVerify |
 	txscript.ScriptVerifyCheckSequenceVerify |

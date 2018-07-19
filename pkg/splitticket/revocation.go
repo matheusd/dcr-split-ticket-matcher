@@ -179,7 +179,7 @@ func CreateUnsignedRevocation(ticketHash *chainhash.Hash,
 	// Revocations reference the ticket purchase with the first (and only)
 	// input.
 	ticketOutPoint := wire.NewOutPoint(ticketHash, 0, wire.TxTreeStake)
-	revocation.AddTxIn(wire.NewTxIn(ticketOutPoint, nil))
+	revocation.AddTxIn(wire.NewTxIn(ticketOutPoint, wire.NullValueIn, nil))
 
 	// All remaining outputs pay to the output destinations and amounts tagged
 	// by the ticket purchase.

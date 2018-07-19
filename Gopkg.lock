@@ -56,6 +56,7 @@
     "chaincfg/chainec",
     "chaincfg/chainhash",
     "database",
+    "dcrec",
     "dcrec/edwards",
     "dcrec/secp256k1",
     "dcrec/secp256k1/schnorr",
@@ -68,7 +69,7 @@
     "txscript",
     "wire"
   ]
-  revision = "66010e4134d6e4daee29f52782b8b59e12128d31"
+  revision = "60d7fe080fd26ce9a38242a755f4c27474102ccf"
 
 [[projects]]
   branch = "master"
@@ -79,12 +80,14 @@
     "internal/zero",
     "netparams",
     "rpc/walletrpc",
-    "snacl",
+    "wallet/internal/snacl",
+    "wallet/internal/txsizes",
+    "wallet/internal/walletdb",
+    "wallet/txauthor",
     "wallet/txrules",
-    "wallet/udb",
-    "walletdb"
+    "wallet/udb"
   ]
-  revision = "03d9f2fbabf9db9803bd48a03185fc8cda59d0d6"
+  revision = "bc273bc09a14532606364436586f0f07ba65799e"
 
 [[projects]]
   name = "github.com/decred/slog"
@@ -107,7 +110,7 @@
     "ptypes/duration",
     "ptypes/timestamp"
   ]
-  revision = "3a3da3a4e26776cc22a79ef46d5d58477532dede"
+  revision = "14aad3d5ea4c323bcd7a2137e735da24a76e814c"
 
 [[projects]]
   name = "github.com/gorilla/websocket"
@@ -132,7 +135,7 @@
     "gtk",
     "pango"
   ]
-  revision = "0c9f6816f4f58cfdf8e67bb015f838bd05ea27b1"
+  revision = "7d65db4a7c69ab6574ecec8cce42763701530544"
 
 [[projects]]
   branch = "master"
@@ -156,6 +159,7 @@
   branch = "master"
   name = "golang.org/x/crypto"
   packages = [
+    "internal/subtle",
     "nacl/secretbox",
     "pbkdf2",
     "poly1305",
@@ -163,7 +167,7 @@
     "salsa20/salsa",
     "scrypt"
   ]
-  revision = "ab813273cd59e1333f7ae7bff5d027d4aadf528c"
+  revision = "a2144134853fc9a27a7b1e3eb4f19f1a76df13c9"
 
 [[projects]]
   branch = "master"
@@ -177,7 +181,7 @@
     "internal/timeseries",
     "trace"
   ]
-  revision = "dfa909b99c79129e1100513e5cd36307665e5723"
+  revision = "a680a1efc54dd51c040b3b5ce4939ea3cf2ea0d1"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -204,7 +208,7 @@
   branch = "master"
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
-  revision = "694d95ba50e67b2e363f3483057db5d4910c18f9"
+  revision = "fedd2861243fd1a8152376292b921b394c7bef7e"
 
 [[projects]]
   name = "google.golang.org/grpc"
@@ -213,15 +217,16 @@
     "balancer",
     "balancer/base",
     "balancer/roundrobin",
-    "channelz",
     "codes",
     "connectivity",
     "credentials",
     "encoding",
     "encoding/proto",
-    "grpclb/grpc_lb_v1/messages",
     "grpclog",
     "internal",
+    "internal/backoff",
+    "internal/channelz",
+    "internal/grpcrand",
     "keepalive",
     "metadata",
     "naming",
@@ -234,8 +239,8 @@
     "tap",
     "transport"
   ]
-  revision = "41344da2231b913fa3d983840a57a6b1b7b631a1"
-  version = "v1.12.0"
+  revision = "168a6198bcb0ef175f7dacec0b8691fc141dc9b8"
+  version = "v1.13.0"
 
 [solve-meta]
   analyzer-name = "dep"

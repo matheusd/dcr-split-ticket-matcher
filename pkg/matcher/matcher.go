@@ -297,8 +297,8 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 		PoolFee:         poolFee,
 		TicketFee:       ticketTxFee,
 		ChainParams:     matcher.cfg.ChainParams,
-		TicketPoolIn:    wire.NewTxIn(&wire.OutPoint{Index: 1}, nil),       // FIXME: this should probably be removed from here and moved into the session
-		SplitTxPoolOut:  wire.NewTxOut(int64(poolFee), splitPoolOutScript), // ditto above
+		TicketPoolIn:    wire.NewTxIn(&wire.OutPoint{Index: 1}, wire.NullValueIn, nil), // FIXME: this should probably be removed from here and moved into the session
+		SplitTxPoolOut:  wire.NewTxOut(int64(poolFee), splitPoolOutScript),             // ditto above
 		ID:              sessID,
 		StartTime:       time.Now(),
 		TicketExpiry:    expiry,
@@ -421,7 +421,7 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	part.splitTxInputs = make([]*wire.TxIn, len(req.splitTxOutPoints))
 	part.splitTxUtxos = utxos
 	for i, outp := range req.splitTxOutPoints {
-		part.splitTxInputs[i] = wire.NewTxIn(outp, nil)
+		part.splitTxInputs[i] = wire.NewTxIn(outp, wire.NullValueIn, nil)
 	}
 	part.chanSetOutputsResponse = req.resp
 

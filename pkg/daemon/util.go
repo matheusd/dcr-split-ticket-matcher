@@ -3,6 +3,7 @@ package daemon
 import (
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainec"
+	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
@@ -30,7 +31,7 @@ func newPrivateKeySplitPoolSigner(privateKeyWif string, net *chaincfg.Params) (*
 		return nil, errors.Wrapf(err, "error decoding private key wif")
 	}
 
-	if wif.DSA() != chainec.ECTypeSecp256k1 {
+	if wif.DSA() != dcrec.STEcdsaSecp256k1 {
 		return nil, errors.Errorf("only a secp256k1 private key is acceptable")
 	}
 
@@ -100,7 +101,7 @@ func (signer *privateKeySplitPoolSigner) SignPoolSplitOutput(split, ticket *wire
 	sigScript, err := txscript.SignTxOutput(signer.net,
 		ticket, 0, splitOut.PkScript, txscript.SigHashAll,
 		txscript.KeyClosure(lookupKey), nil, nil,
-		chainec.ECTypeSecp256k1)
+		dcrec.STEcdsaSecp256k1)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error signing ticket.TxOut[0]")
 	}
