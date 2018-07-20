@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"net"
 
 	"github.com/pkg/errors"
 
@@ -42,21 +41,12 @@ func ConnectToMatcherService(ctx context.Context, matcherHost string,
 		return nil, errors.Wrapf(err, "error connecting to dcrd")
 	}
 
-	host := intnet.RemoveHostPort(matcherHost)
-	_, addrs, err := net.LookupSRV(SplitTicketSrvService, SplitTicketSrvProto, host)
-	if (err == nil) && (len(addrs) > 0) && (len(addrs[0].Target) > 0) {
-		target := addrs[0].Target
-		if target[len(target)-1:] == "." && (host[len(host)-1:] != ".") {
-			target = target[:len(target)-1]
-		}
-		matcherHost = fmt.Sprintf("%s:%d", target, addrs[0].Port)
+	matcherHost, isSrv, err := intnet.DetermineMatcherHost(matcherHost)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error determining target matcher host")
+	}
+	if isSrv {
 		rep.reportSrvRecordFound(matcherHost)
-		if !intnet.IsSubDomain(host, target) {
-			return nil, errors.Errorf("SRV target host %s is not a subdomain of %s",
-				target, host)
-		}
-
-		host = target
 	}
 
 	var opt grpc.DialOption
@@ -69,7 +59,7 @@ func ConnectToMatcherService(ctx context.Context, matcherHost string,
 		}
 	} else {
 		tlsCfg := &tls.Config{
-			ServerName: host,
+			ServerName: intnet.RemoveHostPort(matcherHost),
 		}
 		creds = credentials.NewTLS(tlsCfg)
 	}

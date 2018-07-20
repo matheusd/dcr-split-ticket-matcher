@@ -22,7 +22,9 @@ message OutPoint {
     int32 tree = 3;
 }
 
-message WatchWaitingListRequest {}
+message WatchWaitingListRequest {
+    bool send_current = 1;
+}
 message WatchWaitingListResponse {
     message Queue {
         string name = 1;

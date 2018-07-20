@@ -3,6 +3,7 @@ package net
 import (
 	"context"
 	"fmt"
+	"net"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -117,4 +119,34 @@ func IsSubDomain(root, subdomain string) bool {
 	}
 
 	return idx == len(subdomain)-len(root)
+}
+
+// DetermineMatcherHost tries to find the target server to connect to perform
+// the matching session, when the configured host is specified as `host`.
+// This uses DNS requests to consult applicable SRV records to redirect the
+// connection to a specific server.
+// Returns the target host, whether the host was changed due to the presence of
+// an SRV record or an error
+func DetermineMatcherHost(matcherHost string) (string, bool, error) {
+	host := RemoveHostPort(matcherHost)
+
+	_, addrs, err := net.LookupSRV(splitticket.SplitTicketSrvService,
+		splitticket.SplitTicketSrvProto, host)
+
+	if (err == nil) && (len(addrs) > 0) && (len(addrs[0].Target) > 0) {
+		target := addrs[0].Target
+		if target[len(target)-1:] == "." && (host[len(host)-1:] != ".") {
+			target = target[:len(target)-1]
+		}
+		matcherHost = fmt.Sprintf("%s:%d", target, addrs[0].Port)
+
+		if !IsSubDomain(host, target) {
+			return "", false, errors.Errorf("SRV target host %s is not a "+
+				"subdomain of %s", target, host)
+		}
+
+		return matcherHost, true, nil
+	}
+
+	return matcherHost, false, nil
 }

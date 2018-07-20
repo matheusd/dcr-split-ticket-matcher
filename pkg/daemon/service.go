@@ -52,7 +52,7 @@ func NewSplitTicketMatcherService(matcher *matcher.Matcher,
 func (svc *SplitTicketMatcherService) WatchWaitingList(req *pb.WatchWaitingListRequest, server pb.SplitTicketMatcherService_WatchWaitingListServer) error {
 
 	watcher := make(chan []matcher.WaitingQueue)
-	svc.matcher.WatchWaitingList(server.Context(), watcher)
+	svc.matcher.WatchWaitingList(server.Context(), watcher, req.SendCurrent)
 
 	for {
 		select {

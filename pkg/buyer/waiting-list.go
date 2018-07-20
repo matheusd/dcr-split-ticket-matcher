@@ -2,8 +2,11 @@ package buyer
 
 import (
 	"context"
+	"crypto/tls"
+	"time"
 
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
+	intnet "github.com/matheusd/dcr-split-ticket-matcher/pkg/buyer/internal/net"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
@@ -22,24 +25,39 @@ type waitingListWatcher interface {
 func WatchMatcherWaitingList(ctx context.Context, matcherHost string,
 	certFile string, watcher waitingListWatcher) error {
 
-	opt := grpc.WithInsecure()
-	if certFile != "" {
-		creds, err := credentials.NewClientTLSFromFile(certFile, "localhost")
-		if err != nil {
-			return err
-		}
-
-		opt = grpc.WithTransportCredentials(creds)
+	matcherHost, _, err := intnet.DetermineMatcherHost(matcherHost)
+	if err != nil {
+		return errors.Wrap(err, "error determining matcher host to connect "+
+			"to when watching lists")
 	}
 
-	conn, err := grpc.Dial(matcherHost, opt)
+	var opt grpc.DialOption
+	var creds credentials.TransportCredentials
+
+	if certFile != "" {
+		creds, err = credentials.NewClientTLSFromFile(certFile, "localhost")
+		if err != nil {
+			return errors.Wrapf(err, "error creating credentials")
+		}
+	} else {
+		tlsCfg := &tls.Config{
+			ServerName: intnet.RemoveHostPort(matcherHost),
+		}
+		creds = credentials.NewTLS(tlsCfg)
+	}
+	opt = grpc.WithTransportCredentials(creds)
+
+	dialCtx, cancelDialCtx := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancelDialCtx()
+
+	conn, err := grpc.DialContext(dialCtx, matcherHost, opt)
 	if err != nil {
 		return err
 	}
 
 	client := pb.NewSplitTicketMatcherServiceClient(conn)
 
-	req := &pb.WatchWaitingListRequest{}
+	req := &pb.WatchWaitingListRequest{SendCurrent: true}
 	cli, err := client.WatchWaitingList(ctx, req)
 	if err != nil {
 		return err

@@ -768,10 +768,33 @@ func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64,
 }
 
 // WatchWaitingList is the public matcher API for listeners of queue changes.
-func (matcher *Matcher) WatchWaitingList(ctx context.Context, watcher chan []WaitingQueue) {
+func (matcher *Matcher) WatchWaitingList(ctx context.Context,
+	watcher chan []WaitingQueue, sendCurrentQueues bool) {
+
 	req := watchWaitingListRequest{
 		ctx:     ctx,
 		watcher: watcher,
+	}
+
+	if sendCurrentQueues {
+		go func() {
+			t := time.NewTimer(2 * time.Second)
+			<-t.C
+			if ctx.Err() != nil {
+				return
+			}
+
+			queues := make([]WaitingQueue, len(matcher.queues))
+			i := 0
+			for name, q := range matcher.queues {
+				queues[i] = WaitingQueue{
+					Name:    name,
+					Amounts: q.waitingAmounts(),
+				}
+				i++
+			}
+			watcher <- queues
+		}()
 	}
 
 	matcher.watchWaitingListRequests <- req
