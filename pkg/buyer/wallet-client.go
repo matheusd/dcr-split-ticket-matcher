@@ -555,7 +555,7 @@ func (wc *WalletClient) testPassphrase(ctx context.Context, cfg *Config) error {
 // specified maxAmount into a split ticket session.
 func (wc *WalletClient) testFunds(ctx context.Context, cfg *Config) error {
 
-	amount, err := dcrutil.NewAmount(cfg.MaxAmount)
+	amount, err := dcrutil.NewAmount(cfg.MaxAmount + 0.3)
 	if err != nil {
 		return errors.Wrapf(err, "error decoding maxAmount")
 	}

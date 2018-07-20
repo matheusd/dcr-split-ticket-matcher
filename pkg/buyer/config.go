@@ -171,7 +171,7 @@ func LoadConfig() (*Config, error) {
 		ChainParams:          &chaincfg.MainNetParams,
 		SourceAccount:        0,
 		MaxTime:              30,
-		MaxWaitTime:          120,
+		MaxWaitTime:          60 * 60,
 		DataDir:              defaultDataDir,
 		SkipWaitPublishedTxs: false,
 		PoolFeeRate:          5.0,

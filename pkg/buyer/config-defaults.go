@@ -14,9 +14,13 @@ PoolAddress =
 # Maximum amount (in DCR) to participate in the split purchase
 MaxAmount = 0.0
 
+# Pool subsidy fee rate (as a percentage). The buyer stops the session if the
+# the service attempt to use a rate higher than this.
+PoolFeeRate = 5.0
+
 # Address of the matcher daemon.
-# Online testnet matcher service. You'll need to use the testnet-matcher-rpc.cert
-# file to connect to this service.
+# Voting Pools that provide the split ticket matching service can usually be
+# used just by specifying its host (eg: stake.myexamplepool.com).
 # MatcherHost = testnet-split-tickets.matheusd.com:8475
 MatcherHost =
 

@@ -260,7 +260,7 @@ func buildUI() gtk.IWidget {
 	label.SetAlignment(0, 0)
 	vbox.PackStart(label, false, false, 2)
 
-	amountScale := gtk.NewHScaleWithRange(1, 50, 1)
+	amountScale := gtk.NewHScaleWithRange(1, 150, 1)
 	vbox.PackStart(amountScale, false, false, 2)
 
 	// session name
