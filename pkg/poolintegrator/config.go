@@ -18,6 +18,7 @@ type Config struct {
 	LogDir       string `long:"logdir" description:"Log directory. Specify to save log messages to a file"`
 	KeyFile      string `long:"keyfile" description:"Location of the rpc.key file (private key for the TLS certificate)."`
 	CertFile     string `long:"certfile" description:"Location of the rpc.cert file (TLS certificate)."`
+	ShowVersion  bool   `long:"version" description:"Show version and quit"`
 
 	TestNet bool `long:"testnet" description:"Whether to run on testnet"`
 
@@ -66,6 +67,10 @@ func LoadConfig() (*Config, error) {
 		}
 		parser.WriteHelp(os.Stderr)
 		return nil, errors.Wrapf(err, "error parsing arguments")
+	}
+
+	if cfg.ShowVersion {
+		return nil, ErrVersionRequested
 	}
 
 	if cfg.StakepooldConfigFile != "" {

@@ -42,6 +42,9 @@ func main() {
 	ctx, cancelFunc := context.WithCancel(ctx)
 
 	cfg, err := buyer.LoadConfig()
+	if err == buyer.ErrVersionRequested {
+		os.Exit(0)
+	}
 	if err == nil {
 		err = cfg.ReadPassphrase()
 	}

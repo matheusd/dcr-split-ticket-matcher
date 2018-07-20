@@ -14,9 +14,15 @@ import (
 	"github.com/pkg/errors"
 )
 
-// ErrHelpRequested is the error returned when the help option was requested
-// on the command line
-var ErrHelpRequested = fmt.Errorf("help requested")
+var (
+	// ErrHelpRequested is the error returned when the help option was requested
+	// on the command line
+	ErrHelpRequested = fmt.Errorf("help requested")
+
+	// ErrVersionRequested is the error returned when the version command line
+	// option was requested
+	ErrVersionRequested = fmt.Errorf("version requested")
+)
 
 // Config stores the config needed to run an instance of the dcr split ticket
 // matcher daemon
@@ -31,6 +37,7 @@ type Config struct {
 	CertFile         string `long:"certfile" description:"Location of the rpc.cert file (TLS certificate)."`
 	SplitPoolSignKey string `long:"splitpoolsignkey" description:"WIF private key for signing the split -> ticket intermediate pool fee txo"`
 	DataDir          string `long:"datadir" description:"Dir where session and other data will be saved"`
+	ShowVersion      bool   `long:"version" description:"Show version and quit"`
 
 	TestNet  bool   `long:"testnet" description:"Whether this is connecting to a testnet wallet/matcher service"`
 	DcrdHost string `long:"dcrdhost" description:"Address of the dcrd daemon"`
@@ -78,6 +85,10 @@ func LoadConfig() (*Config, error) {
 		}
 		preParser.WriteHelp(os.Stderr)
 		return nil, errors.Wrapf(err, "error parsing arguments")
+	}
+
+	if preCfg.ShowVersion {
+		return nil, ErrVersionRequested
 	}
 
 	configFilePath := preCfg.ConfigFile

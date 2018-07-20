@@ -27,6 +27,10 @@ var (
 	// was requested
 	ErrHelpRequested = fmt.Errorf("help requested")
 
+	// ErrVersionRequested is the error returned when the version command line
+	// option was requested
+	ErrVersionRequested = fmt.Errorf("version requested")
+
 	// ErrEmptyPassword is the error returned when an empty password has been
 	// provided in the config
 	ErrEmptyPassword = fmt.Errorf("empty password")
@@ -57,6 +61,7 @@ type Config struct {
 	DcrdPass             string  `long:"dcrpass" description:"Password of the dcrd daemon"`
 	DcrdCert             string  `long:"dcrdcert" description:"Location of the certificate for the dcrd daemon"`
 	SkipWaitPublishedTxs bool    `long:"skipwaitpublishedtxs" description:"If specified, the session ends immediately after the last step, without waiting for the matcher to publish the transactions."`
+	ShowVersion          bool    `long:"version" description:"Show version and quit"`
 
 	Passphrase  []byte
 	ChainParams *chaincfg.Params
@@ -161,6 +166,10 @@ func LoadConfig() (*Config, error) {
 		}
 		preParser.WriteHelp(os.Stderr)
 		return nil, errors.Wrapf(err, "error parsing cmdline arg")
+	}
+
+	if preCfg.ShowVersion {
+		return nil, ErrVersionRequested
 	}
 
 	configFilePath := preCfg.ConfigFile
