@@ -204,7 +204,8 @@ func (daemon *Daemon) ListenAndServe() error {
 			daemon.log.Noticef("Starting websocket waiting list service at %s",
 				daemon.cfg.WaitingListWSBindAddr)
 			err := startWaitlistWebsocketServer(daemon.cfg.WaitingListWSBindAddr,
-				daemon.matcher, daemon.logBackend)
+				daemon.matcher, daemon.cfg.CertFile, daemon.cfg.KeyFile,
+				daemon.logBackend)
 			if err != nil {
 				daemon.log.Errorf("Error starting websocket waiting list "+
 					"service: %v", err)

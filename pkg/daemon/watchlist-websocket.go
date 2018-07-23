@@ -50,7 +50,7 @@ func (svc *waitlistWebsocketService) watchWaitingList(w http.ResponseWriter, r *
 }
 
 func startWaitlistWebsocketServer(bindAddr string, matcher *matcher.Matcher,
-	logBackend logging.LeveledBackend) error {
+	certFile, keyFile string, logBackend logging.LeveledBackend) error {
 	svc := &waitlistWebsocketService{
 		matcher: matcher,
 		log:     logging.MustGetLogger("ws-waiting-list-svc"),
@@ -65,5 +65,5 @@ func startWaitlistWebsocketServer(bindAddr string, matcher *matcher.Matcher,
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/watchWaitingList", svc.watchWaitingList)
-	return http.ListenAndServe(bindAddr, mux)
+	return http.ListenAndServeTLS(bindAddr, certFile, keyFile, mux)
 }
