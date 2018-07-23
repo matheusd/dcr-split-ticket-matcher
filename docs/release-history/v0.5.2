@@ -1,0 +1,17 @@
+# Changelog for version 0.5.2
+
+- Update dependencies to latest version
+- Add fee validation tests and voting pool fee validation in buyer
+- Add a small overhead to test for available funds before starting session in
+buyer
+- Add `--version` command line argument to buyer and service
+- Fix waiting list watcher
+- Allow `MaxWaitTime` to be zero in buyer, allowing a client to wait forever in
+queue
+- Add keepalive parameters to both buyer and service daemon, to allow better
+detection of stalled connections
+- Add websocket waiting list service and example page to allow voting pools to
+more easily show waiting sessions to users
+- Automatically initialize config on GUI buyer when there is a single decrediton
+and voting pool configured in the machine
+- Add log capabilities to buyer (both CLI and GUI)
