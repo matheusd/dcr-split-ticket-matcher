@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 )
 
 type waitingListWatcher interface {
@@ -47,10 +48,16 @@ func WatchMatcherWaitingList(ctx context.Context, matcherHost string,
 	}
 	opt = grpc.WithTransportCredentials(creds)
 
+	optKeepAlive := grpc.WithKeepaliveParams(keepalive.ClientParameters{
+		Time:                5 * time.Minute,
+		Timeout:             20 * time.Second,
+		PermitWithoutStream: true,
+	})
+
 	dialCtx, cancelDialCtx := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancelDialCtx()
 
-	conn, err := grpc.DialContext(dialCtx, matcherHost, opt)
+	conn, err := grpc.DialContext(dialCtx, matcherHost, opt, optKeepAlive)
 	if err != nil {
 		return err
 	}

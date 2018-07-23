@@ -19,6 +19,7 @@ import (
 	"github.com/op/go-logging"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 )
 
 // Daemon is the main instance of a running dcr split ticket matcher daemon
@@ -157,6 +158,9 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	d.log.Infof("Using address %s to move pool fee funds from split to ticket",
 		poolSigner.address.EncodeAddress())
 
+	d.log.Infof("Using keepalive timeout of %s / %s", cfg.KeepAliveTime,
+		cfg.KeepAliveTimeout)
+
 	mcfg := &matcher.Config{
 		LogLevel:                  cfg.LogLevel,
 		MinAmount:                 uint64(minAmount),
@@ -179,6 +183,10 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 
 // ListenAndServe connections for the daemon. Returns an error when done.
 func (daemon *Daemon) ListenAndServe() error {
+	if daemon.rpcKeys == nil {
+		return fmt.Errorf("RPC TLS keys not specified")
+	}
+
 	intf := fmt.Sprintf(":%d", daemon.cfg.Port)
 
 	lis, err := net.Listen("tcp", intf)
@@ -190,14 +198,17 @@ func (daemon *Daemon) ListenAndServe() error {
 	daemon.log.Noticef("Running matching engine")
 	go daemon.matcher.Run()
 
-	var server *grpc.Server
-	if daemon.rpcKeys != nil {
-		creds := credentials.NewServerTLSFromCert(daemon.rpcKeys)
-		server = grpc.NewServer(grpc.Creds(creds))
-	} else {
-		daemon.log.Warning("Security Risk: Running without TLS certificate")
-		server = grpc.NewServer()
+	keepAlive := keepalive.ServerParameters{
+		Time:    daemon.cfg.KeepAliveTime,
+		Timeout: daemon.cfg.KeepAliveTimeout,
 	}
+	keepAlivePolice := keepalive.EnforcementPolicy{
+		MinTime: 1 * time.Minute,
+		PermitWithoutStream: true,
+	}
+
+	creds := credentials.NewServerTLSFromCert(daemon.rpcKeys)
+	server := grpc.NewServer(grpc.Creds(creds), grpc.KeepaliveParams(keepAlive))
 
 	svc := NewSplitTicketMatcherService(daemon.matcher, daemon.dcrd,
 		daemon.cfg.AllowPublicSession)

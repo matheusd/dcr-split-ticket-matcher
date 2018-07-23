@@ -4,6 +4,9 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"time"
+
+	"google.golang.org/grpc/keepalive"
 
 	"github.com/pkg/errors"
 
@@ -64,8 +67,13 @@ func ConnectToMatcherService(ctx context.Context, matcherHost string,
 		creds = credentials.NewTLS(tlsCfg)
 	}
 	opt = grpc.WithTransportCredentials(creds)
+	optKeepAlive := grpc.WithKeepaliveParams(keepalive.ClientParameters{
+		Time:                5 * time.Minute,
+		Timeout:             20 * time.Second,
+		PermitWithoutStream: true,
+	})
 
-	conn, err := grpc.Dial(matcherHost, opt)
+	conn, err := grpc.Dial(matcherHost, opt, optKeepAlive)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error connecting to matcher host")
 	}

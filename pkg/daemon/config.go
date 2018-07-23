@@ -62,6 +62,9 @@ type Config struct {
 	StakepooldIntegratorCert string `long:"stakepooldintegratorcert" description:"Certificate to use when connecting the stakepool integrator host"`
 
 	AllowPublicSession bool `long:"allowpublicsession" description:"Whether to allow sessions with an empty name (public sessions) in the matcher."`
+
+	KeepAliveTime    time.Duration `long:"keepalivetime" description:"Time duration between server-requested pings to individual clients to see if they are still online"`
+	KeepAliveTimeout time.Duration `long:"keepalivetimeout" description:"Time duration to wait for a reply after a keepalive ping has been sent"`
 }
 
 var (
@@ -121,6 +124,9 @@ func LoadConfig() (*Config, error) {
 		ValidateVoteAddressOnWallet: false,
 		PoolSubsidyWalletMasterPub:  "",
 		PoolFee:                     splitticket.MaxPoolFeeRateMainnet,
+
+		KeepAliveTime:    60 * time.Second,
+		KeepAliveTimeout: 5 * time.Second,
 	}
 
 	parser := flags.NewParser(cfg, flags.Default)

@@ -230,7 +230,7 @@ func (matcher *Matcher) addParticipant(req *addParticipantRequest) error {
 		return errors.Wrapf(err, "invalid pool address")
 	}
 
-	matcher.log.Infof("Adding participant for amount %s on queue %s",
+	matcher.log.Infof("Adding participant for amount %s on queue '%s'",
 		dcrutil.Amount(req.maxAmount), req.sessionName)
 	q, has := matcher.queues[req.sessionName]
 	if !has {
@@ -430,7 +430,8 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	sess := part.Session
 
 	if sess.AllOutputsFilled() {
-		matcher.log.Infof("All outputs for session received. Creating txs.")
+		matcher.log.Infof("All outputs for session %s received. Creating txs.",
+			sess.ID)
 
 		var ticket, splitTx *wire.MsgTx
 		var poolTicketInSig []byte
