@@ -153,7 +153,11 @@ func BuySplitTicket(ctx context.Context, cfg *Config) error {
 		cfg.WalletHost = hosts[0]
 	}
 
-	ctxWait, cancelWait := context.WithTimeout(ctx, time.Second*time.Duration(cfg.MaxWaitTime))
+	maxWaitTime := time.Duration(cfg.MaxWaitTime)
+	if maxWaitTime <= 0 {
+		maxWaitTime = 60 * 60 * 24 * 365 * 10 // 10 years is plenty :)
+	}
+	ctxWait, cancelWait := context.WithTimeout(ctx, time.Second*maxWaitTime)
 	var resp sessionWaiterResponse
 	reschan := make(chan sessionWaiterResponse)
 	go func() { reschan <- waitForSession(ctxWait, cfg) }()
