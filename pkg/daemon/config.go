@@ -29,15 +29,16 @@ var (
 type Config struct {
 	ConfigFile string `short:"C" long:"configfile" description:"Path to config file"`
 
-	Port             int `long:"port" description:"Port to run the service on"`
-	LogLevel         logging.Level
-	LogLevelName     string `long:"loglevel" description:"Log Level (CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG)"`
-	LogDir           string
-	KeyFile          string `long:"keyfile" description:"Location of the rpc.key file (private key for the TLS certificate)."`
-	CertFile         string `long:"certfile" description:"Location of the rpc.cert file (TLS certificate)."`
-	SplitPoolSignKey string `long:"splitpoolsignkey" description:"WIF private key for signing the split -> ticket intermediate pool fee txo"`
-	DataDir          string `long:"datadir" description:"Dir where session and other data will be saved"`
-	ShowVersion      bool   `long:"version" description:"Show version and quit"`
+	Port                  int    `long:"port" description:"Port to run the service on"`
+	WaitingListWSBindAddr string `long:"waitinglistwsbindaddr" description:"Address to bind the waiting list watcher websocket server. Empty disables this service"`
+	LogLevel              logging.Level
+	LogLevelName          string `long:"loglevel" description:"Log Level (CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG)"`
+	LogDir                string
+	KeyFile               string `long:"keyfile" description:"Location of the rpc.key file (private key for the TLS certificate)."`
+	CertFile              string `long:"certfile" description:"Location of the rpc.cert file (TLS certificate)."`
+	SplitPoolSignKey      string `long:"splitpoolsignkey" description:"WIF private key for signing the split -> ticket intermediate pool fee txo"`
+	DataDir               string `long:"datadir" description:"Dir where session and other data will be saved"`
+	ShowVersion           bool   `long:"version" description:"Show version and quit"`
 
 	TestNet  bool   `long:"testnet" description:"Whether this is connecting to a testnet wallet/matcher service"`
 	DcrdHost string `long:"dcrdhost" description:"Address of the dcrd daemon"`

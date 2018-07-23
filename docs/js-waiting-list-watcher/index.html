@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <style>
+        #sessions .name {
+            margin-right: 2em;
+        }
+
+        #sessions .total {
+            margin-left: 2em;
+        }
+    </style>
+    <script>
+        var debug = console.log;
+        var ws;
+        var notificationsEnabled = false;
+        var sessionNameToWatch = null;
+
+        const DOMAIN = "ws://127.0.0.1:8486";
+
+        function domReady() {
+            debug("dom ready")
+            openWS();
+            setInterval(maintainWS, 5000);
+        }
+
+        function openWS() {
+            ws = new WebSocket(DOMAIN + "/watchWaitingList");
+            ws.onopen = function (evt) {
+                debug("WS Opened");
+            }
+            ws.onclose = function (evt) {
+                debug("WS Closed");
+                ws = null;
+            }
+            ws.onmessage = function (evt) {
+                debug("WS Message", evt.data);
+                var data = JSON.parse(evt.data)
+                updateSessions(data)
+            }
+            ws.onerror = function (evt) {
+                debug("WS Error", evt);
+            }
+            return false;
+        };
+
+        function maintainWS() {
+            // this is called regularly from a setInterval, so if the ws
+            // connection is not open, we try to open it again.
+            if (ws != null) return;
+            openWS();
+        }
+
+        function updateSessions(sessions) {
+            debug("watching for session", sessionNameToWatch);
+            var ul = document.getElementById("sessions")
+            for (; ul.childNodes.length > 0;) {
+                ul.removeChild(ul.childNodes[0]);
+            }
+
+            for (var i = 0; i < sessions.length; i++) {
+                var sess = sessions[i];
+                var li = document.createElement("li")
+                var spanName = document.createElement("span")
+                spanName.className = "name";
+                spanName.innerText = sess.name.substring(0, 32) + ":";
+                li.appendChild(spanName);
+
+                var amountsTxts = [];
+                var total = 0;
+                for (var j = 0; j < sess.amounts.length; j++) {
+                    var amnt = sess.amounts[j] / 1e8;
+                    amountsTxts.push(amnt.toFixed(2) + " DCR");
+                    total += sess.amounts[j]
+                }
+                var spanAmounts = document.createElement("span")
+                spanAmounts.className = "amounts";
+                spanAmounts.innerText = "[" + amountsTxts.join(", ") + "]";
+                li.appendChild(spanAmounts)
+
+                var spanTotal = document.createElement("span")
+                spanTotal.className = "total";
+                spanTotal.innerText = "Total: " + (total / 1e8).toFixed(2) + " DCR";
+                li.appendChild(spanTotal);
+
+                ul.appendChild(li)
+
+                if ((sess.name === sessionNameToWatch) && notificationsEnabled) {
+                    var txt = document.getElementById("notificationSessionName")
+                    var name = txt.value;
+                    new Notification("Split ticket session '" + name +
+                        "' has waiting participants");
+                }
+            }
+        }
+
+        function sha256SessionName(str) {
+            // We transform the string into an arraybuffer.
+            var buffer = new TextEncoder("utf-8").encode(str);
+            return crypto.subtle.digest("SHA-256", buffer).then(function (hash) {
+                sessionNameToWatch = hex(hash);
+            });
+        }
+
+        function hex(buffer) {
+            var hexCodes = [];
+            var view = new DataView(buffer);
+            for (var i = 0; i < view.byteLength; i += 4) {
+                // Using getUint32 reduces the number of iterations needed (we process 4 bytes each time)
+                var value = view.getUint32(i)
+                // toString(16) will give the hex representation of the number without padding
+                var stringValue = value.toString(16)
+                // We use concatenation and slice for padding
+                var padding = '00000000'
+                var paddedValue = (padding + stringValue).slice(-padding.length)
+                hexCodes.push(paddedValue);
+            }
+
+            // Join all the hex strings into one
+            return hexCodes.join("");
+        }
+
+        function changeSessionToWatch() {
+            if (!notificationsEnabled) return null;
+            var txt = document.getElementById("notificationSessionName")
+            var name = txt.value;
+            sha256SessionName(name);
+        }
+
+        function toggleNotifications() {
+            var ntfsNode = document.getElementById("notifications");
+
+            notificationsEnabled = !!ntfsNode.checked;
+            debug("toggling notifications", notificationsEnabled);
+            if (!notificationsEnabled) {
+                sessionNameToWatch = null;
+                return;
+            }
+
+            if (!("Notification" in window)) {
+                alert("This browser does not support desktop notification");
+                ntfsNode.checked = false;
+                notificationsEnabled = false;
+                sessionNameToWatch = null;
+                return;
+            }
+
+            if (!("crypto" in window) || !("subtle" in crypto)) {
+                alert("This browser does not support sha-256")
+                ntfsNode.checked = false
+                notificationsEnabled = false
+                sessionNameToWatch = null;
+                return;
+            }
+
+            if (Notification.permission === "granted") {
+                changeSessionToWatch();
+                return;
+            }
+
+            if (Notification.permission !== "denied") {
+                Notification.requestPermission(function (permission) {
+                    if (permission !== "granted") {
+                        ntfsNode.checked = false;
+                        notificationsEnabled = false;
+                    } else {
+                        changeSessionToWatch();
+                    }
+                });
+            }
+
+        }
+
+        // Mozilla, Opera, Webkit
+        if (document.addEventListener) {
+            document.addEventListener("DOMContentLoaded", function () {
+                document.removeEventListener("DOMContentLoaded", arguments.callee, false);
+                domReady();
+            }, false);
+
+            // If IE event model is used
+        } else if (document.attachEvent) {
+            // ensure firing before onload
+            document.attachEvent("onreadystatechange", function () {
+                if (document.readyState === "complete") {
+                    document.detachEvent("onreadystatechange", arguments.callee);
+                    domReady();
+                }
+            });
+        }
+    </script>
+</head>
+
+<body>
+    <h1>Currently Waiting Sessions</h1>
+    <ul id="sessions"></ul>
+    <hr>
+    <h3>Session Notification</h3>
+    <div>
+        <label>
+            <input type="checkbox" onclick="toggleNotifications()" id="notifications" value="true"> Notify on session</label>
+        <div>
+            <input type="text" placeholder="Plain session name"
+                id="notificationSessionName" onchange="changeSessionToWatch()">
+        </div>
+    </div>
+</body>
+
+</html>

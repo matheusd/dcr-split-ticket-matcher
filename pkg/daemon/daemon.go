@@ -24,12 +24,13 @@ import (
 
 // Daemon is the main instance of a running dcr split ticket matcher daemon
 type Daemon struct {
-	cfg     *Config
-	log     *logging.Logger
-	matcher *matcher.Matcher
-	wallet  *WalletClient
-	rpcKeys *tls.Certificate
-	dcrd    *decredNetwork
+	cfg        *Config
+	log        *logging.Logger
+	matcher    *matcher.Matcher
+	wallet     *WalletClient
+	rpcKeys    *tls.Certificate
+	dcrd       *decredNetwork
+	logBackend logging.LeveledBackend
 }
 
 // NewDaemon returns a new daemon instance and prepares it to listen to
@@ -53,8 +54,8 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		log: logging.MustGetLogger("dcr-split-ticket-matcher"),
 	}
 
-	logBackend := util.StandardLogBackend(true, cfg.LogDir, "dcrstmd-{date}-{time}.log", cfg.LogLevel)
-	d.log.SetBackend(logBackend)
+	d.logBackend = util.StandardLogBackend(true, cfg.LogDir, "dcrstmd-{date}-{time}.log", cfg.LogLevel)
+	d.log.SetBackend(d.logBackend)
 
 	d.log.Noticef("Starting dcrstmd version %s", pkg.Version)
 
@@ -63,7 +64,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		Pass:        cfg.DcrdPass,
 		CertFile:    cfg.DcrdCert,
 		User:        cfg.DcrdUser,
-		logBackend:  logBackend,
+		logBackend:  d.logBackend,
 		chainParams: net,
 	}
 	dcrd, err := connectToDecredNode(dcfg)
@@ -77,7 +78,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		User:       cfg.DcrwUser,
 		Pass:       cfg.DcrwPass,
 		CertFile:   cfg.DcrwCert,
-		logBackend: logBackend,
+		logBackend: d.logBackend,
 	}
 	dcrw, err := ConnectToDcrWallet(dcrwcfg)
 	if err != nil {
@@ -171,7 +172,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		ChainParams:               net,
 		PoolFee:                   cfg.PoolFee,
 		MaxSessionDuration:        cfg.MaxSessionDuration * time.Second,
-		LogBackend:                logBackend,
+		LogBackend:                d.logBackend,
 		StakeDiffChangeStopWindow: cfg.StakeDiffChangeStopWindow,
 		PublishTransactions:       cfg.PublishTransactions,
 		SessionDataDir:            filepath.Join(cfg.DataDir, "sessions"),
@@ -198,17 +199,33 @@ func (daemon *Daemon) ListenAndServe() error {
 	daemon.log.Noticef("Running matching engine")
 	go daemon.matcher.Run()
 
+	if daemon.cfg.WaitingListWSBindAddr != "" {
+		go func() {
+			daemon.log.Noticef("Starting websocket waiting list service at %s",
+				daemon.cfg.WaitingListWSBindAddr)
+			err := startWaitlistWebsocketServer(daemon.cfg.WaitingListWSBindAddr,
+				daemon.matcher, daemon.logBackend)
+			if err != nil {
+				daemon.log.Errorf("Error starting websocket waiting list "+
+					"service: %v", err)
+			}
+		}()
+	} else {
+		daemon.log.Info("Skipping start of websocket waiting list service")
+	}
+
 	keepAlive := keepalive.ServerParameters{
 		Time:    daemon.cfg.KeepAliveTime,
 		Timeout: daemon.cfg.KeepAliveTimeout,
 	}
-	keepAlivePolice := keepalive.EnforcementPolicy{
-		MinTime: 1 * time.Minute,
+	keepAlivePolicy := keepalive.EnforcementPolicy{
+		MinTime:             1 * time.Minute,
 		PermitWithoutStream: true,
 	}
 
 	creds := credentials.NewServerTLSFromCert(daemon.rpcKeys)
-	server := grpc.NewServer(grpc.Creds(creds), grpc.KeepaliveParams(keepAlive))
+	server := grpc.NewServer(grpc.Creds(creds), grpc.KeepaliveParams(keepAlive),
+		grpc.KeepaliveEnforcementPolicy(keepAlivePolicy))
 
 	svc := NewSplitTicketMatcherService(daemon.matcher, daemon.dcrd,
 		daemon.cfg.AllowPublicSession)

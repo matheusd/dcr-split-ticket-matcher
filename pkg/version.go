@@ -20,4 +20,4 @@ const (
 
 // Version is the package version. Remember to modify the previous constants as
 // well on version bumps.
-const Version = "0.5.2+dev1"
+const Version = "0.5.2+dev2"
