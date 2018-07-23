@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"path"
 	"strings"
 	"time"
 
@@ -208,7 +209,8 @@ func participate(logf logFunc, passphrase, sessionName string,
 	splitResultChan := make(chan error)
 
 	go func() {
-		reporter := buyer.NewWriterReporter(logChan)
+		logDir := path.Join(cfg.DataDir, "logs")
+		reporter := buyer.NewWriterReporter(buyer.NewLoggerMiddleware(logChan, logDir))
 		ctx := context.WithValue(context.Background(), buyer.ReporterCtxKey, reporter)
 		ctx, cancel := context.WithCancel(ctx)
 		go buyer.WatchMatcherWaitingList(ctx, cfg.MatcherHost,

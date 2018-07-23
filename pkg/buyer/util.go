@@ -6,11 +6,14 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/util"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 )
@@ -18,6 +21,40 @@ import (
 func encodeSessionName(name string) string {
 	hash := sha256.Sum256([]byte(name))
 	return hex.EncodeToString(hash[:])
+}
+
+// LoggerMiddleware allows to log both to a file and standard output
+type LoggerMiddleware struct {
+	w       io.Writer
+	logFile *os.File
+}
+
+// NewLoggerMiddleware returns a new middleware to write to both a log file and
+// the standard log reporing output
+func NewLoggerMiddleware(w io.Writer, logDir string) *LoggerMiddleware {
+	if _, err := os.Stat(logDir); os.IsNotExist(err) {
+		os.MkdirAll(logDir, 0755)
+	}
+
+	fname := util.LogFileName(logDir, "splitticketbuyer-{date}-{time}.log")
+	f, err := os.OpenFile(fname, os.O_CREATE|os.O_WRONLY, 0640)
+	if err != nil {
+		panic(err)
+	}
+
+	return &LoggerMiddleware{
+		w:       w,
+		logFile: f,
+	}
+}
+
+// Write fulfills io.Writer
+func (lm *LoggerMiddleware) Write(p []byte) (n int, err error) {
+	fmt.Fprintf(lm.logFile, "%s: ", time.Now().Format("2006-01-02 15:04:05.000"))
+	lm.logFile.Write(p)
+	lm.logFile.Sync()
+
+	return lm.w.Write(p)
 }
 
 // WriterReporter implements the BuyerReporter interface by generating descriptive

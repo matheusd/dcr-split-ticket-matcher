@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/buyer"
@@ -37,10 +38,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	reporter := buyer.NewWriterReporter(os.Stdout)
-	ctx := context.WithValue(context.Background(), buyer.ReporterCtxKey, reporter)
-	ctx, cancelFunc := context.WithCancel(ctx)
-
 	cfg, err := buyer.LoadConfig()
 	if err == buyer.ErrVersionRequested {
 		os.Exit(0)
@@ -56,6 +53,11 @@ func main() {
 		os.Exit(1)
 	}
 	defer func() { zeroBytes(cfg.Passphrase) }()
+
+	logDir := path.Join(cfg.DataDir, "logs")
+	reporter := buyer.NewWriterReporter(buyer.NewLoggerMiddleware(os.Stdout, logDir))
+	ctx := context.WithValue(context.Background(), buyer.ReporterCtxKey, reporter)
+	ctx, cancelFunc := context.WithCancel(ctx)
 
 	go buyer.WatchMatcherWaitingList(ctx, cfg.MatcherHost, cfg.MatcherCertFile,
 		reporter)

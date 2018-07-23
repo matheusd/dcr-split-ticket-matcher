@@ -21,9 +21,9 @@ var defaultLogFormatter = logging.MustStringFormatter(
 	`%{time:2006-01-02 15:04:05.000} %{id:03x} %{shortfunc} ▶ %{level:.4s} %{message}`,
 )
 
-// logFileName returns a new non-existant log filename that can be used as a new
+// LogFileName returns a new non-existant log filename that can be used as a new
 // log file in the given dir.
-func logFileName(dir string, baseName string) string {
+func LogFileName(dir string, baseName string) string {
 	dateNow := time.Now().Format("2006-01-02")
 	timeNow := time.Now().Format("150405")
 
@@ -33,7 +33,6 @@ func logFileName(dir string, baseName string) string {
 	i := 0
 	fname := path.Join(dir, baseName)
 	for _, err := os.Stat(fname); (err != nil) && !os.IsNotExist(err); i++ {
-		fmt.Println(fname, err)
 		fname = path.Join(dir, fmt.Sprintf(baseName+"-%3d", i))
 	}
 
@@ -43,7 +42,7 @@ func logFileName(dir string, baseName string) string {
 // logFileBackend returns a backend configured to write to a log file
 // in the given dir, using the given baseName
 func logFileBackend(dir string, baseName string) logging.Backend {
-	fname := logFileName(dir, baseName)
+	fname := LogFileName(dir, baseName)
 	f, err := os.OpenFile(fname, os.O_CREATE|os.O_WRONLY, 0640)
 	if err != nil {
 		panic(err)
