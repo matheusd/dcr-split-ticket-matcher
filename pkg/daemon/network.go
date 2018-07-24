@@ -13,6 +13,7 @@ import (
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 	logging "github.com/op/go-logging"
 	"github.com/pkg/errors"
+	"golang.org/x/net/context"
 )
 
 type decredNetworkConfig struct {
@@ -83,34 +84,45 @@ func connectToDecredNode(cfg *decredNetworkConfig) (*decredNetwork, error) {
 
 	net.log.Noticef("Connected to the decred network. Height=%d StakeDiff=%s", net.blockHeight, dcrutil.Amount(net.ticketPrice))
 
-	go net.maintainClient()
-
 	return net, nil
 }
 
-func (net *decredNetwork) maintainClient() {
-	pingResChan := make(chan error)
-	var sleepTime time.Duration = 30
-
-	go func() {
-		for {
-			net.log.Debug("Attempting to ping dcrd node")
-			pingResChan <- net.client.Ping()
-			time.Sleep(sleepTime * time.Second)
-		}
-	}()
-
+func (net *decredNetwork) run(serverCtx context.Context) {
 	var err error
+	ticker := time.NewTicker(30 * time.Second)
 
 	for {
-		timeout := time.NewTimer((sleepTime + 5) * time.Second)
+		err = nil
+
 		select {
-		case err = <-pingResChan:
-			if err == nil {
-				continue
+		case <-serverCtx.Done():
+			ticker.Stop()
+			net.log.Infof("Done daemon network")
+			net.client.Shutdown()
+			net.client.WaitForShutdown()
+			return
+		case <-ticker.C:
+			net.log.Debug("Trying to ping dcrd")
+			pingRespChan := make(chan error)
+			go func(c chan error) {
+				pingErr := net.client.Ping()
+				if pingErr != rpcclient.ErrClientDisconnect {
+					c <- pingErr
+				}
+			}(pingRespChan)
+
+			timeout := time.NewTimer(5 * time.Second)
+			select {
+			case err = <-pingRespChan:
+				if err == nil {
+					timeout.Stop()
+					net.log.Debug("Pinged dcrd")
+					continue
+				}
+			case <-timeout.C:
+				// timeout error. Continue below for reconnect attempt.
+				err = errors.New("timeout waiting for ping response")
 			}
-		case <-timeout.C:
-			err = errors.Errorf("dcrd ping timeout")
 		}
 
 		net.log.Errorf("Error pinging dcrd: %v", err)

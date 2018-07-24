@@ -10,6 +10,7 @@ import (
 	"github.com/decred/dcrd/wire"
 	logging "github.com/op/go-logging"
 	"github.com/pkg/errors"
+	"golang.org/x/net/context"
 )
 
 // WalletConfig is the required config options to connect to a dcrwallet that
@@ -32,7 +33,8 @@ type WalletClient struct {
 }
 
 // ConnectToDcrWallet tries to connect to the given wallet.
-func ConnectToDcrWallet(cfg *WalletConfig) (*WalletClient, error) {
+func ConnectToDcrWallet(cfg *WalletConfig) (
+	*WalletClient, error) {
 
 	w := &WalletClient{
 		log: logging.MustGetLogger("dcrwallet client"),
@@ -70,6 +72,13 @@ func ConnectToDcrWallet(cfg *WalletConfig) (*WalletClient, error) {
 	w.poolFeeAddress = addr
 
 	return w, nil
+}
+
+// Run runs until serverCtx.Done is emited, then shuts down the wallet
+func (wallet *WalletClient) Run(serverCtx context.Context) {
+	<-serverCtx.Done()
+	wallet.client.Shutdown()
+	wallet.client.WaitForShutdown()
 }
 
 // PoolFeeAddress returns the address to use when moving funds into the utxo of

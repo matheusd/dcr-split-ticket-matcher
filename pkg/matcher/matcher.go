@@ -135,7 +135,7 @@ func NewMatcher(cfg *Config) *Matcher {
 }
 
 // Run listens for all matcher messages and runs the matching engine.
-func (matcher *Matcher) Run() error {
+func (matcher *Matcher) Run(serverCtx context.Context) error {
 	for {
 		select {
 		case req := <-matcher.addParticipantRequests:
@@ -192,6 +192,9 @@ func (matcher *Matcher) Run() error {
 		case cancelReq := <-matcher.cancelWaitingListWatcher:
 			matcher.log.Debugf("Removing waiting list watcher")
 			delete(matcher.waitingListWatchers, cancelReq)
+		case <-serverCtx.Done():
+			matcher.log.Infof("Server context done in matcher")
+			return serverCtx.Err()
 		}
 	}
 }

@@ -4,12 +4,14 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/pkg/errors"
+	"golang.org/x/net/context"
 
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
@@ -24,22 +26,24 @@ import (
 
 // Daemon is the main instance of a running dcr split ticket matcher daemon
 type Daemon struct {
-	cfg        *Config
-	log        *logging.Logger
-	matcher    *matcher.Matcher
-	wallet     *WalletClient
-	rpcKeys    *tls.Certificate
-	dcrd       *decredNetwork
-	logBackend logging.LeveledBackend
+	cfg          *Config
+	log          *logging.Logger
+	matcher      *matcher.Matcher
+	wallet       *WalletClient
+	rpcKeys      *tls.Certificate
+	dcrd         *decredNetwork
+	logBackend   logging.LeveledBackend
+	grpcListener net.Listener
+	waitlistSvc  *waitlistWebsocketService
 }
 
 // NewDaemon returns a new daemon instance and prepares it to listen to
 // requests.
 func NewDaemon(cfg *Config) (*Daemon, error) {
 
-	net := &chaincfg.MainNetParams
+	chainParams := &chaincfg.MainNetParams
 	if cfg.TestNet {
-		net = &chaincfg.TestNet2Params
+		chainParams = &chaincfg.TestNet2Params
 	}
 
 	if cfg.PoolFee < 0.1 {
@@ -65,7 +69,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		CertFile:    cfg.DcrdCert,
 		User:        cfg.DcrdUser,
 		logBackend:  d.logBackend,
-		chainParams: net,
+		chainParams: chainParams,
 	}
 	dcrd, err := connectToDecredNode(dcfg)
 	if err != nil {
@@ -137,7 +141,8 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 
 	var poolAddrValidator matcher.PoolAddressValidationProvider
 	if cfg.PoolSubsidyWalletMasterPub != "" {
-		poolAddrValidator, err = util.NewMasterPubPoolAddrValidator(cfg.PoolSubsidyWalletMasterPub, net)
+		poolAddrValidator, err = util.NewMasterPubPoolAddrValidator(
+			cfg.PoolSubsidyWalletMasterPub, chainParams)
 		if err != nil {
 			return nil, errors.Wrapf(err, "error deriving pool subsidy "+
 				"addresses from masterpubkey")
@@ -151,7 +156,8 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		d.log.Infof("Not validating pool subsidy addresses")
 	}
 
-	poolSigner, err := newPrivateKeySplitPoolSigner(cfg.SplitPoolSignKey, net)
+	poolSigner, err := newPrivateKeySplitPoolSigner(cfg.SplitPoolSignKey,
+		chainParams)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error decoding private key for split "+
 			"pool signing")
@@ -169,7 +175,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		SignPoolSplitOutProvider:  poolSigner,
 		VoteAddrValidator:         voteAddrValidator,
 		PoolAddrValidator:         poolAddrValidator,
-		ChainParams:               net,
+		ChainParams:               chainParams,
 		PoolFee:                   cfg.PoolFee,
 		MaxSessionDuration:        cfg.MaxSessionDuration * time.Second,
 		LogBackend:                d.logBackend,
@@ -179,40 +185,46 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	}
 	d.matcher = matcher.NewMatcher(mcfg)
 
+	if cfg.WaitingListWSBindAddr != "" {
+		wssvc, err := newWaitlistWebsocketService(cfg.WaitingListWSBindAddr,
+			d.matcher, d.logBackend)
+		if err != nil {
+			return nil, errors.Wrapf(err, "error starting waitlist "+
+				"websocket service")
+		}
+		d.waitlistSvc = wssvc
+		d.log.Noticef("Waitlist WS service listening on %s",
+			cfg.WaitingListWSBindAddr)
+	} else {
+		d.log.Info("Skipping start of websocket waiting list service")
+	}
+
+	intf := fmt.Sprintf(":%d", cfg.Port)
+	lis, err := net.Listen("tcp", intf)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error listening on interface %s", intf)
+	}
+	d.grpcListener = lis
+	d.log.Noticef("GRPC service listening on %s", intf)
+
 	return d, nil
 }
 
-// ListenAndServe connections for the daemon. Returns an error when done.
-func (daemon *Daemon) ListenAndServe() error {
+// Run the grpc server matcher and all associated connections as goroutines.
+// Returns immediately with a nil error in case of success.
+func (daemon *Daemon) Run(serverCtx context.Context) error {
 	if daemon.rpcKeys == nil {
 		return fmt.Errorf("RPC TLS keys not specified")
 	}
 
-	intf := fmt.Sprintf(":%d", daemon.cfg.Port)
-
-	lis, err := net.Listen("tcp", intf)
-	if err != nil {
-		daemon.log.Errorf("Error listening: %v", err)
-		return err
-	}
-
 	daemon.log.Noticef("Running matching engine")
-	go daemon.matcher.Run()
+	go daemon.wallet.Run(serverCtx)
+	go daemon.matcher.Run(serverCtx)
+	go daemon.dcrd.run(serverCtx)
 
-	if daemon.cfg.WaitingListWSBindAddr != "" {
-		go func() {
-			daemon.log.Noticef("Starting websocket waiting list service at %s",
-				daemon.cfg.WaitingListWSBindAddr)
-			err := startWaitlistWebsocketServer(daemon.cfg.WaitingListWSBindAddr,
-				daemon.matcher, daemon.cfg.CertFile, daemon.cfg.KeyFile,
-				daemon.logBackend)
-			if err != nil {
-				daemon.log.Errorf("Error starting websocket waiting list "+
-					"service: %v", err)
-			}
-		}()
-	} else {
-		daemon.log.Info("Skipping start of websocket waiting list service")
+	if daemon.waitlistSvc != nil {
+		go daemon.waitlistSvc.run(serverCtx, daemon.cfg.CertFile,
+			daemon.cfg.KeyFile)
 	}
 
 	keepAlive := keepalive.ServerParameters{
@@ -232,6 +244,15 @@ func (daemon *Daemon) ListenAndServe() error {
 		daemon.cfg.AllowPublicSession)
 	pb.RegisterSplitTicketMatcherServiceServer(server, svc)
 
-	daemon.log.Noticef("Listening on %s", intf)
-	return server.Serve(lis)
+	daemon.log.Noticef("Running daemon on pid %d", os.Getpid())
+
+	go func() {
+		<-serverCtx.Done()
+		daemon.log.Notice("Server context done in daemon")
+		server.Stop()
+	}()
+
+	go func() { server.Serve(daemon.grpcListener) }()
+
+	return nil
 }
