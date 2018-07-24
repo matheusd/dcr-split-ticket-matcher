@@ -3,6 +3,7 @@ package matcher
 import (
 	"context"
 	"encoding/hex"
+	"math/rand"
 	"sort"
 	"time"
 
@@ -312,8 +313,11 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 		panic(err)
 	}
 
-	// TODO: shuffle the participants after creating the sess.Participants array
-	// but before sending the reply.
+	randReader := rand.New(rand.NewSource(MustRandInt64()))
+	randReader.Shuffle(numParts, func(i, j int) {
+		commitments[i], commitments[j] = commitments[j], commitments[i]
+		parts[i], parts[j] = parts[j], parts[i]
+	})
 
 	for i, r := range parts {
 		id := matcher.newParticipantID(sessID)

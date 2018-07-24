@@ -7,6 +7,28 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 )
 
+// NewRandInt64 returns a new int64 or an error
+func NewRandInt64() (int64, error) {
+	var b [8]byte
+	_, err := rand.Read(b[:])
+	if err != nil {
+		return 0, err
+	}
+
+	return int64(b[0]) | int64(b[1])<<8 | int64(b[2])<<16 | int64(b[3])<<24 |
+			int64(b[4])<<32 | int64(b[5])<<40 | int64(b[6])<<48 | int64(b[7])<<56,
+		nil
+}
+
+// MustRandInt64 returns a new random int64 or panics
+func MustRandInt64() int64 {
+	r, err := NewRandInt64()
+	if err != nil {
+		panic(err)
+	}
+	return r
+}
+
 // NewRandUint64 returns a new uint64 or an error
 func NewRandUint64() (uint64, error) {
 	var b [8]byte
