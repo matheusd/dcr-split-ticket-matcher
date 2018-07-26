@@ -28,11 +28,18 @@ const (
 	TicketFeeEstimate float64 = 0.001 / 1000
 )
 
+// TicketSizeEstimate returns the size estimate for the ticket transaction for
+// the given number of participants
+func TicketSizeEstimate(numParticipants int) int {
+	txSize := TicketTxInitialSize + numParticipants*TicketParticipantSize
+	txSize += TicketParticipantSize // Pool input/outputs
+	return txSize
+}
+
 // SessionParticipantFee returns the fee that a single participant of a ticket
 // split tx with the given number of participants should pay
 func SessionParticipantFee(numParticipants int) dcrutil.Amount {
-	txSize := TicketTxInitialSize + numParticipants*TicketParticipantSize
-	txSize += TicketParticipantSize // Pool input/outputs
+	txSize := TicketSizeEstimate(numParticipants)
 	ticketFee, _ := dcrutil.NewAmount(float64(txSize) * TicketFeeEstimate)
 	ticketFee = ticketFee + 50001 // just to increase chances of ticket being mined soon
 	partFee := dcrutil.Amount(math.Ceil(float64(ticketFee) / float64(numParticipants)))
