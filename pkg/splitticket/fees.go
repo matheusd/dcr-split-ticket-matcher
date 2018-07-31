@@ -6,6 +6,7 @@ import (
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrwallet/wallet/txrules"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -55,16 +56,33 @@ func SessionFeeEstimate(numParticipants int) dcrutil.Amount {
 	return SessionParticipantFee(numParticipants) * dcrutil.Amount(numParticipants)
 }
 
-// SessionParticipantPoolFee returns the estimate for pool fee contribution for
-// each participant of a split ticket, given the parameters. Note that this
-// assumes each participant will pay the same amount, to add up to the total
-// pool fee.
-func SessionParticipantPoolFee(numParticipants int, ticketPrice dcrutil.Amount,
+// SessionPoolFee returns the estimate for pool fee contribution for a split
+// ticket session, given the parameters. Note that this assumes
+// each participant will pay the same amount, to add up to the total pool fee.
+func SessionPoolFee(numParticipants int, ticketPrice dcrutil.Amount,
 	blockHeight int, poolFeePerc float64, net *chaincfg.Params) dcrutil.Amount {
 
 	ticketTxFee := SessionFeeEstimate(numParticipants)
 	minPoolFee := txrules.StakePoolTicketFee(ticketPrice, ticketTxFee, int32(blockHeight),
 		poolFeePerc, net)
-	poolFeePart := dcrutil.Amount(math.Ceil(float64(minPoolFee) / float64(numParticipants)))
-	return poolFeePart
+	return minPoolFee
+}
+
+// CheckParticipantSessionPoolFee checks whether the pool fee paid by a given
+// participant is fair, assuming a given ticket price, poolFeeRate and
+// contribution amount.
+func CheckParticipantSessionPoolFee(numParticipants int, ticketPrice dcrutil.Amount,
+	contribAmount, partPoolFee, partFee dcrutil.Amount, blockHeight int,
+	poolFeePerc float64, net *chaincfg.Params) error {
+
+	poolFee := SessionPoolFee(numParticipants, ticketPrice, blockHeight,
+		poolFeePerc, net)
+	contribPerc := float64(contribAmount+partFee) / float64(ticketPrice-poolFee)
+	partPoolFeePerc := float64(partPoolFee) / float64(poolFee)
+	if partPoolFeePerc-contribPerc > 0.0001 {
+		return errors.Errorf("participant pool fee contribution (%f%%) higher "+
+			"then ticket contribution (%f%%)", partPoolFeePerc, contribPerc)
+	}
+
+	return nil
 }

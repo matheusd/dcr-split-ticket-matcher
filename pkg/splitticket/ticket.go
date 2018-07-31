@@ -37,7 +37,7 @@ const (
 // This function can be called on buyers, to ensure that no other participant
 // or the matcher service are trying to trick the buyer into a malicious
 // split ticket session, wasting time or (more importantly) funds.
-func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, partPoolFee,
+func CheckTicket(split, ticket *wire.MsgTx, ticketPrice,
 	partTicketFee dcrutil.Amount, partsAmounts []dcrutil.Amount,
 	currentBlockHeight uint32, params *chaincfg.Params) error {
 
@@ -159,16 +159,6 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice, partPoolFee,
 		}
 	}
 
-	// we expect all participants to pay the same amount as pool fee
-	expectedPoolFee := partPoolFee * dcrutil.Amount(len(partsAmounts))
-
-	// ensure the pool fee commitment actually is the total pool fee
-	if dcrutil.Amount(outAmt[0]) != expectedPoolFee {
-		return errors.Errorf("amount in commitment for pool fee (%s) "+
-			"different than expected (%s)", dcrutil.Amount(outAmt[0]),
-			expectedPoolFee)
-	}
-
 	// ensure the participation amounts in the ticket actually follow the
 	// provided distribution. This is specially important because we'll decide
 	// the voter based on the amounts in `partsAmounts`, so it's **very**
@@ -268,7 +258,7 @@ func CheckSignedTicket(split, ticket *wire.MsgTx, params *chaincfg.Params) error
 
 // CheckTicketPoolFeeRate checks whether the pool fee recorded in the given
 // ticket is acceptable by a voting pool using the given poolFeeRate as subsidy
-// requirement and at most 5% more than the poolFeeRate.
+// requirement and at most 1% more than the poolFeeRate.
 // Only safe to be called on tickets that passed CheckTicket.
 func CheckTicketPoolFeeRate(split, ticket *wire.MsgTx, poolFeeRate float64,
 	currentBlockHeight uint32, params *chaincfg.Params) error {
@@ -312,8 +302,7 @@ func CheckTicketPoolFeeRate(split, ticket *wire.MsgTx, poolFeeRate float64,
 // present in the vote pk script and if the pool address is present in the
 // poolPkScript
 func CheckTicketScriptMatchAddresses(voteAddress, poolAddress dcrutil.Address,
-	votePkScript, poolPkScript []byte, poolFee dcrutil.Amount,
-	params *chaincfg.Params) error {
+	votePkScript, poolPkScript []byte, params *chaincfg.Params) error {
 
 	// validating the vote pk script
 	voteClass, voteAddresses, voteReqSigs, err := txscript.ExtractPkScriptAddrs(
@@ -362,17 +351,7 @@ func CheckTicketScriptMatchAddresses(voteAddress, poolAddress dcrutil.Address,
 			poolAddress)
 	}
 
-	decodedPoolAmount, err := stake.AmountFromSStxPkScrCommitment(poolPkScript)
-	if err != nil {
-		return errors.Wrapf(err, "error extracing amount from commitment script")
-	}
-	if decodedPoolAmount != poolFee {
-		return errors.Errorf("decoded pool fee (%s) is not equal to expected "+
-			"pool fee (%s)", decodedPoolAmount, poolFee)
-	}
-
 	return nil
-
 }
 
 // CheckParticipantInTicket checks whether the participant at `index` on the

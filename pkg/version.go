@@ -8,7 +8,8 @@ const (
 	// v1: Initial version
 	// v2: Modified algo that calculates the lottery commiment hash to include
 	// the amounts and voter addresses
-	ProtocolVersion = 2
+	// v3: Modified pool fee to be proportional by contribution amount
+	ProtocolVersion = 3
 )
 
 // These are the individual version numbers

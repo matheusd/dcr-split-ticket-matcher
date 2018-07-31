@@ -116,6 +116,17 @@ func (session *Session) splitInputOutpoints() []wire.OutPoint {
 	return res
 }
 
+func (session *Session) myTotalAmountIn() dcrutil.Amount {
+	total := dcrutil.Amount(0)
+	for _, in := range session.splitInputs {
+		entry, has := session.splitTxUtxoMap[in.PreviousOutPoint]
+		if has {
+			total += entry.Value
+		}
+	}
+	return total
+}
+
 // Reporter is an interface that must be implemented to report status of a buyer
 // session during its progress.
 type Reporter interface {
@@ -246,7 +257,7 @@ func waitForSession(ctx context.Context, cfg *Config) sessionWaiterResponse {
 
 	rep.reportStage(ctx, StageFindingMatches, nil, cfg)
 	session, err := mc.participate(ctx, maxAmount, cfg.SessionName, cfg.VoteAddress,
-		cfg.PoolAddress)
+		cfg.PoolAddress, cfg.PoolFeeRate, cfg.ChainParams)
 	if err != nil {
 		return sessionWaiterResponse{nil, nil, nil, err}
 	}
@@ -435,6 +446,9 @@ func saveSession(ctx context.Context, session *Session, cfg *Config) error {
 		return err
 	}
 
+	totalPoolFee := dcrutil.Amount(session.fundedSplitTx.TxOut[1].Value)
+	contribPerc := float64(session.Amount+session.PoolFee) / float64(session.TicketPrice) * 100
+
 	out := func(format string, args ...interface{}) {
 		w.WriteString(fmt.Sprintf(format, args...))
 	}
@@ -450,9 +464,9 @@ func saveSession(ctx context.Context, session *Session, cfg *Config) error {
 	out("My Index = %d\n", session.myIndex)
 	out("My Secret Number = %d\n", session.secretNb)
 	out("My Secret Hash = %s\n", session.secretNbHash)
-	out("Commitment Amount = %s\n", session.Amount)
+	out("Commitment Amount = %s (%.2f%%)\n", session.Amount, contribPerc)
 	out("Ticket Fee = %s (total = %s)\n", session.Fee, session.Fee*dcrutil.Amount(session.nbParticipants))
-	out("Pool Fee = %s (total = %s)\n", session.PoolFee, session.PoolFee*dcrutil.Amount(session.nbParticipants))
+	out("Pool Fee = %s (total = %s)\n", session.PoolFee, totalPoolFee)
 	out("Split Transaction hash = %s\n", splitHash.String())
 	out("Final Ticket Hash = %s\n", ticketHashHex)
 	out("Final Revocation Hash = %s\n", revocationHash.String())
@@ -471,6 +485,15 @@ func saveSession(ctx context.Context, session *Session, cfg *Config) error {
 	out("Secret Numbers = %v\n", session.secretNumbers())
 	out("Selected Coin = %s\n", session.selectedCoin)
 	out("Selected Voter Index = %d\n", session.voterIndex)
+
+	out("\n")
+	out("====== My Participation Info ======\n")
+	out("Total input amount: %s\n", session.myTotalAmountIn())
+	out("Change amount: %s\n", dcrutil.Amount(session.splitChange.Value))
+	out("Commitment Address: %s\n", session.ticketOutputAddress.EncodeAddress())
+	out("Split Output Address: %s\n", session.splitOutputAddress.EncodeAddress())
+	out("Vote Address: %s\n", cfg.VoteAddress)
+	out("Pool Fee Address: %s\n", cfg.PoolAddress)
 
 	out("\n")
 	out("====== Final Transactions ======\n")

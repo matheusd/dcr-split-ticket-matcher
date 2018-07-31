@@ -7,7 +7,6 @@ import (
 
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/gorilla/websocket"
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/util"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	logging "github.com/op/go-logging"
 	"github.com/pkg/errors"
@@ -116,6 +115,5 @@ func (svc *waitlistWebsocketService) run(serverCtx context.Context,
 		svc.listener.Close()
 	}()
 
-	return svc.server.ServeTLS(util.TCPKeepAliveListener{svc.listener.(*net.TCPListener)},
-		certFile, keyFile)
+	return svc.server.ServeTLS(svc.listener, certFile, keyFile)
 }

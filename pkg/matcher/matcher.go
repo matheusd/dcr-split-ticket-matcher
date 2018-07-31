@@ -268,9 +268,8 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 	ticketPrice := dcrutil.Amount(matcher.cfg.NetworkProvider.CurrentTicketPrice())
 	blockHeight := matcher.cfg.NetworkProvider.CurrentBlockHeight()
 	poolFeePerc := matcher.cfg.PoolFee
-	poolFeePart := splitticket.SessionParticipantPoolFee(numParts, ticketPrice,
+	poolFee := splitticket.SessionPoolFee(numParts, ticketPrice,
 		int(blockHeight), poolFeePerc, matcher.cfg.ChainParams)
-	poolFee := poolFeePart * dcrutil.Amount(numParts) // ensure every participant pays the same amount
 	sessID := matcher.newSessionID()
 	parts := q.waitingParticipants
 	curHeight := matcher.cfg.NetworkProvider.CurrentBlockHeight()
@@ -278,8 +277,9 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 		matcher.cfg.ChainParams)
 	q.waitingParticipants = nil
 
-	matcher.log.Noticef("Starting new session %s: Ticket Price=%s Fees=%s Participants=%d PoolFee=%s",
-		sessID, ticketPrice, ticketTxFee, numParts, poolFee)
+	matcher.log.Noticef("Starting new session %s: Ticket Price=%s Fees=%s "+
+		"Participants=%d PoolFee=%s", sessID, ticketPrice, ticketTxFee,
+		numParts, poolFee)
 
 	splitPoolOutAddr := matcher.cfg.SignPoolSplitOutProvider.PoolFeeAddress()
 	splitPoolOutScript, err := txscript.PayToAddrScript(splitPoolOutAddr)
@@ -310,7 +310,8 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 	for i, p := range parts {
 		maxAmounts[i] = dcrutil.Amount(p.maxAmount)
 	}
-	commitments, err := splitticket.SelectContributionAmounts(maxAmounts, ticketPrice, partFee, poolFeePart)
+	commitments, poolFees, err := splitticket.SelectContributionAmounts(
+		maxAmounts, ticketPrice, partFee, poolFee)
 	if err != nil {
 		matcher.log.Errorf("Error selecting contribution amounts: %v", err)
 		panic(err)
@@ -320,13 +321,14 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 	randReader.Shuffle(numParts, func(i, j int) {
 		commitments[i], commitments[j] = commitments[j], commitments[i]
 		parts[i], parts[j] = parts[j], parts[i]
+		poolFees[i], poolFees[j] = poolFees[j], poolFees[i]
 	})
 
 	for i, r := range parts {
 		id := matcher.newParticipantID(sessID)
 		sessPart := &SessionParticipant{
 			CommitAmount: commitments[i],
-			PoolFee:      poolFeePart,
+			PoolFee:      poolFees[i],
 			Fee:          partFee,
 			Session:      sess,
 			Index:        i,
@@ -454,7 +456,7 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 				&sess.MainchainHash, sess.MainchainHeight, matcher.cfg.ChainParams)
 			if err == nil {
 				err = splitticket.CheckTicket(splitTx, ticket, sess.TicketPrice,
-					part.PoolFee, part.Fee, sess.ParticipantAmounts(),
+					part.Fee, sess.ParticipantAmounts(),
 					sess.MainchainHeight, matcher.cfg.ChainParams)
 				if err != nil {
 					matcher.log.Errorf("error checking ticket: %v", err)
@@ -651,7 +653,7 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 		}
 
 		err = splitticket.CheckTicket(splitTx, ticket, sess.TicketPrice,
-			part.PoolFee, part.Fee, sess.ParticipantAmounts(),
+			part.Fee, sess.ParticipantAmounts(),
 			sess.MainchainHeight, matcher.cfg.ChainParams)
 		if err != nil {
 			matcher.log.Errorf("error on final checkTicket: %v", err)

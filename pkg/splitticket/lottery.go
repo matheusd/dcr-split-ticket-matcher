@@ -23,8 +23,7 @@ const (
 
 // SelectContributionAmounts decides how to split the ticket priced at
 // ticketPrice such that each ith participant contributes at most maxAmount[i],
-// pays a participation fee partFee and contributes poolPartFee into the common
-// pool fee input.
+// pays a participation fee partFee and everyone pays total poolFee.
 //
 // In order to call this function sum(maxAmounts) must be > (ticketPrice +
 // sum(partFee)) and the maxAmounts **MUST** be ordered in ascending order of
@@ -36,35 +35,34 @@ const (
 //
 // This function returns the corresponding commitment amounts for each
 // participant (ie, what the sstxcommitment output will be for each
-// participant).
+// participant) and the proportional pool fee amount.
 func SelectContributionAmounts(maxAmounts []dcrutil.Amount, ticketPrice,
-	partFee, poolPartFee dcrutil.Amount) ([]dcrutil.Amount, error) {
+	partFee, poolFee dcrutil.Amount) ([]dcrutil.Amount, []dcrutil.Amount, error) {
 
 	nparts := len(maxAmounts)
 	totalAvailable := dcrutil.Amount(0)
 	prev := dcrutil.Amount(0)
 	remainingMax := make([]dcrutil.Amount, nparts)
 	for i, a := range maxAmounts {
-		if a < partFee+poolPartFee {
-			return nil, fmt.Errorf("Invalid Argument: amount in index %d (%s)"+
-				"less than minimum needed (%s)", i, a, partFee+poolPartFee)
+		if a < partFee {
+			return nil, nil, fmt.Errorf("Invalid Argument: amount in index %d (%s)"+
+				"less than minimum needed (%s)", i, a, partFee)
 		}
 
 		if a < 0 {
-			return nil, fmt.Errorf("Invalid Argument: amount is negative (%s)"+
+			return nil, nil, fmt.Errorf("Invalid Argument: amount is negative (%s)"+
 				"in index %d", a, i)
 		}
 
 		if a < prev {
-			return nil, fmt.Errorf("Invalid Argument: maxAmounts must be in " +
+			return nil, nil, fmt.Errorf("Invalid Argument: maxAmounts must be in " +
 				"ascending order")
 		}
 		totalAvailable += a
 		prev = a
 
-		// remainingMax considers the partFee and poolPartFee contributions as
-		// payed by the participant
-		remainingMax[i] = a - partFee - poolPartFee
+		// remainingMax considers the partFee paied by the participant
+		remainingMax[i] = a - partFee
 	}
 
 	// notice that while the partFee is an "additional" amount needed by each
@@ -73,14 +71,13 @@ func SelectContributionAmounts(maxAmounts []dcrutil.Amount, ticketPrice,
 	// in the ticketPrice amount
 	neededAmount := ticketPrice + partFee*dcrutil.Amount(nparts)
 	if totalAvailable < neededAmount {
-		return nil, fmt.Errorf("Invalid Argument: total available %s less "+
+		return nil, nil, fmt.Errorf("Invalid Argument: total available %s less "+
 			"than needed %s", totalAvailable, neededAmount)
 	}
 
 	// totalLeft is the remaining part of the ticket that needs to be
-	// distributed among the participants. It considers the pool fee included in
-	// output 1 as accounted for.
-	totalLeft := ticketPrice - poolPartFee*dcrutil.Amount(nparts)
+	// distributed among the participants
+	totalLeft := ticketPrice
 
 	// Algorithm sketch: loop starting from lowest amount to highest.
 	//
@@ -118,7 +115,25 @@ func SelectContributionAmounts(maxAmounts []dcrutil.Amount, ticketPrice,
 		}
 	}
 
-	return contribs, nil
+	// Now account for the pool fees. Split the total pool fees, such that each
+	// participant contributes its % to the common pool fee.
+	poolFees := make([]dcrutil.Amount, nparts)
+	totalPoolFeeLeft := poolFee
+	for i := 0; i < nparts; i++ {
+		contribPerc := float64(contribs[i]) / float64(ticketPrice)
+		fee := dcrutil.Amount(math.Ceil(contribPerc * float64(poolFee)))
+		if fee > totalPoolFeeLeft {
+			poolFees[i] = totalPoolFeeLeft
+			contribs[i] -= totalPoolFeeLeft
+			break
+		} else {
+			poolFees[i] = fee
+			totalPoolFeeLeft -= fee
+			contribs[i] -= fee
+		}
+	}
+
+	return contribs, poolFees, nil
 }
 
 // SecretNumber is the secret number that each individual  participant chooses.

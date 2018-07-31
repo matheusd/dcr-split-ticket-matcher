@@ -15,6 +15,7 @@ import (
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 
+	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
@@ -94,7 +95,8 @@ func (mc *MatcherClient) status(ctx context.Context) (*pb.StatusResponse, error)
 }
 
 func (mc *MatcherClient) participate(ctx context.Context, maxAmount dcrutil.Amount,
-	sessionName string, voteAddress, poolAddress string) (*Session, error) {
+	sessionName string, voteAddress, poolAddress string, poolFeeRate float64,
+	chainParams *chaincfg.Params) (*Session, error) {
 	req := &pb.FindMatchesRequest{
 		Amount:          uint64(maxAmount),
 		SessionName:     sessionName,
@@ -123,6 +125,16 @@ func (mc *MatcherClient) participate(ctx context.Context, maxAmount dcrutil.Amou
 		mainchainHeight: resp.MainchainHeight,
 		nbParticipants:  resp.NbParticipants,
 	}
+
+	err = splitticket.CheckParticipantSessionPoolFee(int(sess.nbParticipants),
+		sess.TicketPrice, sess.Amount, sess.PoolFee, sess.Fee,
+		int(sess.mainchainHeight), poolFeeRate, chainParams)
+	if err != nil {
+		return nil, errors.Wrap(err, "matcher requested wrong pool fee amount")
+	}
+
+	// TODO: check mainchainHash, mainchainHeight and partFee for problems
+
 	return sess, nil
 }
 
@@ -240,7 +252,6 @@ func (mc *MatcherClient) generateTicket(ctx context.Context, session *Session, c
 	// ensure the vote/pool scripts provided at my index are actually my own
 	err = splitticket.CheckTicketScriptMatchAddresses(session.voteAddress,
 		session.poolAddress, myPart.votePkScript, myPart.poolPkScript,
-		session.PoolFee*dcrutil.Amount(len(session.participants)),
 		cfg.ChainParams)
 	if err != nil {
 		return errors.Wrapf(err, "error checking the vote/pool scripts of my "+
@@ -264,7 +275,7 @@ func (mc *MatcherClient) generateTicket(ctx context.Context, session *Session, c
 
 	// ensure the ticket template is valid
 	err = splitticket.CheckTicket(session.splitTx, session.ticketTemplate,
-		session.TicketPrice, session.PoolFee, session.Fee, session.amounts(),
+		session.TicketPrice, session.Fee, session.amounts(),
 		session.mainchainHeight, cfg.ChainParams)
 	if err != nil {
 		return errors.Wrapf(err, "error checking ticket template")
@@ -345,7 +356,7 @@ func (mc *MatcherClient) fundTicket(ctx context.Context, session *Session, cfg *
 		}
 
 		err = splitticket.CheckTicket(splitTx, ticket, session.TicketPrice,
-			session.PoolFee, session.Fee, partsAmounts, session.mainchainHeight,
+			session.Fee, partsAmounts, session.mainchainHeight,
 			cfg.ChainParams)
 		if err != nil {
 			return errors.Wrapf(err, "error checking validity of ticket of part %d", i)

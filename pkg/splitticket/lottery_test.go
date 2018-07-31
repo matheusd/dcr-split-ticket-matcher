@@ -37,10 +37,10 @@ func TestSelectContributionAmount(t *testing.T) {
 	}
 
 	errTests := []struct {
-		ticketPrice dcrutil.Amount
-		partFee     dcrutil.Amount
-		poolPartFee dcrutil.Amount
-		amounts     []dcrutil.Amount
+		ticketPrice  dcrutil.Amount
+		partFee      dcrutil.Amount
+		totalPoolFee dcrutil.Amount
+		amounts      []dcrutil.Amount
 	}{
 		// test unordered contribution amounts
 		{30, 1, 1, mka(20, 10)},
@@ -60,47 +60,48 @@ func TestSelectContributionAmount(t *testing.T) {
 	}
 
 	for i, tc := range errTests {
-		_, err = SelectContributionAmounts(tc.amounts, tc.ticketPrice,
-			tc.partFee, tc.poolPartFee)
+		_, _, err = SelectContributionAmounts(tc.amounts, tc.ticketPrice,
+			tc.partFee, tc.totalPoolFee)
 		if err == nil {
 			t.Errorf("error test case %d should have returned an error", i)
 		}
 	}
 
 	tests := []struct {
-		ticketPrice dcrutil.Amount
-		partFee     dcrutil.Amount
-		poolPartFee dcrutil.Amount
-		amounts     []dcrutil.Amount
-		res         []dcrutil.Amount
+		ticketPrice  dcrutil.Amount
+		partFee      dcrutil.Amount
+		totalPoolFee dcrutil.Amount
+		amounts      []dcrutil.Amount
+		res          []dcrutil.Amount
+		pres         []dcrutil.Amount
 	}{
 		// Test when everyone the split can happen equally
-		{1000, 10, 10, mka(2000, 2000, 2000, 2000), mka(240, 240, 240, 240)},
+		{1000, 10, 40, mka(2000, 2000, 2000, 2000), mka(240, 240, 240, 240), mka(10, 10, 10, 10)},
 
 		// Test the very minimum needed for a split, given a ticket price and fees
-		{1000, 10, 10, mka(260, 260, 260, 260), mka(240, 240, 240, 240)},
+		{1000, 10, 40, mka(260, 260, 260, 260), mka(240, 240, 240, 240), mka(10, 10, 10, 10)},
 
 		// Test when the division can't be exact
-		{1000, 10, 10, mka(1000, 1000, 1000), mka(324, 324, 322)},
+		{1000, 10, 30, mka(1000, 1000, 1000), mka(323, 323, 324), mka(11, 11, 8)},
 
 		// Test possible division problems
-		{996, 10, 10, mka(1000, 1000, 1000), mka(322, 322, 322)},
+		{996, 10, 30, mka(1000, 1000, 1000), mka(322, 322, 322), mka(10, 10, 10)},
 
 		// Test various divisions when one or more contributors can't provide as
 		// much as some others
-		{1000, 10, 10, mka(100, 1000, 1000), mka(80, 445, 445)},
-		{1000, 10, 10, mka(100, 1000, 1000, 1000), mka(80, 294, 294, 292)},
-		{1000, 10, 10, mka(100, 100, 1000, 1000), mka(80, 80, 400, 400)},
-		{1000, 10, 10, mka(100, 100, 420, 420), mka(80, 80, 400, 400)},
-		{1000, 10, 10, mka(100, 100, 500, 500, 500), mka(80, 80, 264, 264, 262)},
-		{1000, 10, 10, mka(40, 50, 60, 70, 1000), mka(20, 30, 40, 50, 810)},
-		{1000, 10, 10, mka(200, 200, 200, 200, 500), mka(180, 180, 180, 180, 230)},
-		{1000, 10, 10, mka(200, 200, 200, 201, 500), mka(180, 180, 180, 181, 229)},
+		{1000, 10, 30, mka(100, 1000, 1000), mka(87, 441, 442), mka(3, 14, 13)},
+		{1000, 10, 40, mka(100, 1000, 1000, 1000), mka(86, 291, 291, 292), mka(4, 13, 13, 10)},
+		{1000, 10, 40, mka(100, 100, 1000, 1000), mka(86, 86, 393, 395), mka(4, 4, 17, 15)},
+		{1000, 10, 40, mka(100, 100, 420, 420), mka(86, 86, 393, 395), mka(4, 4, 17, 15)},
+		{1000, 10, 50, mka(100, 100, 500, 500, 500), mka(85, 85, 260, 260, 260), mka(5, 5, 14, 14, 12)},
+		{1000, 10, 50, mka(40, 50, 60, 70, 1000), mka(28, 38, 47, 57, 780), mka(2, 2, 3, 3, 40)},
+		{1000, 10, 50, mka(200, 200, 200, 200, 500), mka(180, 180, 180, 180, 230), mka(10, 10, 10, 10, 10)},
+		{1000, 10, 50, mka(200, 200, 200, 201, 500), mka(180, 180, 180, 181, 229), mka(10, 10, 10, 10, 10)},
 	}
 
 	for i, tc := range tests {
-		res, err := SelectContributionAmounts(tc.amounts, tc.ticketPrice,
-			tc.partFee, tc.poolPartFee)
+		res, pres, err := SelectContributionAmounts(tc.amounts, tc.ticketPrice,
+			tc.partFee, tc.totalPoolFee)
 		if err != nil {
 			t.Errorf("unexpected error in case %d: %v", i, err)
 			continue
@@ -112,17 +113,28 @@ func TestSelectContributionAmount(t *testing.T) {
 		}
 
 		responseSum := dcrutil.Amount(0)
+		responsePoolFeeSum := dcrutil.Amount(0)
 		for j, v := range res {
 			if v != tc.res[j] {
 				t.Errorf("response element %d (%s) of test case %d different "+
 					"than expected (%s)", j, v, i, tc.res[j])
 			}
-			responseSum += v + tc.poolPartFee
+			if pres[j] != tc.pres[j] {
+				t.Errorf("response pool fee element %d (%s) of test case %d "+
+					"different than expected (%s)", j, pres[j], i, tc.pres[j])
+			}
+			responseSum += v + pres[j]
+			responsePoolFeeSum += pres[j]
 		}
 
 		if responseSum != tc.ticketPrice {
 			t.Errorf("sum of response elements + pool fee (%s) different "+
 				"than expected (%s)", responseSum, tc.ticketPrice)
+		}
+
+		if responsePoolFeeSum != tc.totalPoolFee {
+			t.Errorf("sum of response pool fee elements (%s) different than "+
+				"expected (%s)", responsePoolFeeSum, tc.totalPoolFee)
 		}
 	}
 }

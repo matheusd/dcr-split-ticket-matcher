@@ -28,8 +28,8 @@ func main() {
 
 		ticketFee := splitticket.SessionFeeEstimate(p)
 
-		poolFee := splitticket.SessionParticipantPoolFee(p, ticketPrice,
-			blockHeight, poolFeeRate, net) * dcrutil.Amount(p)
+		poolFee := splitticket.SessionPoolFee(p, ticketPrice,
+			blockHeight, poolFeeRate, net)
 
 		fmt.Printf("%7d | %6.3f | %.5f | %.5f\n", p,
 			float64(size)/1000.0,

@@ -186,7 +186,8 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	d.matcher = matcher.NewMatcher(mcfg)
 
 	if cfg.WaitingListWSBindAddr != "" {
-		wssvc, err := newWaitlistWebsocketService(cfg.WaitingListWSBindAddr,
+		var wssvc *waitlistWebsocketService
+		wssvc, err = newWaitlistWebsocketService(cfg.WaitingListWSBindAddr,
 			d.matcher, d.logBackend)
 		if err != nil {
 			return nil, errors.Wrapf(err, "error starting waitlist "+

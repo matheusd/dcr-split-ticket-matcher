@@ -25,7 +25,6 @@ var (
 type testSessionData struct {
 	nbParts                       int
 	ticketPrice                   dcrutil.Amount
-	partPoolFee                   dcrutil.Amount
 	partTicketFee                 dcrutil.Amount
 	totalPoolFee                  dcrutil.Amount
 	partsAmounts                  []dcrutil.Amount
@@ -65,7 +64,7 @@ func (d *testSessionData) checkSplit(split *wire.MsgTx) error {
 
 // checkTicket checks the given ticket agains the given session data
 func (d *testSessionData) checkTicket(split, ticket *wire.MsgTx) error {
-	return CheckTicket(split, ticket, d.ticketPrice, d.partPoolFee,
+	return CheckTicket(split, ticket, d.ticketPrice,
 		d.partTicketFee, d.partsAmounts, d.currentBlockHeight,
 		_testNetwork)
 }
@@ -220,24 +219,21 @@ func (d *testSessionData) fillParticipationData(ticketPrice,
 
 	rnd := rand.New(rand.NewSource(0x543210001701d))
 
-	partPoolFee := SessionParticipantPoolFee(d.nbParts, ticketPrice,
-		int(d.currentBlockHeight), poolFeeRate, _testNetwork)
-
 	splitPartFee := dcrutil.Amount(1 * 1e6)
 
 	d.partTicketFee = partTicketFee
-	d.partPoolFee = partPoolFee
-	d.totalPoolFee = partPoolFee * dcrutil.Amount(d.nbParts)
+	d.totalPoolFee = SessionPoolFee(d.nbParts, ticketPrice,
+		int(d.currentBlockHeight), poolFeeRate, _testNetwork)
 	d.ticketPrice = ticketPrice
 
 	maxAmounts := make([]dcrutil.Amount, d.nbParts)
 	for i := 0; i < d.nbParts; i++ {
-		maxAmounts[i] = d.ticketPrice + d.partPoolFee + d.partTicketFee +
+		maxAmounts[i] = d.ticketPrice + d.totalPoolFee + d.partTicketFee +
 			dcrutil.Amount(10*dcrutil.AtomsPerCoin)
 	}
 
-	amounts, _ := SelectContributionAmounts(maxAmounts, d.ticketPrice,
-		d.partTicketFee, d.partPoolFee)
+	amounts, poolFees, _ := SelectContributionAmounts(maxAmounts, d.ticketPrice,
+		d.partTicketFee, d.totalPoolFee)
 	d.partsAmounts = amounts
 
 	splitOutIdx := uint32(2) // 0 = voter lottery commitment, 1 = pool fee output
@@ -245,10 +241,10 @@ func (d *testSessionData) fillParticipationData(ticketPrice,
 	for i := 0; i < d.nbParts; i++ {
 		secretNb := SecretNumber(rnd.Uint64())
 		extraInputAmount := dcrutil.Amount((1 + rnd.Intn(10)) * dcrutil.AtomsPerCoin)
-		totalInputAmount := extraInputAmount + amounts[i] + d.partPoolFee + splitPartFee
+		totalInputAmount := extraInputAmount + amounts[i] + poolFees[i] + splitPartFee
 
 		d.splitPartFees = append(d.splitPartFees, splitPartFee)
-		d.poolPartFees = append(d.poolPartFees, d.partPoolFee)
+		d.poolPartFees = append(d.poolPartFees, poolFees[i])
 		d.ticketPartFees = append(d.ticketPartFees, d.partTicketFee)
 		d.secretNbs = append(d.secretNbs, secretNb)
 		d.secretHashes = append(d.secretHashes, secretNb.Hash(d.mainchainHash))
