@@ -43,9 +43,19 @@ func main() {
 	serverCtx, cancelFunc := context.WithCancel(context.Background())
 	startDaemon(serverCtx)
 
+	s := struct{}{}
+	acceptableSignals := map[os.Signal]struct{}{
+		syscall.SIGHUP: s, syscall.SIGKILL: s, syscall.SIGQUIT: s,
+		syscall.SIGINT: s, syscall.SIGTERM: s, syscall.SIGABRT: s,
+	}
+
 	for {
 		sig := <-sigs
 		fmt.Printf("Signal %s received\n", sig)
+		if _, has := acceptableSignals[sig]; !has {
+			continue
+		}
+
 		cancelFunc()
 		time.Sleep(5 * time.Second)
 		if sig != syscall.SIGHUP {
