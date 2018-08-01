@@ -33,7 +33,7 @@ type Config struct {
 	WaitingListWSBindAddr string `long:"waitinglistwsbindaddr" description:"Address to bind the waiting list watcher websocket server. Empty disables this service"`
 	LogLevel              logging.Level
 	LogLevelName          string `long:"loglevel" description:"Log Level (CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG)"`
-	LogDir                string
+	LogDir                string `long:"logdir" description:"Location to save log files."`
 	KeyFile               string `long:"keyfile" description:"Location of the rpc.key file (private key for the TLS certificate)."`
 	CertFile              string `long:"certfile" description:"Location of the rpc.cert file (TLS certificate)."`
 	SplitPoolSignKey      string `long:"splitpoolsignkey" description:"WIF private key for signing the split -> ticket intermediate pool fee txo"`
