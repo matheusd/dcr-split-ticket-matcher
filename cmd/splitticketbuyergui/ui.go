@@ -42,7 +42,6 @@ func getDecreditonWalletName(logf logFunc) {
 	window.SetTitle("Select Decrediton Wallet")
 	window.SetIconName("gtk-dialog-info")
 	window.Connect("destroy", func(ctx *glib.CallbackContext) {
-		fmt.Println("destroying decrediton wallet windows")
 	}, "foo")
 
 	vbox := gtk.NewVBox(false, 4)
@@ -70,7 +69,7 @@ func getDecreditonWalletName(logf logFunc) {
 		w := combo.GetActiveText()
 		walletPools := buyer.ListDecreditonWalletStakepools(w)
 		for i := 0; i < 100; i++ {
-			comboPool.RemoveText(0)
+			comboPool.Remove(0)
 		}
 		for _, p := range walletPools {
 			comboPool.AppendText(p)
@@ -174,7 +173,6 @@ func buildMainMenu(menubar *gtk.MenuBar, logf logFunc) {
 
 	menuitem = gtk.NewMenuItemWithMnemonic("Load from decrediton")
 	menuitem.Connect("activate", func() {
-		fmt.Println("load from decrediton")
 		getDecreditonWalletName(logf)
 	})
 	submenu.Append(menuitem)
