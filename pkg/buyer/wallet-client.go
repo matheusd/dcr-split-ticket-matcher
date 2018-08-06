@@ -113,33 +113,39 @@ func (wc *WalletClient) generateOutputAddresses(ctx context.Context, session *Se
 	rep.reportStage(ctx, StageGenerateSplitOutputAddr, session, cfg)
 	resp, err = wc.wsvc.NextAddress(ctx, req)
 	if err != nil {
-		return
+		return nil, nil, nil, errors.Wrapf(err, "error obtaining next address "+
+			"for split output")
 	}
 	splitOut, err = dcrutil.DecodeAddress(resp.Address)
 	if err != nil {
-		return
+		return nil, nil, nil, errors.Wrapf(err, "error decoding address for "+
+			"split output")
 	}
 
 	// vvvvvvvv ticket output vvvvvvvv
 	rep.reportStage(ctx, StageGenerateTicketCommitmentAddr, session, cfg)
 	resp, err = wc.wsvc.NextAddress(ctx, req)
 	if err != nil {
-		return
+		return nil, nil, nil, errors.Wrapf(err, "error obtaining next address "+
+			"for ticket commitment output")
 	}
 	ticketOut, err = dcrutil.DecodeAddress(resp.Address)
 	if err != nil {
-		return
+		return nil, nil, nil, errors.Wrapf(err, "error decoding address for "+
+			"ticket commitment output")
 	}
 
 	// vvvvv split change vvvv
 	req.Kind = pb.NextAddressRequest_BIP0044_INTERNAL
 	resp, err = wc.wsvc.NextAddress(ctx, req)
 	if err != nil {
-		return
+		return nil, nil, nil, errors.Wrapf(err, "error obtaining next address "+
+			"for split change output")
 	}
 	splitChange, err = dcrutil.DecodeAddress(resp.Address)
 	if err != nil {
-		return
+		return nil, nil, nil, errors.Wrapf(err, "error decoding address for "+
+			"split change output")
 	}
 
 	return
