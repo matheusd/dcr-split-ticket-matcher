@@ -112,6 +112,7 @@ func reportConfig(logf logFunc) {
 	logf("Vote Address: %s", cfg.VoteAddress)
 	logf("Pool Subsidy Address: %s", cfg.PoolAddress)
 	logf("Network: %s", networks[cfg.TestNet])
+	logf("Source Account: %d", cfg.SourceAccount)
 	logf("Matcher Host: %s", cfg.MatcherHost)
 
 	err = cfg.Validate()

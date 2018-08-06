@@ -11,6 +11,10 @@ VoteAddress =
 # Pool fee destination address  (usually Ts... on testnet and Ds... on mainnet)
 PoolAddress =
 
+# Account number to get funds for the split ticket transaction (defaults to
+# account 0)
+# SourceAccount = 0
+
 # Maximum amount (in DCR) to participate in the split purchase
 MaxAmount = 0.0
 
