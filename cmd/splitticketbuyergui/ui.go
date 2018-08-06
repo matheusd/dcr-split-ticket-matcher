@@ -15,6 +15,15 @@ import (
 
 var partRunning bool
 
+const disclaimerTxt = `The split ticket buyer is considered BETA software and is subject to several risks which might cause you to LOSE YOUR FUNDS.
+
+By continuing past this point you agree that you are aware of the risks and and is running the sofware AT YOUR OWN RISK.
+
+For more information, read:
+
+https://github.com/matheusd/dcr-split-ticket-matcher/blob/master/docs/beta.md
+`
+
 type logFunc func(string, ...interface{})
 
 func (f logFunc) Write(p []byte) (int, error) {
@@ -95,6 +104,55 @@ func getDecreditonWalletName(logf logFunc) {
 
 	window.Add(vbox)
 	window.SetSizeRequest(400, 200)
+	window.ShowAll()
+}
+
+func showParticipationDisclaimer(logf logFunc, resChannel chan bool) {
+	window := gtk.NewWindow(gtk.WINDOW_TOPLEVEL)
+	window.SetResizable(false)
+	window.SetPosition(gtk.WIN_POS_CENTER)
+	window.SetTypeHint(gdk.WINDOW_TYPE_HINT_DIALOG)
+	window.SetTitle("Participation Disclaimer")
+	window.SetIconName("gtk-dialog-info")
+	window.SetDeletable(false)
+
+	vbox := gtk.NewVBox(false, 4)
+
+	label := gtk.NewLabel("Participation Disclaimer")
+	label.ModifyFontEasy("DejaVu Serif 15")
+	vbox.PackStart(label, false, false, 2)
+
+	swin := gtk.NewScrolledWindow(nil, nil)
+	swin.SetPolicy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+	swin.SetShadowType(gtk.SHADOW_IN)
+	textview := gtk.NewTextView()
+	textview.SetEditable(false)
+	textview.SetWrapMode(gtk.WRAP_WORD)
+	var start, end gtk.TextIter
+	buffer := textview.GetBuffer()
+	buffer.GetStartIter(&start)
+	buffer.Insert(&start, disclaimerTxt)
+	buffer.GetEndIter(&end)
+	buffer.InsertAtCursor("\n")
+	swin.Add(textview)
+	vbox.Add(swin)
+
+	chk := gtk.NewCheckButtonWithLabel("I Accept the Risks")
+	vbox.PackStart(chk, false, false, 2)
+
+	button := gtk.NewButtonWithLabel("Continue")
+	button.Clicked(func() {
+		window.Destroy()
+	})
+	vbox.PackStart(button, false, false, 2)
+
+	window.Connect("destroy", func(ctx *glib.CallbackContext) {
+		isActive := chk.GetActive()
+		resChannel <- isActive
+	}, "foo")
+
+	window.Add(vbox)
+	window.SetSizeRequest(400, 300)
 	window.ShowAll()
 }
 
@@ -314,10 +372,9 @@ func buildUI() gtk.IWidget {
 	log := logFunc(func(format string, args ...interface{}) {
 		var end gtk.TextIter
 		msg := fmt.Sprintf(format, args...)
-		buffer := textview.GetBuffer()
-		endMark := buffer.GetMark("end")
 		buffer.GetEndIter(&end)
 		buffer.Insert(&end, msg+"\n")
+		endMark := buffer.GetMark("end")
 		textview.ScrollToMark(endMark, 0, true, 0, 1)
 		for gtk.EventsPending() {
 			gtk.MainIterationDo(false)
@@ -335,11 +392,36 @@ func buildUI() gtk.IWidget {
 		}
 		partRunning = true
 
+		participateChan := make(chan bool, 1)
+		showParticipationDisclaimer(log, participateChan)
+
+		ticker := time.NewTicker(20 * time.Millisecond)
+		doParticipate := false
+		keepWaiting := true
+		for keepWaiting {
+			select {
+			case doParticipate = <-participateChan:
+				keepWaiting = false
+				break
+			case <-ticker.C:
+				for gtk.EventsPending() {
+					gtk.MainIterationDo(false)
+				}
+			}
+		}
+		ticker.Stop()
+
+		close(participateChan)
+		if !doParticipate {
+			partRunning = false
+			log("Cancelling due to not agreeing to beta rules")
+			return
+		}
+
 		sessionName := sessEntry.GetText()
 		pass := pwdEntry.GetText()
 		maxAmount := amountScale.GetValue()
 		participate(log, pass, sessionName, maxAmount)
-
 		partRunning = false
 	})
 

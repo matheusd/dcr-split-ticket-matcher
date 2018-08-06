@@ -61,6 +61,7 @@ func WatchMatcherWaitingList(ctx context.Context, matcherHost string,
 	if err != nil {
 		return err
 	}
+	defer conn.Close()
 
 	client := pb.NewSplitTicketMatcherServiceClient(conn)
 

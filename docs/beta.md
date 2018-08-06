@@ -53,6 +53,10 @@ If you're **really** concerned about my binaries, you should [compile and build 
 So, have you **really** read about the risks of joining the beta and how to manage them? Here's the last warning:
 
 > This software creates and signs transactions by connecting to your wallet and is of beta quality, not yet thoroughly vetted by the larger decred community. **USE AT YOUR OWN RISK**.
+>
+> This software is provided on an "as is" and "as available" basis. The developers do not give any warranties, whether express or implied, as to the suitability or usability of the the software or any of its content.
+>
+> The developers will not be liable for any loss, whether such loss is direct, indirect, special or consequential, suffered by any party as a result of their use of the Split Ticket software or content. All uses are done at the user’s own risk and the user will be solely responsible for any damage to any computer system or loss of data or loss of funds that results from such activities.
 
 [Running the GUI client](client-gui.md)
 
