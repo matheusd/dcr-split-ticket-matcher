@@ -20,7 +20,7 @@ See it in action:
 
 ## Documentation
 
-[Join the Fist Phase of Beta](/docs/beta.md).
+[Join the Second Phase of Beta](/docs/beta.md).
 
 [Design & Technical Aspects](/docs/design.md).
 
@@ -28,7 +28,6 @@ See it in action:
 
 ## Roadmap to Production
 
-- Add testing for the various parts of the app
-- Integrate to stakepool software (second phase of beta)
-- Plug all fee drain avenues
+- Add testing for the various parts of the app (ongoing)
 - Integrate to official wallets
+- Plug all fee drain avenues

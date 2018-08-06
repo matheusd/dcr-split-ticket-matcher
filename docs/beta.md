@@ -1,15 +1,18 @@
-# First Beta Phase
+# Second Beta Phase
 
-The matcher service and split ticket buyer are currently on their first beta phase. This means the following:
+The matcher service and split ticket buyer are currently on their second beta phase. This means the following:
 
 - The code mostly works and does what it's supposed to do
 - There are binaries available for command line and GUI buyers
 - The code has **not** been extensively vetted by automated tests and more experienced community members
-- There haven't been many transactions/votes done by it *yet*
 
-This is a "first phase" beta because the software isn't yet integrated to the stakepool software to close some of the possible tricks a malicious participant or matcher service may use in order to fee drain or lock other participants out of voting.
+This is a "second phase" beta because the software has been integrated to a few select voting pools and therefore users using one of these pools can be assured that addresses are validated by them.
 
-The "second phase" beta will happen after stakepool integration is completed.
+## Available Pools
+
+This is a list of pools that are running the split ticket service. Please note that all participants must use the same pool with the same session name in order to complete the matching session.
+
+- https://stake.decredbrasil.com ([online sessions](https://mainnet-split-tickets.matheusd.com/decredbrasil.html))
 
 ## Risks in joining the beta
 
@@ -19,12 +22,9 @@ There are many risks in using the software and performing the split ticket purch
 
 The following list shows the **known** possible ways that participating in a split ticket buying session in the current version of the software can cause problems for your wallet/funds:
 
-- A malicious participant may use a vote address not assigned to any pool, thus locking your funds for up to 4 months, costing you the transaction fees used;
-- A malicious participant may use a pool subsidy address not controlled by the respective pool, with the same consequences as above;
-- A well connected (in network terms) malicious participant may cause fee drain by publishing transactions in a very specific way;
-- Pool fee is fixed at 5% (on mainnet) and 7.5% (on testnet), so if you use a pool with lower fees you'll spend more than what was strictly needed to vote with that pool. You cannot use pools with higher fees.
+- A well connected (in network terms) malicious participant may cause fee drain by publishing transactions in a very specific way (see the doc about [racing fee draing](race-fee-drain.md));
 
-Lastly, while there are many checks to ensure that the split and ticket transactions are correct, will be successfully published and don't spend more funds than what is required, this is still beta software and there might be bugs or checks missing that allow a malicious matcher or participant to drain funds from you.
+While there are many checks to ensure that the split and ticket transactions are correct, will be successfully published and don't spend more funds than what is required, this is still beta software and there might be bugs or checks missing that allow a malicious matcher or participant to drain funds from you.
 
 ## Managing current risks
 
@@ -36,11 +36,7 @@ This is by far the most useful action you can take to limit any possible damage 
 
 > Only buy split tickets with trusted friends.
 
-Due to not yet being connected to stakepools, the matcher service is vulnerable to an attack where a malicious participant in a ticket buying session might provide a false voting or pool subsidy address. In that case, the funds will be locked until the vote is missed or the ticket expires, plus the pool fee and transaction fees will be deducted from your wallet anyway.
-
-Therefore, you should only join sessions where you know and trust the other participants not to perform this attack. This is accomplished by using a *session name* when connecting to the service.
-
-Currently, public sessions (i.e. using an empty session name) are **disabled** in the mainnet service.
+While buying with a service integrated to a voting pool should be reasonably safe, as all ticket and pool addresses are validated before the session starts, you might still prefer buying along with trusted friends to ensure no one is cheating in any unforseen way.
 
 > Run binaries in a VM or container.
 
