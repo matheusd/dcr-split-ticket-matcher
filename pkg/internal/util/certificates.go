@@ -21,7 +21,7 @@ var (
 // GenerateRPCKeyPair generates a keypair for use with grpc
 func GenerateRPCKeyPair(keyFile, certFile string) error {
 
-	curve := elliptic.P521()
+	curve := elliptic.P256()
 
 	// Create directories for cert and key files if they do not yet exist.
 	certDir, _ := filepath.Split(certFile)
