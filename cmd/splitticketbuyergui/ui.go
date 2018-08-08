@@ -266,7 +266,8 @@ func participate(logf logFunc, passphrase, sessionName string,
 	logChan := make(logToLogChan)
 	splitResultChan := make(chan error)
 	logDir := path.Join(cfg.DataDir, "logs")
-	reporter := buyer.NewWriterReporter(buyer.NewLoggerMiddleware(logChan, logDir))
+	reporter := buyer.NewWriterReporter(buyer.NewLoggerMiddleware(logChan, logDir),
+		cfg.SessionName)
 	ctx := context.WithValue(context.Background(), buyer.ReporterCtxKey, reporter)
 	ctx, cancel := context.WithCancel(ctx)
 

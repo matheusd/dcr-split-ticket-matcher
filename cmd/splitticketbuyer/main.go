@@ -55,7 +55,8 @@ func main() {
 	defer func() { zeroBytes(cfg.Passphrase) }()
 
 	logDir := path.Join(cfg.DataDir, "logs")
-	reporter := buyer.NewWriterReporter(buyer.NewLoggerMiddleware(os.Stdout, logDir))
+	reporter := buyer.NewWriterReporter(buyer.NewLoggerMiddleware(os.Stdout, logDir),
+		cfg.SessionName)
 	ctx := context.WithValue(context.Background(), buyer.ReporterCtxKey, reporter)
 	ctx, cancelFunc := context.WithCancel(ctx)
 

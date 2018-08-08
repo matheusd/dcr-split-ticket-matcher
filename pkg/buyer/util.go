@@ -60,26 +60,42 @@ func (lm *LoggerMiddleware) Write(p []byte) (n int, err error) {
 // WriterReporter implements the BuyerReporter interface by generating descriptive
 // messages to a writer
 type WriterReporter struct {
-	w io.Writer
+	w                io.Writer
+	sessionName      string
+	lastWaitListLine string
 }
 
 // NewWriterReporter returns a reporter that writes into stdout
-func NewWriterReporter(w io.Writer) *WriterReporter {
-	return &WriterReporter{w}
+func NewWriterReporter(w io.Writer, sessionName string) *WriterReporter {
+	sessionHash := sha256.Sum256([]byte(sessionName))
+	sessionName = hex.EncodeToString(sessionHash[:])
+	return &WriterReporter{
+		w:           w,
+		sessionName: sessionName,
+	}
 }
 
 // WaitingListChanged fulfills waitingListWatcher by outputting the changes
 func (rep *WriterReporter) WaitingListChanged(queues []matcher.WaitingQueue) {
 	for _, q := range queues {
+		if q.Name != rep.sessionName {
+			continue
+		}
 		strs := make([]string, len(q.Amounts))
 		sessName := q.Name
 		if len(sessName) > 10 {
 			sessName = sessName[:10]
 		}
+		total := dcrutil.Amount(0)
 		for i, a := range q.Amounts {
 			strs[i] = a.String()
+			total += a
 		}
-		fmt.Fprintf(rep.w, "Waiting participants (%s): [%s]\n", sessName, strings.Join(strs, ", "))
+		line := strings.Join(strs, ", ")
+		if line != rep.lastWaitListLine {
+			fmt.Fprintf(rep.w, "Waiting participants (%s): [%s]\n", total, line)
+			rep.lastWaitListLine = line
+		}
 	}
 }
 
