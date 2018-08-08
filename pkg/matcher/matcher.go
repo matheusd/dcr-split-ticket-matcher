@@ -183,14 +183,16 @@ func (matcher *Matcher) Run(serverCtx context.Context) error {
 			cancelReq.session.Canceled = true
 			matcher.removeSession(cancelReq.session, cancelReq.err)
 		case req := <-matcher.watchWaitingListRequests:
-			matcher.log.Debugf("Adding new waiting list watcher")
+			origSrc := OriginalSrcFromCtx(req.ctx)
+			matcher.log.Infof("Adding new waiting list watcher from %s", origSrc)
 			matcher.waitingListWatchers[req.ctx] = req.watcher
 			go func(c context.Context) {
 				<-c.Done()
 				matcher.cancelWaitingListWatcher <- c
 			}(req.ctx)
 		case cancelReq := <-matcher.cancelWaitingListWatcher:
-			matcher.log.Debugf("Removing waiting list watcher")
+			origSrc := OriginalSrcFromCtx(cancelReq)
+			matcher.log.Infof("Removing waiting list watcher from %s", origSrc)
 			delete(matcher.waitingListWatchers, cancelReq)
 		case <-serverCtx.Done():
 			matcher.log.Infof("Server context done in matcher")

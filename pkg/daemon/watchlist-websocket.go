@@ -60,11 +60,13 @@ func (svc *waitlistWebsocketService) watchWaitingList(w http.ResponseWriter, r *
 		return
 	}
 
-	watcher := make(chan []matcher.WaitingQueue)
-	svc.matcher.WatchWaitingList(r.Context(), watcher, true)
-
 	srcAddr := r.RemoteAddr // TODO: support reverse proxying
 	svc.log.Debugf("New websocket watcher %s", srcAddr)
+
+	ctx := matcher.WithOriginalSrc(r.Context(), "[wss]"+srcAddr)
+
+	watcher := make(chan []matcher.WaitingQueue)
+	svc.matcher.WatchWaitingList(ctx, watcher, true)
 
 	type replyqueue struct {
 		Name    string           `json:"name"`
@@ -74,13 +76,27 @@ func (svc *waitlistWebsocketService) watchWaitingList(w http.ResponseWriter, r *
 	shutdownChan := make(chan struct{})
 	svc.openWatchers.Store(shutdownChan, struct{}{})
 
+	readChan := make(chan error)
+	go func() {
+		var err error
+		for err == nil {
+			_, _, err = c.ReadMessage()
+		}
+		readChan <- err
+	}()
+
 	defer c.Close()
 	for {
 		select {
+		case err := <-readChan:
+			if err != nil {
+				svc.log.Debugf("Websocket reader returned error %s", err)
+				svc.openWatchers.Delete(shutdownChan)
+				return
+			}
 		case <-r.Context().Done():
 			svc.log.Debugf("Done websocket watcher %s", srcAddr)
 			svc.openWatchers.Delete(shutdownChan)
-			close(shutdownChan)
 			return
 		case queues := <-watcher:
 			reply := make([]replyqueue, len(queues))
@@ -89,7 +105,6 @@ func (svc *waitlistWebsocketService) watchWaitingList(w http.ResponseWriter, r *
 			}
 			c.WriteJSON(reply)
 		case <-shutdownChan:
-			close(shutdownChan)
 			// no need to delete from openWatchers as we're shuting down anyway
 			return
 		}

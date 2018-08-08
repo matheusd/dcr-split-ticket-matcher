@@ -12,6 +12,7 @@ import (
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/peer"
 
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 )
@@ -52,7 +53,13 @@ func NewSplitTicketMatcherService(matcher *matcher.Matcher,
 func (svc *SplitTicketMatcherService) WatchWaitingList(req *pb.WatchWaitingListRequest, server pb.SplitTicketMatcherService_WatchWaitingListServer) error {
 
 	watcher := make(chan []matcher.WaitingQueue)
-	svc.matcher.WatchWaitingList(server.Context(), watcher, req.SendCurrent)
+	ctx := server.Context()
+	if pr, ok := peer.FromContext(ctx); ok {
+		ctx = matcher.WithOriginalSrc(ctx, pr.Addr.String())
+	} else {
+		ctx = matcher.WithOriginalSrc(ctx, "[peer unkonwn]")
+	}
+	svc.matcher.WatchWaitingList(ctx, watcher, req.SendCurrent)
 
 	for {
 		select {

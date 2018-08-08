@@ -1,6 +1,7 @@
 package matcher
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 
@@ -132,4 +133,19 @@ func encodedAddresses(addrs []dcrutil.Address) []string {
 		res[i] = addr.EncodeAddress()
 	}
 	return res
+}
+
+// WithOriginalSrc returns a new context usable within the matcher package that
+// indicates the original source for a given matcher operation
+func WithOriginalSrc(parent context.Context, src string) context.Context {
+	return context.WithValue(parent, originalSrcCtxKey, src)
+}
+
+// OriginalSrcFromCtx extracts the original source from a context variable
+func OriginalSrcFromCtx(ctx context.Context) string {
+	val, ok := ctx.Value(originalSrcCtxKey).(string)
+	if ok {
+		return val
+	}
+	return "[original src not provided]"
 }
