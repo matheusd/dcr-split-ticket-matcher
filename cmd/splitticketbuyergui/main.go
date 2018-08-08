@@ -38,7 +38,7 @@ func main() {
 
 	window.Add(ui)
 	window.SetSizeRequest(600, 600)
-	window.ShowAll()
+	window.Show()
 
 	gtk.Main()
 }

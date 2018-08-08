@@ -14,6 +14,7 @@ import (
 )
 
 var partRunning bool
+var cancelParticipateChan = make(chan struct{})
 
 const disclaimerTxt = `The split ticket buyer is considered BETA software and is subject to several risks which might cause you to LOSE YOUR FUNDS.
 
@@ -264,16 +265,15 @@ func participate(logf logFunc, passphrase, sessionName string,
 	//logger := logToLogChan(logChan)
 	logChan := make(logToLogChan)
 	splitResultChan := make(chan error)
+	logDir := path.Join(cfg.DataDir, "logs")
+	reporter := buyer.NewWriterReporter(buyer.NewLoggerMiddleware(logChan, logDir))
+	ctx := context.WithValue(context.Background(), buyer.ReporterCtxKey, reporter)
+	ctx, cancel := context.WithCancel(ctx)
 
 	go func() {
-		logDir := path.Join(cfg.DataDir, "logs")
-		reporter := buyer.NewWriterReporter(buyer.NewLoggerMiddleware(logChan, logDir))
-		ctx := context.WithValue(context.Background(), buyer.ReporterCtxKey, reporter)
-		ctx, cancel := context.WithCancel(ctx)
 		go buyer.WatchMatcherWaitingList(ctx, cfg.MatcherHost,
 			cfg.MatcherCertFile, reporter)
 		splitResultChan <- buyer.BuySplitTicket(ctx, cfg)
-		cancel()
 	}()
 
 	gotResult := false
@@ -288,6 +288,9 @@ func participate(logf logFunc, passphrase, sessionName string,
 			gotResult = true
 		case logMsg := <-logChan:
 			logf(logMsg.format, logMsg.args...)
+		case <-cancelParticipateChan:
+			logf("User requested to cancel participation")
+			gotResult = true
 		case <-timer.C:
 			for gtk.EventsPending() {
 				if gtk.MainIterationDo(false) {
@@ -297,6 +300,8 @@ func participate(logf logFunc, passphrase, sessionName string,
 			}
 		}
 	}
+
+	cancel()
 }
 
 func buildUI() gtk.IWidget {
@@ -346,6 +351,9 @@ func buildUI() gtk.IWidget {
 
 	button := gtk.NewButtonWithLabel("Participate")
 	vbox.PackStart(button, false, false, 2)
+
+	buttonStop := gtk.NewButtonWithLabel("Stop Participation")
+	vbox.PackStart(buttonStop, false, false, 2)
 
 	// log area
 
@@ -418,11 +426,23 @@ func buildUI() gtk.IWidget {
 			return
 		}
 
+		button.SetVisible(false)
+		buttonStop.SetVisible(true)
+
 		sessionName := sessEntry.GetText()
 		pass := pwdEntry.GetText()
 		maxAmount := amountScale.GetValue()
 		participate(log, pass, sessionName, maxAmount)
 		partRunning = false
+
+		button.SetVisible(true)
+		buttonStop.SetVisible(false)
+	})
+
+	buttonStop.Clicked(func() {
+		go func() {
+			cancelParticipateChan <- struct{}{}
+		}()
 	})
 
 	buildMainMenu(menubar, log)
@@ -434,6 +454,9 @@ func buildUI() gtk.IWidget {
 	align.SetPadding(10, 10, 10, 10)
 	align.Add(vbox)
 	topbox.Add(align)
+
+	topbox.ShowAll()
+	buttonStop.Hide()
 
 	reportConfig(log)
 
