@@ -16,11 +16,11 @@ func startDaemon(serverCtx context.Context) error {
 	cfg, err := daemon.LoadConfig()
 	if err != nil {
 		if err == daemon.ErrHelpRequested {
-			return nil
+			os.Exit(0)
 		} else if err == daemon.ErrVersionRequested {
 			fmt.Printf("Split ticket matcher service daemon version %s\n",
 				pkg.Version)
-			return nil
+			os.Exit(0)
 		}
 
 		fmt.Println(err)
