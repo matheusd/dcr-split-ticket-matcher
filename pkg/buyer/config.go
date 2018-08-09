@@ -198,7 +198,7 @@ func LoadConfig() (*Config, error) {
 	}
 
 	if cfg.TestNet {
-		cfg.ChainParams = &chaincfg.TestNet2Params
+		cfg.ChainParams = &chaincfg.TestNet3Params
 		if cfg.PoolFeeRate == 5.0 {
 			cfg.PoolFeeRate = 7.5
 		}
@@ -309,9 +309,9 @@ func InitConfigFromDcrwallet() error {
 
 	activeNet := netparams.MainNetParams
 	isTestNet := section.Key("testnet").Value() == "1"
-	matcherHost := "mainnet-split-tickets.matheusd.com:8475"
+	matcherHost := "mainnet-split-tickets.matheusd.com:8485"
 	if isTestNet {
-		activeNet = netparams.TestNet2Params
+		activeNet = netparams.TestNet3Params
 		matcherHost = "testnet-split-tickets.matheusd.com:18475"
 	}
 

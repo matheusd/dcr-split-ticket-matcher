@@ -106,9 +106,8 @@ func getTicketInfo(txHashStr string, client *rpcclient.Client) *ticketInfo {
 	tx, err := client.GetRawTransactionVerbose(txHash)
 	if err != nil && strings.Contains(err.Error(), "No information available") {
 		return res
-	} else {
-		orPanic(err)
 	}
+	orPanic(err)
 
 	txBytes, err := hex.DecodeString(tx.Hex)
 	orPanic(err)
@@ -154,7 +153,7 @@ func main() {
 	cfg := readConfig()
 	chainParams = &chaincfg.MainNetParams
 	if cfg.TestNet {
-		chainParams = &chaincfg.TestNet2Params
+		chainParams = &chaincfg.TestNet3Params
 	}
 
 	client, err := connectToDcrd(cfg)

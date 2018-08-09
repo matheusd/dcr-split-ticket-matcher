@@ -69,7 +69,7 @@
     "txscript",
     "wire"
   ]
-  revision = "60d7fe080fd26ce9a38242a755f4c27474102ccf"
+  revision = "f0e65ec62f916b4b8aaafca6906c67c34c242dac"
 
 [[projects]]
   branch = "master"
@@ -87,7 +87,7 @@
     "wallet/txrules",
     "wallet/udb"
   ]
-  revision = "bc273bc09a14532606364436586f0f07ba65799e"
+  revision = "e07304bb76bcef9d455e4ed2c971b842df557e6c"
 
 [[projects]]
   name = "github.com/decred/slog"
@@ -110,7 +110,7 @@
     "ptypes/duration",
     "ptypes/timestamp"
   ]
-  revision = "14aad3d5ea4c323bcd7a2137e735da24a76e814c"
+  revision = "89a0c16f4dc2a70c0ed864d8ef64878f24fdaa51"
 
 [[projects]]
   name = "github.com/gorilla/websocket"
@@ -167,7 +167,7 @@
     "salsa20/salsa",
     "scrypt"
   ]
-  revision = "a2144134853fc9a27a7b1e3eb4f19f1a76df13c9"
+  revision = "de0752318171da717af4ce24d0a2e8626afaeb11"
 
 [[projects]]
   branch = "master"
@@ -181,7 +181,13 @@
     "internal/timeseries",
     "trace"
   ]
-  revision = "a680a1efc54dd51c040b3b5ce4939ea3cf2ea0d1"
+  revision = "f9ce57c11b242f0f1599cf25c89d8cb02c45295a"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/sys"
+  packages = ["unix"]
+  revision = "904bdc257025c7b3f43c19360ad3ab85783fad78"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -208,7 +214,7 @@
   branch = "master"
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
-  revision = "fedd2861243fd1a8152376292b921b394c7bef7e"
+  revision = "383e8b2c3b9e36c4076b235b32537292176bae20"
 
 [[projects]]
   name = "google.golang.org/grpc"
@@ -226,7 +232,9 @@
     "internal",
     "internal/backoff",
     "internal/channelz",
+    "internal/envconfig",
     "internal/grpcrand",
+    "internal/transport",
     "keepalive",
     "metadata",
     "naming",
@@ -236,15 +244,14 @@
     "resolver/passthrough",
     "stats",
     "status",
-    "tap",
-    "transport"
+    "tap"
   ]
-  revision = "168a6198bcb0ef175f7dacec0b8691fc141dc9b8"
-  version = "v1.13.0"
+  revision = "32fb0ac620c32ba40a4626ddf94d90d12cce3455"
+  version = "v1.14.0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "7175c0071f193fe3c2c75191c6694c858f8c98bd59865903bdfd78241124238e"
+  inputs-digest = "dca427a482bb79964e80695b71b8c4bc13ff0903b7a48c0779d7da0d7cdf2c23"
   solver-name = "gps-cdcl"
   solver-version = 1

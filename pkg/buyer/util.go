@@ -82,10 +82,6 @@ func (rep *WriterReporter) WaitingListChanged(queues []matcher.WaitingQueue) {
 			continue
 		}
 		strs := make([]string, len(q.Amounts))
-		sessName := q.Name
-		if len(sessName) > 10 {
-			sessName = sessName[:10]
-		}
 		total := dcrutil.Amount(0)
 		for i, a := range q.Amounts {
 			strs[i] = a.String()

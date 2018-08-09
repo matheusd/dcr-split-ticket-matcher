@@ -411,7 +411,6 @@ func buildUI() gtk.IWidget {
 			select {
 			case doParticipate = <-participateChan:
 				keepWaiting = false
-				break
 			case <-ticker.C:
 				for gtk.EventsPending() {
 					gtk.MainIterationDo(false)

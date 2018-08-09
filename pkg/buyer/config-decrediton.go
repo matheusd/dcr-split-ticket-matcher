@@ -129,7 +129,7 @@ func ListDecreditonWallets() []string {
 
 	walletDbDir := "mainnet"
 	if globalCfg.Network == decreditonTestnet {
-		walletDbDir = "testnet2"
+		walletDbDir = "testnet3"
 	}
 
 	var res []string
@@ -252,7 +252,7 @@ func InitConfigFromDecrediton(walletName, poolHost string) error {
 	isTestNet := globalCfg.Network == decreditonTestnet
 	testnetVal := "0"
 	if isTestNet {
-		activeNet = netparams.TestNet2Params
+		activeNet = netparams.TestNet3Params
 		testnetVal = "1"
 	}
 

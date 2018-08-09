@@ -13,7 +13,7 @@ import (
 func TestCreateUnsignedRevocation(t *testing.T) {
 	t.Parallel()
 
-	net := &chaincfg.TestNet2Params
+	net := &chaincfg.TestNet3Params
 	poolFee, _ := dcrutil.NewAmount(0.1)
 	maxParts := stake.MaxInputsPerSStx - 1
 

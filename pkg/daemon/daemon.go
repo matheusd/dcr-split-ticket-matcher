@@ -43,7 +43,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 
 	chainParams := &chaincfg.MainNetParams
 	if cfg.TestNet {
-		chainParams = &chaincfg.TestNet2Params
+		chainParams = &chaincfg.TestNet3Params
 	}
 
 	if cfg.PoolFee < 0.1 {

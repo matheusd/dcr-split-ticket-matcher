@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	_testNetwork  = &chaincfg.TestNet2Params
+	_testNetwork  = &chaincfg.TestNet3Params
 	_testNullSeed = [32]byte{}
 	_testHDKey, _ = hdkeychain.NewMaster(_testNullSeed[:], _testNetwork)
 )
@@ -146,7 +146,7 @@ func (d *testSessionData) signSplit(split *wire.MsgTx) {
 // data needed to create them.
 func (d *testSessionData) createTestTransactions() (split, ticket *wire.MsgTx) {
 
-	net := &chaincfg.TestNet2Params
+	net := &chaincfg.TestNet3Params
 	zeroed := [20]byte{}
 	addrZeroed, _ := dcrutil.NewAddressPubKeyHash(zeroed[:], net, 0)
 	zeroChangeScript, _ := txscript.PayToSStxChange(addrZeroed)
