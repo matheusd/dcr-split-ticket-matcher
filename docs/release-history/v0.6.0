@@ -1,0 +1,15 @@
+# Changelog for vesion 0.6.0
+
+- Bump protocol version to 3
+- Service can now be restarted without stopping the process by receiving a
+SIGHUP signal
+- Service now shuffles participants after defining the actual contribution
+amounts of a new session
+- Switch to using pool fee contribution proportional to contribution to the
+ticket (previous versions used a fixed pool fee by participant)
+- Add a beta participation disclaimer before starting to wait for a session
+- Updated to testnet3
+- Fix GTK deprecation warning in GUI
+- Fix socket leak in websocket waiting list watcher
+- Add --version argument to service
+- Various other small tweaks and fixes

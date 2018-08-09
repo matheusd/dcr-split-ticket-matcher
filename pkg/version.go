@@ -15,10 +15,10 @@ const (
 // These are the individual version numbers
 const (
 	MajorVersion = 0
-	MinorVersion = 5
-	PatchVersion = 2
+	MinorVersion = 6
+	PatchVersion = 0
 )
 
 // Version is the package version. Remember to modify the previous constants as
 // well on version bumps.
-const Version = "0.5.2"
+const Version = "0.6.0"
