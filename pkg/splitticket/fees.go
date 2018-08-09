@@ -13,16 +13,17 @@ const (
 	// TicketTxInitialSize is the initial size estimate for the ticket
 	// transaction. It includes the tx header + the txout for the ticket
 	// voting address
-	TicketTxInitialSize = 2 + 2 + 4 + 4 + 2 + // tx header = SerType + Version + LockTime + Expiry + I/O count
-		8 + 2 + 24 // ticket submission TxOut = amount + version + script
+	TicketTxInitialSize = 12 + // tx header prefix (sertype, version, locktime, expiry)
+		1 + 1 + 1 + // witness varint + input count varint + output count varint
+		8 + 2 + 1 + 23 // ticket submission TxOut = amount + version + script
 
 	// TicketParticipantSize is the size estimate for each additional
 	// participant in a split ticket purchase (the txIn + 2 txOuts)
 	TicketParticipantSize = 32 + 4 + 1 + 4 + // TxIn NonWitness = Outpoint hash + Index + tree + Sequence
 		8 + 4 + 4 + // TxIn Witness = Amount + Block Height + Block Index
-		106 + // TxIn ScriptSig
-		8 + 2 + 32 + // Stake Commitment TxOut = amount + version + script
-		8 + 2 + 26 + 8 // Stake Change TxOut = amount + version + script + commit amount
+		1 + 108 + // TxIn len(ScriptSig) + ScriptSig
+		8 + 2 + 1 + 32 + // Stake Commitment TxOut = amount + version + script
+		8 + 2 + 1 + 25 // Stake Change TxOut = amount + version + script
 
 	// TicketFeeEstimate is the fee rate estimate (in dcr/byte) of the fee in
 	// a ticket purchase
@@ -42,7 +43,6 @@ func TicketSizeEstimate(numParticipants int) int {
 func SessionParticipantFee(numParticipants int) dcrutil.Amount {
 	txSize := TicketSizeEstimate(numParticipants)
 	ticketFee, _ := dcrutil.NewAmount(float64(txSize) * TicketFeeEstimate)
-	ticketFee = ticketFee + 50001 // just to increase chances of ticket being mined soon
 	partFee := dcrutil.Amount(math.Ceil(float64(ticketFee) / float64(numParticipants)))
 	return partFee
 }
@@ -57,8 +57,7 @@ func SessionFeeEstimate(numParticipants int) dcrutil.Amount {
 }
 
 // SessionPoolFee returns the estimate for pool fee contribution for a split
-// ticket session, given the parameters. Note that this assumes
-// each participant will pay the same amount, to add up to the total pool fee.
+// ticket session, given the parameters.
 func SessionPoolFee(numParticipants int, ticketPrice dcrutil.Amount,
 	blockHeight int, poolFeePerc float64, net *chaincfg.Params) dcrutil.Amount {
 

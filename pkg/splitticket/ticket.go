@@ -248,7 +248,7 @@ func CheckSignedTicket(split, ticket *wire.MsgTx, params *chaincfg.Params) error
 
 	// ensure that the ticket fee is not higher than some arbitrary threshold
 	// to prevent fee drain. We might wanna lower this later on.
-	if txFee > 2*minFee {
+	if txFee > minFee*103/100 {
 		return errors.Errorf("ticket fee (%s) higher than 2 times minimum required amount (%s)",
 			dcrutil.Amount(txFee), dcrutil.Amount(2*minFee))
 	}
