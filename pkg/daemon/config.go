@@ -118,7 +118,7 @@ func LoadConfig() (*Config, error) {
 		DcrwPass: "PASSWORD",
 		DcrwCert: filepath.Join(dcrutil.AppDataDir("dcrwallet", false), "rpc.cert"),
 
-		MaxSessionDuration:          30,
+		MaxSessionDuration:          30 * time.Second,
 		StakeDiffChangeStopWindow:   5,
 		PublishTransactions:         false,
 		AllowPublicSession:          false,

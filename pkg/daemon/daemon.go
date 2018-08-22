@@ -109,7 +109,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	}
 	d.log.Infof("Minimum participation amount %s", minAmount)
 	d.log.Infof("Stopping when sdiff change is closer than %d blocks", cfg.StakeDiffChangeStopWindow)
-	d.log.Infof("Maximum session time: %d seconds", cfg.MaxSessionDuration)
+	d.log.Infof("Maximum session time: %s", cfg.MaxSessionDuration.String())
 	if cfg.TestNet {
 		d.log.Infof("Running on testnet")
 	} else {
@@ -177,7 +177,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		PoolAddrValidator:         poolAddrValidator,
 		ChainParams:               chainParams,
 		PoolFee:                   cfg.PoolFee,
-		MaxSessionDuration:        cfg.MaxSessionDuration * time.Second,
+		MaxSessionDuration:        cfg.MaxSessionDuration,
 		LogBackend:                d.logBackend,
 		StakeDiffChangeStopWindow: cfg.StakeDiffChangeStopWindow,
 		PublishTransactions:       cfg.PublishTransactions,
