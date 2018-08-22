@@ -16,9 +16,9 @@ const (
 const (
 	MajorVersion = 0
 	MinorVersion = 6
-	PatchVersion = 0
+	PatchVersion = 1
 )
 
 // Version is the package version. Remember to modify the previous constants as
 // well on version bumps.
-const Version = "0.6.0"
+const Version = "0.6.1+pre"
