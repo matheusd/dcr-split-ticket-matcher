@@ -15,7 +15,7 @@ const (
 	// voting address
 	TicketTxInitialSize = 12 + // tx header prefix (sertype, version, locktime, expiry)
 		1 + 1 + 1 + // witness varint + input count varint + output count varint
-		8 + 2 + 1 + 23 // ticket submission TxOut = amount + version + script
+		8 + 2 + 1 + 26 // ticket submission TxOut = amount + version + script
 
 	// TicketParticipantSize is the size estimate for each additional
 	// participant in a split ticket purchase (the txIn + 2 txOuts)
@@ -23,7 +23,7 @@ const (
 		8 + 4 + 4 + // TxIn Witness = Amount + Block Height + Block Index
 		1 + 108 + // TxIn len(ScriptSig) + ScriptSig
 		8 + 2 + 1 + 32 + // Stake Commitment TxOut = amount + version + script
-		8 + 2 + 1 + 25 // Stake Change TxOut = amount + version + script
+		8 + 2 + 1 + 26 // Stake Change TxOut = amount + version + script
 
 	// TicketFeeEstimate is the fee rate estimate (in dcr/byte) of the fee in
 	// a ticket purchase
