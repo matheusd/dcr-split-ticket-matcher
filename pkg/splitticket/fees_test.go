@@ -24,9 +24,9 @@ func TestFeeEstimation(t *testing.T) {
 	tx := wire.NewMsgTx()
 	maxParts := stake.MaxInputsPerSStx - 1
 
-	voteScript := make([]byte, 1+1+20+1)
+	voteScript := make([]byte, 1+1+1+1+20+1+1) // p2pkh as vote address
 	commitScript := make([]byte, 1+1+20+8+2)
-	changeScript := make([]byte, 1+1+1+20+1+1)
+	changeScript := make([]byte, 1+1+1+1+20+1+1)
 	nullHash := &chainhash.Hash{}
 	fullSigScript := make([]byte, 1+73+1+33)
 	txInTempl := wire.NewTxIn(wire.NewOutPoint(nullHash, 0, 0), 0, fullSigScript)
