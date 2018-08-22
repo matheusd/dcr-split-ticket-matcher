@@ -34,7 +34,7 @@ To grab the private key for a given wallet, use the following:
 $ dcrctl --wallet getnewaddress
 ( write down the address )
 $ dcrctl --wallet dumpprivkey [previous-address]
-( write down the private key - starts with Pt on testnet and Pd on mainnet)
+( write down the private key - starts with Pt on testnet and Pm on mainnet)
 ```
 
 ## TLS Encryption
