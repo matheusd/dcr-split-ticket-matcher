@@ -28,7 +28,7 @@ func NewMasterPubPoolAddrValidator(masterPubKey string, net *chaincfg.Params) (
 		idxStart := strings.Index(masterPubKey, ":") + 1
 		newEnd, err := strconv.Atoi(masterPubKey[idxStart:])
 		if err != nil {
-			return nil, errors.Wrapf(err, "error decoding end index of ",
+			return nil, errors.Wrapf(err, "error decoding end index of "+
 				"masterPubKey")
 		}
 		end = uint32(newEnd)
@@ -61,7 +61,7 @@ func NewMasterPubPoolAddrValidator(masterPubKey string, net *chaincfg.Params) (
 		}
 		addr, err := child.Address(net)
 		if err != nil {
-			return nil, errors.Wrapf(err, "error creating address for %d'nth ",
+			return nil, errors.Wrapf(err, "error creating address for %d'nth "+
 				"key", i)
 		}
 

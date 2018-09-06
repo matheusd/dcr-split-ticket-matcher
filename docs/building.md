@@ -1,5 +1,6 @@
 # Building
 
+Build using go 1.11 and go modules.
 
 Before building the GUI client, you'll probably need some gtk headers installed:
 
@@ -11,13 +12,11 @@ $ sudo dnf install gtk2-devel
 $ sudo apt-get install libgtk2.0-dev libglib2.0-dev libgtksourceview2.0-dev
 ```
 
-For everything else, follow the standard instructions as other decred projects.
+For everything else, follow the standard instructions as other decred projects. This project is using go modules, so you should preferably build *outside* of your $GOPATH.
 
 ```
-$ mkdir -p $GOPATH/src/github.com/matheusd/dcr-split-ticket-matcher
-$ cd $GOPATH/src/github.com/matheusd/dcr-split-ticket-matcher
-$ git clone https://github.com/matheusd/dcr-split-ticket-matcher .
-$ dep ensure
+$ git clone https://github.com/matheusd/dcr-split-ticket-matcher
+$ cd dcr-split-ticket-matcher
 $ go build ./cmd/...
 ```
 

@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrwallet/netparams"
 	"github.com/go-ini/ini"
 	"github.com/pkg/errors"
 )
@@ -248,11 +247,11 @@ func InitConfigFromDecrediton(walletName, poolHost string) error {
 		return errors.Wrapf(err, "error getting dst section")
 	}
 
-	activeNet := netparams.MainNetParams
+	dcrdPort := mainnetJSONRPCClientPort
 	isTestNet := globalCfg.Network == decreditonTestnet
 	testnetVal := "0"
 	if isTestNet {
-		activeNet = netparams.TestNet3Params
+		dcrdPort = testnetJSONRPCClientPort
 		testnetVal = "1"
 	}
 
@@ -305,7 +304,7 @@ func InitConfigFromDecrediton(walletName, poolHost string) error {
 			dstSection.Key("DcrdPass").SetValue(dcrdSection.Key("rpcpass").String())
 		}
 
-		dstSection.Key("DcrdHost").SetValue("127.0.0.1:" + activeNet.JSONRPCClientPort)
+		dstSection.Key("DcrdHost").SetValue("127.0.0.1:" + dcrdPort)
 		dstSection.Key("DcrdCert").SetValue(filepath.Join(dcrdDir, "rpc.cert"))
 	}
 

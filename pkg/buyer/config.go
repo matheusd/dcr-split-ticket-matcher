@@ -15,7 +15,6 @@ import (
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrwallet/netparams"
 	flags "github.com/jessevdk/go-flags"
 )
 
@@ -34,6 +33,9 @@ var (
 	// ErrEmptyPassword is the error returned when an empty password has been
 	// provided in the config
 	ErrEmptyPassword = fmt.Errorf("empty password")
+
+	testnetJSONRPCClientPort = "19109"
+	mainnetJSONRPCClientPort = "9109"
 )
 
 // Config stores the configuration needed to perform a single ticket split
@@ -307,17 +309,17 @@ func InitConfigFromDcrwallet() error {
 		}
 	}
 
-	activeNet := netparams.MainNetParams
+	dcrdPort := mainnetJSONRPCClientPort
 	isTestNet := section.Key("testnet").Value() == "1"
 	matcherHost := "mainnet-split-tickets.matheusd.com:8485"
 	if isTestNet {
-		activeNet = netparams.TestNet3Params
+		dcrdPort = testnetJSONRPCClientPort
 		matcherHost = "testnet-split-tickets.matheusd.com:18475"
 	}
 
 	dstSection.Key("MatcherHost").SetValue(matcherHost)
 
-	update("rpcconnect", "DcrdHost", "localhost:"+activeNet.JSONRPCClientPort)
+	update("rpcconnect", "DcrdHost", "localhost:"+dcrdPort)
 	update("cafile", "DcrdCert", filepath.Join(dcrdDir, "rpc.cert"))
 	update("username", "DcrdUser", "")
 	update("dcrdusername", "DcrdUser", "")

@@ -26,30 +26,32 @@ DOCKER_OWNER=matheusd
 DOCKER_IMAGE_TAG=dcr-split-tickets
 
 testrepo () {
-  TMPFILE=$(mktemp)
 
+  # TODO: rewrite this for go.sum
   # Check lockfile
-  cp Gopkg.lock $TMPFILE && dep ensure && diff Gopkg.lock $TMPFILE >/dev/null
-  if [ $? != 0 ]; then
-    echo 'lockfile must be updated with dep ensure'
-    exit 1
-  fi
+  # TMPFILE=$(mktemp)
+  # cp Gopkg.lock $TMPFILE && dep ensure && diff Gopkg.lock $TMPFILE >/dev/null
+  # if [ $? != 0 ]; then
+  #   echo 'lockfile must be updated with dep ensure'
+  #   exit 1
+  # fi
 
   # Check linters
+  # (currently disabled)
+  # --enable=unconvert \
+  #  --enable=varcheck \
+  #  --enable=structcheck \
+  #  --enable=interfacer \
+  #  --enable=megacheck \
   gometalinter \
     --disable-all --vendor --deadline=10m \
     --enable=gofmt \
     --enable=vet \
-    --enable=unconvert \
     --enable=ineffassign \
     --enable=golint \
-    --enable=interfacer \
     --enable=deadcode \
     --enable=vetshadow \
-    --enable=structcheck \
     --enable=goconst \
-    --enable=megacheck \
-    --enable=varcheck \
     ./...
   if [ $? != 0 ]; then
     echo 'gometalinter has some complaints'

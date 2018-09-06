@@ -1,0 +1,41 @@
+module github.com/matheusd/dcr-split-ticket-matcher
+
+require (
+	github.com/aead/siphash v1.0.0
+	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412
+	github.com/btcsuite/go-flags v0.0.0-20150116065318-6c288d648c1c
+	github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd
+	github.com/dchest/blake256 v1.0.0
+	github.com/decred/base58 v1.0.0
+	github.com/decred/dcrd/blockchain v1.0.2
+	github.com/decred/dcrd/blockchain/stake v1.0.2
+	github.com/decred/dcrd/certgen v1.0.1
+	github.com/decred/dcrd/chaincfg v1.1.1
+	github.com/decred/dcrd/chaincfg/chainhash v1.0.1
+	github.com/decred/dcrd/dcrec v0.0.0-20180816212643-20eda7ec9229
+	github.com/decred/dcrd/dcrec/secp256k1 v1.0.0
+	github.com/decred/dcrd/dcrjson v1.0.0
+	github.com/decred/dcrd/dcrutil v1.1.1
+	github.com/decred/dcrd/hdkeychain v1.1.0
+	github.com/decred/dcrd/rpcclient v1.0.1
+	github.com/decred/dcrd/txscript v1.0.1
+	github.com/decred/dcrd/wire v1.1.0
+	github.com/decred/dcrwallet v1.2.2
+	github.com/decred/dcrwallet/rpc/walletrpc v0.1.0
+	github.com/decred/dcrwallet/wallet v1.0.0
+	github.com/decred/slog v1.0.0
+	github.com/go-ini/ini v1.30.0
+	github.com/golang/protobuf v1.1.0
+	github.com/gorilla/websocket v1.2.0
+	github.com/jessevdk/go-flags v1.4.0
+	github.com/mattn/go-gtk v0.0.0-20180626024644-7d65db4a7c69
+	github.com/mattn/go-pointer v0.0.0-20171114154726-1d30dc4b6f28
+	github.com/op/go-logging v0.0.0-20160211212156-b2cb9fa56473
+	github.com/pkg/errors v0.8.0
+	golang.org/x/crypto v0.0.0-20180808211826-de0752318171
+	golang.org/x/net v0.0.0-20180808004115-f9ce57c11b24
+	golang.org/x/sys v0.0.0-20180810070207-f0d5e33068cb
+	golang.org/x/text v0.3.0
+	google.golang.org/genproto v0.0.0-20180808183934-383e8b2c3b9e
+	google.golang.org/grpc v1.14.0
+)

@@ -478,7 +478,7 @@ func (sess *Session) SaveSession(sessionDir string) error {
 	fflags := os.O_TRUNC | os.O_CREATE | os.O_WRONLY
 	f, err := os.OpenFile(fname, fflags, 0600)
 	if err != nil {
-		return errors.Wrapf(err, "error opening file '%s'")
+		return errors.Wrapf(err, "error opening file '%s'", fname)
 	}
 	w := bufio.NewWriter(f)
 	hexWriter := hex.NewEncoder(w)
