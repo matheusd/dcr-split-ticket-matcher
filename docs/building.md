@@ -20,6 +20,14 @@ $ cd dcr-split-ticket-matcher
 $ go build ./cmd/...
 ```
 
+# Building the Wasm Buyer
+
+```
+$ GOARCH=wasm GOOS=js go build -o cmd/splitticketbuyerwasm/splitticketbuyerwasm.wasm ./cmd/splitticketbuyer.wasm
+```
+
+You can test the wasm buyer with the sample index.html by serving the contents of the `splitticketbuyerwasm
+
 # Running the Client
 
 See instructions about [command line client](client-cli.md) or the [GUI client](client-gui.md).

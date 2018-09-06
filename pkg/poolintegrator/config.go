@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	flags "github.com/btcsuite/go-flags"
+	flags "github.com/jessevdk/go-flags"
 	"github.com/decred/dcrd/dcrutil"
 	logging "github.com/op/go-logging"
 	"github.com/pkg/errors"

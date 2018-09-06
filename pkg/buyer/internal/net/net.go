@@ -22,6 +22,10 @@ import (
 // FindListeningTCPPorts finds possible tcp ports that are currently opened
 // for listening in the current machine.
 func FindListeningTCPPorts() ([]int, error) {
+	if netstatCmd == "" {
+		return nil, errors.New("dynamic searching for wallet not supported in "+
+		"this arch; specify wallet port")
+	}
 	cmd := exec.Command(netstatCmd, netstatCmdArgs...)
 
 	output, err := cmd.CombinedOutput()

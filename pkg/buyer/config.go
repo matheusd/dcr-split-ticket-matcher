@@ -43,6 +43,7 @@ var (
 type Config struct {
 	ConfigFile           string  `short:"C" long:"configfile" description:"Path to config file"`
 	WalletCertFile       string  `long:"wallet.certfile" description:"Path Wallet rpc.cert file"`
+	WalletCert string
 	WalletHost           string  `long:"wallet.host" description:"Address of the wallet. Use 127.0.0.1:0 to try and automatically locate the running wallet on localhost."`
 	Pass                 string  `short:"P" long:"pass" description:"Passphrase to unlock the wallet"`
 	MatcherHost          string  `long:"matcher.host" description:"Address of the matcher host"`
@@ -129,16 +130,12 @@ func (cfg *Config) Validate() error {
 		return missing("DcrdCertfile")
 	}
 
-	if cfg.WalletCertFile == "" {
-		return missing("WalletCertFile")
-	}
+	// if cfg.WalletCertFile == "" {
+	// 	return missing("WalletCertFile")
+	// }
 
 	if cfg.MatcherHost == "" {
 		return missing("MatcherHost")
-	}
-
-	if cfg.DataDir == "" {
-		return missing("DataDir")
 	}
 
 	return nil

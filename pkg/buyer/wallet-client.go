@@ -5,6 +5,8 @@ import (
 	"context"
 	"math/rand"
 	"time"
+	"fmt"
+	"crypto/x509"
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -37,9 +39,24 @@ type currentChainInfo struct {
 }
 
 // ConnectToWallet connects to the given wallet address
-func ConnectToWallet(walletHost string, walletCert string) (*WalletClient, error) {
+func ConnectToWallet(walletHost string, walletCertFile, walletCert string) (*WalletClient, error) {
 	rand.Seed(time.Now().Unix())
-	creds, err := credentials.NewClientTLSFromFile(walletCert, "localhost")
+
+	var creds credentials.TransportCredentials
+	var err error
+
+	if walletCertFile != "" {
+		creds, err = credentials.NewClientTLSFromFile(walletCert, "localhost")
+	} else if walletCert != "" {
+		cp := x509.NewCertPool()
+		if !cp.AppendCertsFromPEM([]byte(walletCert)) {
+			err = fmt.Errorf("credentials: failed to append certificates")
+		} else {
+			creds = credentials.NewClientTLSFromCert(cp, "localhost")
+		}
+	} else {
+		err = fmt.Errorf("specify walletCertFile or walletCert")
+	}
 	if err != nil {
 		return nil, err
 	}

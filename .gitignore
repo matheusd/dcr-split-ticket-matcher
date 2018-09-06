@@ -1,3 +1,4 @@
 vendor/
 data/
 dist/
+cmd/splitticketbuyerwasm/splitticketbuyer.wasm

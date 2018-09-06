@@ -212,7 +212,7 @@ func waitForSession(ctx context.Context, cfg *Config) sessionWaiterResponse {
 	rep := reporterFromContext(ctx)
 
 	rep.reportStage(ctx, StageConnectingToWallet, nil, cfg)
-	wc, err := ConnectToWallet(cfg.WalletHost, cfg.WalletCertFile)
+	wc, err := ConnectToWallet(cfg.WalletHost, cfg.WalletCertFile, cfg.WalletCert)
 	if err != nil {
 		return sessionWaiterResponse{nil, nil, nil, err}
 	}
