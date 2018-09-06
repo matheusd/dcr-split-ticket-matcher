@@ -296,7 +296,7 @@ func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, error) {
 
 	for _, p := range sess.Participants {
 		ticket.AddTxIn(wire.NewTxIn(&wire.OutPoint{Index: spOutIndex},
-			wire.NullValueIn, nil))
+			int64(p.CommitAmount+p.Fee), nil))
 
 		ticket.AddTxOut(wire.NewTxOut(0, p.commitmentPkScript))
 		ticket.AddTxOut(wire.NewTxOut(0, EmptySStxChangeAddr))
@@ -320,7 +320,11 @@ func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, error) {
 				Index: in.PreviousOutPoint.Index,
 				Tree:  in.PreviousOutPoint.Tree,
 			}
-			splitTx.AddTxIn(wire.NewTxIn(outp, wire.NullValueIn, in.SignatureScript))
+			amountIn := wire.NullValueIn
+			if utxo, has := p.splitTxUtxos[*outp] ; has {
+				amountIn = int64(utxo.Value)
+			}
+			splitTx.AddTxIn(wire.NewTxIn(outp, amountIn, in.SignatureScript))
 		}
 	}
 

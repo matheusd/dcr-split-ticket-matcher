@@ -434,9 +434,6 @@ func (wc *WalletClient) processSignedSplit(
 				inSplit.SignatureScript = in.SignatureScript
 				signedCount++
 			}
-			// } else {
-			// 	return ErrWrongInputSignedOnSplit
-			// }
 		}
 	}
 
@@ -474,10 +471,6 @@ func (wc *WalletClient) signTransactions(ctx context.Context, session *Session, 
 	req.AdditionalScripts = append(req.AdditionalScripts, splitAddScripts...)
 	req.AdditionalScripts = append(req.AdditionalScripts, revocationAddScripts...)
 	req.AdditionalScripts = append(req.AdditionalScripts, ticketsAddScripts...)
-
-	// FIXME: remove on production... doing this in many wallets at the same time
-	// locks them up
-	time.Sleep(time.Millisecond * time.Duration(random(100, 2000)))
 
 	resp, err := wc.wsvc.SignTransactions(ctx, req)
 	if err != nil {

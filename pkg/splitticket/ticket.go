@@ -115,6 +115,12 @@ func CheckTicket(split, ticket *wire.MsgTx, ticketPrice,
 			}
 		}
 
+		if in.ValueIn != wire.NullValueIn && in.ValueIn != out.Value {
+			return errors.Errorf("valueIn of ticket input %d (%d) different "+
+				"than value of corresponding split output (%d)", i, in.ValueIn,
+				out.Value)
+		}
+
 		// ensure the input amounts are not overflowing the accumulator
 		// (CheckTransactionSanity does this for outputs)
 		newAmountIn := totalAmountIn + out.Value

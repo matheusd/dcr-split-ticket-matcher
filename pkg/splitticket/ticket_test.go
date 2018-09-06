@@ -105,3 +105,19 @@ func TestStopsWrongPoolFees(t *testing.T) {
 		t.Run(fmt.Sprintf("%d", i), testPartFunc(i))
 	}
 }
+
+// TestCheckTicketStopsWrongValueIn tests whether CheckTicket identifies a
+// broken valueIn
+func TestCheckTicketStopsWrongValueIn(t *testing.T) {
+
+	data := createStdTestData(20)
+	split, ticket := data.createTestTransactions()
+	ticket.TxIn[1].ValueIn -= 1
+	data.signTicket(split, ticket)
+
+	err := data.checkTicket(split, ticket)
+	if err == nil {
+		t.Fatalf("changing the valueIn of the ticket should have returned an "+
+			"error")
+	}
+}

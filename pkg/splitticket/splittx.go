@@ -85,7 +85,10 @@ func CheckSignedSplit(split *wire.MsgTx, utxos UtxoMap, params *chaincfg.Params)
 			return errors.Errorf("utxo for input %d of split tx not provided", i)
 		}
 
-		// TODO: check if utxo is spent
+		if in.ValueIn != wire.NullValueIn && utxo.Value != dcrutil.Amount(in.ValueIn) {
+			return errors.Errorf("valueIn for input %d of split tx not equal "+
+				"to corresponding utxo value", i)
+		}
 
 		// ensure the input actually signs the split transaction
 		engine, err := txscript.NewEngine(utxo.PkScript, split, i,
