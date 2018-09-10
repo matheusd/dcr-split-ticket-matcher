@@ -183,6 +183,7 @@
 						delete this._values;
 						delete this._refs;
 						this.exit(code);
+						console.log("end of wasmExit");
 					},
 
 					// func wasmWrite(fd uintptr, p unsafe.Pointer, n int32)
@@ -371,7 +372,9 @@
 				offset += 8;
 			});
 
+			// let first = true;
 			while (true) {
+				console.log("while true iter");
 				const callbackPromise = new Promise((resolve) => {
 					this._resolveCallbackPromise = () => {
 						if (this.exited) {
@@ -380,18 +383,26 @@
 						setTimeout(resolve, 0); // make sure it is asynchronous
 					};
 				});
+				console.log("exports.run", argc, argv);
 				this._inst.exports.run(argc, argv);
 				if (this.exited) {
+					console.log("exited");
 					break;
 				}
 				await callbackPromise;
+				console.log("callbackpromise returned");
 			}
+		}
+
+		shutdownCallbacks() {
+			this._callbackShutdown = true;
 		}
 
 		static _makeCallbackHelper(id, pendingCallbacks, go) {
 			return function() {
 				pendingCallbacks.push({ id: id, args: arguments });
 				go._resolveCallbackPromise();
+				go._inst.exports.run();
 			};
 		}
 
@@ -411,27 +422,27 @@
 		}
 	}
 
-	if (isNodeJS) {
-		if (process.argv.length < 3) {
-			process.stderr.write("usage: go_js_wasm_exec [wasm binary] [arguments]\n");
-			process.exit(1);
-		}
+	// if (isNodeJS) {
+	// 	if (process.argv.length < 3) {
+	// 		process.stderr.write("usage: go_js_wasm_exec [wasm binary] [arguments]\n");
+	// 		process.exit(1);
+	// 	}
 
-		const go = new Go();
-		go.argv = process.argv.slice(2);
-		go.env = process.env;
-		go.exit = process.exit;
-		WebAssembly.instantiate(fs.readFileSync(process.argv[2]), go.importObject).then((result) => {
-			process.on("exit", (code) => { // Node.js exits if no callback is pending
-				if (code === 0 && !go.exited) {
-					// deadlock, make Go print error and stack traces
-					go._callbackShutdown = true;
-					go._inst.exports.run();
-				}
-			});
-			return go.run(result.instance);
-		}).catch((err) => {
-			throw err;
-		});
-	}
+	// 	const go = new Go();
+	// 	go.argv = process.argv.slice(2);
+	// 	go.env = process.env;
+	// 	go.exit = process.exit;
+	// 	WebAssembly.instantiate(fs.readFileSync(process.argv[2]), go.importObject).then((result) => {
+	// 		process.on("exit", (code) => { // Node.js exits if no callback is pending
+	// 			if (code === 0 && !go.exited) {
+	// 				// deadlock, make Go print error and stack traces
+	// 				go._callbackShutdown = true;
+	// 				go._inst.exports.run();
+	// 			}
+	// 		});
+	// 		return go.run(result.instance);
+	// 	}).catch((err) => {
+	// 		throw err;
+	// 	});
+	// }
 })();

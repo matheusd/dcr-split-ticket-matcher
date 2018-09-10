@@ -1,0 +1,99 @@
+<!doctype html>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Split Ticket Buyer</title>
+</head>
+
+<body>
+	<script src="wasm_exec.js"></script>
+	<script>
+		if (!WebAssembly.instantiateStreaming) { // polyfill
+			WebAssembly.instantiateStreaming = async (resp, importObject) => {
+				const source = await (await resp).arrayBuffer();
+				return await WebAssembly.instantiate(source, importObject);
+			};
+		}
+
+		let mod, inst, go;
+
+		async function boot() {
+			console.log("Booting WASM module");
+			const resp = await fetch('splitticketbuyer.wasm');
+			const bytes = await resp.arrayBuffer();
+			console.log("Got wasm bytes", bytes.byteLength / 1000 / 1000);
+			mod = await WebAssembly.compile(bytes);
+			console.log("Compiled module");
+			go = new Go();
+			inst = await WebAssembly.instantiate(mod, go.importObject);
+			console.log("Instantiated module");
+			setTimeout(() => {
+				document.getElementById("runButton").disabled = false;
+				console.log("Enabled run");
+			 }, 3000);
+		}
+		setTimeout(boot, 2000);
+
+		var _splitTicketBuyer_matcherClient_responses = {};
+
+		function wrapCallable(f) {
+			return async function (replyID, reqJSON) {
+				const req = JSON.parse(reqJSON);
+				const resp = await f(req);
+				_splitTicketBuyer_matcherClient_responses[replyID] = JSON.stringify(resp);
+				_splitTicketBuyer_matcherClient_callback(replyID);
+				console.log("called the callback", replyID);
+			}
+		}
+
+		var _splitTicketBuyer_matcherClient_status = wrapCallable(function () {
+			console.log("Calling status... gonna return something")
+			// for (let i = 0; i < 100000; i++) {
+			// 	for (let j = 0; j < 10000; j++) {
+			// 		let z = i+j;
+			// 	}
+			// }
+			return {protocol_version: 999};
+		});
+
+		async function run() {
+			console.clear();
+			document.getElementById("runButton").disabled = true;
+			setTimeout(function () {
+				console.log("Going to start buying ticket");
+				_buySplitTicket();
+			}, 3000);
+
+			try {
+				console.log("Going to run instance");
+				await go.run(inst);
+				console.log("done running");
+				// go.shutdownCallbacks();
+			} catch (error) {
+				console.log("error running", error);
+			}
+
+			setTimeout(async function () {
+				console.log("Going to reset instance");
+				go = new Go();
+				WebAssembly.instantiate(mod, go.importObject).then(resp => {
+					inst = resp;
+					console.log("Resetted instance", resp);
+					setTimeout(() => {
+						document.getElementById("runButton").disabled = false;
+						console.log("Enabled run");
+					}, 3000);
+				})
+			}, 3000);
+		}
+	</script>
+
+	<h1>Split Ticket Buyer Test</h1>
+	<form>
+		<label for="voteAddress">Vote Address</label>
+	</form>
+	<button onClick="run();" id="runButton" disabled>Run</button><br><br>
+</body>
+
+</html>

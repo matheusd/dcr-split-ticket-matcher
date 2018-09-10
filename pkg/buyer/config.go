@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-ini/ini"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/util"
+	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 	"github.com/pkg/errors"
 
 	"github.com/decred/dcrd/chaincfg"
@@ -68,6 +69,10 @@ type Config struct {
 
 	Passphrase  []byte
 	ChainParams *chaincfg.Params
+
+	// If specified, use this matcherClient instead of connecting to the matcher
+	// via grpc.
+	MatcherClient pb.SplitTicketMatcherServiceClient
 }
 
 // ReadPassphrase reads the passphrase from stdin (if needed), fills the

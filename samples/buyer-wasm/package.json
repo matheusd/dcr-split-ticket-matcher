@@ -1,0 +1,15 @@
+{
+  "name": "buyer-wasm",
+  "version": "0.1.0",
+  "description": "Demo for split ticket buying in browser wasm",
+  "main": "index.js",
+  "author": "Matheus Degiovani",
+  "license": "ISC",
+  "private": false,
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "2.0.8"
+  }
+}

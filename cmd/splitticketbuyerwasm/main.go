@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"syscall/js"
+	"time"
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
@@ -12,7 +13,9 @@ import (
 )
 
 var (
-	done = make(chan struct{})
+	done chan struct{}
+	buy chan struct{}
+
 	cfg = &buyer.Config{
 		SStxFeeLimits:        uint16(0x5800),
 		ChainParams:          &chaincfg.MainNetParams,
@@ -52,6 +55,11 @@ bGhvc3SHBH8AAAGHEAAAAAAAAAAAAAAAAAAAAAGHBAqJAg+HEP6AAAAAAAAAAhY+
 	}
 )
 
+func debug(format string, args... interface{}) {
+	format = time.Now().Format("15:04:05.000 ") + format
+	println(fmt.Sprintf(format, args...))
+}
+
 func zeroBytes(b []byte) {
 	for i := range b {
 		b[i] = 0
@@ -59,21 +67,30 @@ func zeroBytes(b []byte) {
 }
 
 func buySplitTicket(args []js.Value) {
-	defer func() { done<- struct{}{} }()
+	buy<- struct{}{}
+}
 
+func startBuyer() {
 	err := cfg.Validate()
 	if err != nil {
 		fmt.Printf("Error validating config: %v\n", err)
 		return
 	}
-	defer func() { zeroBytes(cfg.Passphrase) }()
+	// defer func() { zeroBytes(cfg.Passphrase) }()
+
+	adapter := newWasmMatcherClientAdapter()
+	cfg.MatcherClient = adapter
+
+	cbl := js.NewCallback(adapter.callback)
+	js.Global().Set("_splitTicketBuyer_matcherClient_callback", cbl)
+	defer cbl.Release()
 
 	reporter := buyer.NewWriterReporter(os.Stdout, cfg.SessionName)
 	ctx := context.WithValue(context.Background(), buyer.ReporterCtxKey, reporter)
 	ctx, cancelFunc := context.WithCancel(ctx)
 
-	go buyer.WatchMatcherWaitingList(ctx, cfg.MatcherHost, cfg.MatcherCertFile,
-		reporter)
+	// go buyer.WatchMatcherWaitingList(ctx, cfg.MatcherHost, cfg.MatcherCertFile,
+	// 	reporter)
 
 	err = buyer.BuySplitTicket(ctx, cfg)
 	if err != nil {
@@ -83,9 +100,14 @@ func buySplitTicket(args []js.Value) {
 	}
 
 	cancelFunc()
+
+	done<- struct{}{}
 }
 
 func main() {
+	done = make(chan struct{})
+	buy = make(chan struct{})
+
 	fmt.Printf("Split ticket buyer version %s\n", pkg.Version)
 
 	cbl := js.NewCallback(buySplitTicket)
@@ -93,7 +115,18 @@ func main() {
 
 	select {
 	case <-done:
+	case <-buy:
+		debug("received buy signal")
+		go startBuyer()
+		<-done
+		debug("received done signal")
+		time.Sleep(13*time.Second)
 	}
 
-	cbl.Release()
+	close(done)
+	close(buy)
+
+	debug("Going to quit...")
+
+	// cbl.Release()
 }

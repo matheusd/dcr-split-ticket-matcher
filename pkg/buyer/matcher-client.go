@@ -459,5 +459,7 @@ func (mc *MatcherClient) fundSplitTx(ctx context.Context, session *Session, cfg 
 }
 
 func (mc *MatcherClient) close() {
-	mc.conn.Close()
+	if mc.conn != nil {
+		mc.conn.Close()
+	}
 }

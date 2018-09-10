@@ -1,4 +1,5 @@
 vendor/
 data/
 dist/
-cmd/splitticketbuyerwasm/splitticketbuyer.wasm
+samples/buyer-wasm/splitticketbuyer.wasm
+node_modules/

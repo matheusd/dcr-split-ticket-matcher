@@ -23,7 +23,7 @@ $ go build ./cmd/...
 # Building the Wasm Buyer
 
 ```
-$ GOARCH=wasm GOOS=js go build -o cmd/splitticketbuyerwasm/splitticketbuyerwasm.wasm ./cmd/splitticketbuyer.wasm
+$ GOARCH=wasm GOOS=js go build -o samples/buyer-wasm/splitticketbuyer.wasm ./cmd/splitticketbuyerwasm
 ```
 
 You can test the wasm buyer with the sample index.html by serving the contents of the `splitticketbuyerwasm

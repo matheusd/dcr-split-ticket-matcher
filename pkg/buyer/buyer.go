@@ -211,6 +211,28 @@ func BuySplitTicket(ctx context.Context, cfg *Config) error {
 func waitForSession(ctx context.Context, cfg *Config) sessionWaiterResponse {
 	rep := reporterFromContext(ctx)
 
+	var mc *MatcherClient
+	var err error
+
+	rep.reportStage(ctx, StageConnectingToMatcher, nil, cfg)
+	if cfg.MatcherClient != nil {
+		mc = &MatcherClient{
+			client:  cfg.MatcherClient,
+		}
+	} else {
+		mc, err = ConnectToMatcherService(ctx, cfg.MatcherHost, cfg.MatcherCertFile,
+			cfg.networkCfg())
+	}
+	if err != nil {
+		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err, "error connecting to matcher")}
+	}
+
+	status, err := mc.status(ctx)
+	if err != nil {
+		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err, "error getting status from matcher")}
+	}
+	rep.reportMatcherStatus(status)
+
 	rep.reportStage(ctx, StageConnectingToWallet, nil, cfg)
 	wc, err := ConnectToWallet(cfg.WalletHost, cfg.WalletCertFile, cfg.WalletCert)
 	if err != nil {
@@ -236,19 +258,6 @@ func waitForSession(ctx context.Context, cfg *Config) sessionWaiterResponse {
 	if err != nil {
 		return sessionWaiterResponse{nil, nil, nil, err}
 	}
-
-	rep.reportStage(ctx, StageConnectingToMatcher, nil, cfg)
-	mc, err := ConnectToMatcherService(ctx, cfg.MatcherHost, cfg.MatcherCertFile,
-		cfg.networkCfg())
-	if err != nil {
-		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err, "error connecting to matcher")}
-	}
-
-	status, err := mc.status(ctx)
-	if err != nil {
-		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err, "error getting status from matcher")}
-	}
-	rep.reportMatcherStatus(status)
 
 	maxAmount, err := dcrutil.NewAmount(cfg.MaxAmount)
 	if err != nil {
