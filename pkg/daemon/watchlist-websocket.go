@@ -47,10 +47,17 @@ func newWaitlistWebsocketService(bindAddr string, matcher *matcher.Matcher,
 	}
 
 	svc.log.SetBackend(logBackend)
+	mux.HandleFunc("/", svc.index)
 	mux.HandleFunc("/watchWaitingList", svc.watchWaitingList)
 	svc.server.RegisterOnShutdown(svc.closeWebsockets)
 
 	return svc, nil
+}
+
+func (svc *waitlistWebsocketService) index(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("waitlist watcher service\n"))
 }
 
 func (svc *waitlistWebsocketService) watchWaitingList(w http.ResponseWriter, r *http.Request) {

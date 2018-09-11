@@ -51,13 +51,12 @@ func main() {
 
 	for {
 		sig := <-sigs
-		fmt.Printf("Signal %s received\n", sig)
 		if _, has := acceptableSignals[sig]; !has {
 			continue
 		}
 
 		cancelFunc()
-		time.Sleep(5 * time.Second)
+		time.Sleep(100 * time.Millisecond)
 		if sig != syscall.SIGHUP {
 			// anything other than SIGHUP is a final signal
 			break
