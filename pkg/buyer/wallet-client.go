@@ -28,6 +28,7 @@ func random(min, max int) int {
 type WalletClient struct {
 	conn *grpc.ClientConn
 	wsvc pb.WalletServiceClient
+	chainParams *chaincfg.Params
 }
 
 type currentChainInfo struct {
@@ -37,7 +38,7 @@ type currentChainInfo struct {
 }
 
 // ConnectToWallet connects to the given wallet address
-func ConnectToWallet(walletHost string, walletCert string) (*WalletClient, error) {
+func ConnectToWallet(walletHost string, walletCert string, chainParams *chaincfg.Params) (*WalletClient, error) {
 	rand.Seed(time.Now().Unix())
 	creds, err := credentials.NewClientTLSFromFile(walletCert, "localhost")
 	if err != nil {
@@ -54,6 +55,7 @@ func ConnectToWallet(walletHost string, walletCert string) (*WalletClient, error
 	wc := &WalletClient{
 		conn: conn,
 		wsvc: wsvc,
+		chainParams: chainParams,
 	}
 
 	return wc, nil
@@ -63,16 +65,16 @@ func (wc *WalletClient) close() error {
 	return wc.conn.Close()
 }
 
-func (wc *WalletClient) checkNetwork(ctx context.Context, chainParams *chaincfg.Params) error {
+func (wc *WalletClient) checkNetwork(ctx context.Context) error {
 	req := &pb.NetworkRequest{}
 	resp, err := wc.wsvc.Network(ctx, req)
 	if err != nil {
 		return err
 	}
 
-	if resp.ActiveNetwork != uint32(chainParams.Net) {
+	if resp.ActiveNetwork != uint32(wc.chainParams.Net) {
 		return errors.Errorf("wallet (%d) not running on the expected "+
-			"network (%d)", resp.ActiveNetwork, chainParams.Net)
+			"network (%d)", resp.ActiveNetwork, wc.chainParams.Net)
 	}
 
 	return nil
@@ -317,7 +319,7 @@ func (wc *WalletClient) prepareRevocationForSigning(session *Session) (
 	ticketHash := myTicket.TxHash()
 
 	revocation, err := splitticket.CreateUnsignedRevocation(&ticketHash, myTicket,
-		splitticket.RevocationFeeRate)
+		splitticket.RevocationFeeRate(wc.chainParams))
 	if err != nil {
 		return nil, nil, err
 	}

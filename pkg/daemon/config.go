@@ -41,6 +41,7 @@ type Config struct {
 	ShowVersion           bool   `long:"version" description:"Show version and quit"`
 
 	TestNet  bool   `long:"testnet" description:"Whether this is connecting to a testnet wallet/matcher service"`
+	SimNet bool `long:"simnet" description:"Whether this is connecting to a simnet wallet"`
 	DcrdHost string `long:"dcrdhost" description:"Address of the dcrd daemon"`
 	DcrdUser string `long:"dcrduser" description:"Username of the rpc connection to dcrd"`
 	DcrdPass string `long:"dcrdpass" description:"Password of the rpc connection to dcrd"`

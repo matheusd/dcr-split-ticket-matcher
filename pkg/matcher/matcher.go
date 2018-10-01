@@ -549,7 +549,7 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 			p.replaceTicketIOs(ticket)
 			ticketHash = ticket.TxHash()
 			revocation, err = splitticket.CreateUnsignedRevocation(&ticketHash,
-				ticket, splitticket.RevocationFeeRate)
+				ticket, splitticket.RevocationFeeRate(sess.ChainParams))
 			if err != nil {
 				matcher.log.Errorf("Error creating participant's revocation: %v", err)
 				return err

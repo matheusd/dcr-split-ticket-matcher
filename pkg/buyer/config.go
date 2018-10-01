@@ -34,6 +34,7 @@ var (
 	// provided in the config
 	ErrEmptyPassword = fmt.Errorf("empty password")
 
+	simnetJSONRPCClientPort = "19556"
 	testnetJSONRPCClientPort = "19109"
 	mainnetJSONRPCClientPort = "9109"
 )
@@ -53,6 +54,7 @@ type Config struct {
 	PoolAddress          string  `long:"pooladdress" description:"Pool fee address of the stakepool"`
 	PoolFeeRate          float64 `long:"poolfeerate" description:"Pool fee rate (percentage) that the given pool has advertised as using"`
 	TestNet              bool    `long:"testnet" description:"Whether this is connecting to a testnet wallet/matcher service"`
+	SimNet              bool    `long:"simnet" description:"Whether this is connecting to a simnet wallet/matcher service"`
 	MaxTime              int     `long:"maxtime" description:"Maximum amount of time (in seconds) to wait for the completion of the split buy"`
 	MaxWaitTime          int     `long:"maxwaittime" description:"Maximum amount of time (in seconds) to wait until a new split ticket session is initiated"`
 	DataDir              string  `long:"datadir" description:"Directory where session data files are stored"`
@@ -204,6 +206,11 @@ func LoadConfig() (*Config, error) {
 		if cfg.PoolFeeRate == 5.0 {
 			cfg.PoolFeeRate = 7.5
 		}
+	} else if cfg.SimNet {
+		cfg.ChainParams = &chaincfg.SimNetParams
+		if cfg.PoolFeeRate == 5.0 {
+			cfg.PoolFeeRate = 7.5
+		}
 	}
 
 	if cfg.DcrdCert != "" {
@@ -311,10 +318,14 @@ func InitConfigFromDcrwallet() error {
 
 	dcrdPort := mainnetJSONRPCClientPort
 	isTestNet := section.Key("testnet").Value() == "1"
+	isSimNet := section.Key("simnet").Value() == "1"
 	matcherHost := "mainnet-split-tickets.matheusd.com:8485"
 	if isTestNet {
 		dcrdPort = testnetJSONRPCClientPort
 		matcherHost = "testnet-split-tickets.matheusd.com:18475"
+	} else if isSimNet {
+		dcrdPort = simnetJSONRPCClientPort
+		matcherHost = "simet-split-tickets.matheusd.com:28475"
 	}
 
 	dstSection.Key("MatcherHost").SetValue(matcherHost)

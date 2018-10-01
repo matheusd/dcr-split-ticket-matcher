@@ -355,7 +355,8 @@ func (sess *Session) CreateVoterTransactions() (*wire.MsgTx, *wire.MsgTx, *wire.
 
 	ticketHash := ticket.TxHash()
 
-	revocation, err := splitticket.CreateUnsignedRevocation(&ticketHash, ticket, dcrutil.Amount(1e5))
+	revocation, err := splitticket.CreateUnsignedRevocation(&ticketHash, ticket,
+		splitticket.RevocationFeeRate(sess.ChainParams))
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "error creating unsigned revocation")
 	}
@@ -596,8 +597,8 @@ func (sess *Session) SaveSession(sessionDir string) error {
 	for i, p := range sess.Participants {
 		p.replaceTicketIOs(ticketTempl)
 		ticketHash := ticketTempl.TxHash()
-		revocationTempl, err := splitticket.CreateUnsignedRevocation(&ticketHash, ticketTempl,
-			splitticket.RevocationFeeRate)
+		revocationTempl, err := splitticket.CreateUnsignedRevocation(&ticketHash,
+			ticketTempl, splitticket.RevocationFeeRate(sess.ChainParams))
 		if err != nil {
 			return errors.Wrapf(err, "error creating unsigned revocation")
 		}

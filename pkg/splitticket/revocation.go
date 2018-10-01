@@ -16,11 +16,20 @@ const (
 	// RedeemPoolVotingScriptSize is the maximum size of a scriptSig used to redeem
 	// a ticket tx (via vote or revocation) when using a stakepool.
 	RedeemPoolVotingScriptSize = 1 + 73 + 1 + 73
-
-	// RevocationFeeRate is the fee rate in Atoms/KB of the revocation tx.
-	// 1e5 = 0.001 DCR
-	RevocationFeeRate = minRelayFeeRate
 )
+
+// RevocationFeeRate is the fee rate in Atoms/KB of the revocation tx for a
+// given network.
+func RevocationFeeRate(params *chaincfg.Params) dcrutil.Amount {
+	if params.Name == "simnet" {
+		// due to very low ticket prices in simnet, we need to use a very small
+		// revocation. This shouldn't be a problem since in simnet the
+		// revocation should be mined anyway.
+		return 1e4
+	} else {
+		return minRelayFeeRate
+	}
+}
 
 // CheckRevocation checks whether the revocation for the given ticket respects
 // the rules for split ticket buying. The ticket must have passed the
@@ -113,7 +122,8 @@ func CheckRevocation(ticket, revocation *wire.MsgTx, params *chaincfg.Params) er
 	}
 	fee := amountIn - amountOut
 	serializedSize := int64(revocation.SerializeSize())
-	minFee := dcrutil.Amount((serializedSize * int64(minRelayFeeRate)) / 1000)
+	feeRate := RevocationFeeRate(params)
+	minFee := dcrutil.Amount((serializedSize * int64(feeRate)) / 1000)
 	if fee < minFee {
 		return errors.Errorf("revocation fee (%s) less than minimum required "+
 			"amount (%s)", fee, minFee)

@@ -58,7 +58,8 @@ func TestCreateUnsignedRevocation(t *testing.T) {
 
 		ticketHash := ticket.TxHash() // the hash is actually irrelevant
 
-		revocation, err := CreateUnsignedRevocation(&ticketHash, ticket, RevocationFeeRate)
+		revocation, err := CreateUnsignedRevocation(&ticketHash, ticket,
+			RevocationFeeRate(_testNetwork))
 		if err != nil {
 			t.Errorf("CreateUnsignedRevocation returned error on "+
 				"part %d: %v", p, err)

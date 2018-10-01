@@ -44,6 +44,8 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	chainParams := &chaincfg.MainNetParams
 	if cfg.TestNet {
 		chainParams = &chaincfg.TestNet3Params
+	} else if cfg.SimNet {
+		chainParams = &chaincfg.SimNetParams
 	}
 
 	if cfg.PoolFee < 0.1 {
@@ -112,6 +114,8 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	d.log.Infof("Maximum session time: %s", cfg.MaxSessionDuration.String())
 	if cfg.TestNet {
 		d.log.Infof("Running on testnet")
+	} else if cfg.SimNet {
+		d.log.Infof("Running on simnet")
 	} else {
 		d.log.Infof("Running on mainnet")
 	}
