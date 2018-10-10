@@ -321,7 +321,7 @@ func (sess *Session) CreateTransactions() (*wire.MsgTx, *wire.MsgTx, error) {
 				Tree:  in.PreviousOutPoint.Tree,
 			}
 			amountIn := wire.NullValueIn
-			if utxo, has := p.splitTxUtxos[*outp] ; has {
+			if utxo, has := p.splitTxUtxos[*outp]; has {
 				amountIn = int64(utxo.Value)
 			}
 			splitTx.AddTxIn(wire.NewTxIn(outp, amountIn, in.SignatureScript))

@@ -299,7 +299,7 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 		TicketFee:       ticketTxFee,
 		ChainParams:     matcher.cfg.ChainParams,
 		TicketPoolIn:    wire.NewTxIn(&wire.OutPoint{Index: 1}, int64(poolFee), nil), // FIXME: this should probably be removed from here and moved into the session
-		SplitTxPoolOut:  wire.NewTxOut(int64(poolFee), splitPoolOutScript),             // ditto above
+		SplitTxPoolOut:  wire.NewTxOut(int64(poolFee), splitPoolOutScript),           // ditto above
 		ID:              sessID,
 		StartTime:       time.Now(),
 		TicketExpiry:    expiry,

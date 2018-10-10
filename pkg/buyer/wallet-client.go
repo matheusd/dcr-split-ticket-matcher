@@ -19,15 +19,11 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-func random(min, max int) int {
-	return rand.Intn(max-min) + min
-}
-
 // WalletClient is responsible for the interactions of the buyer with the local
 // wallet daemon (dcrwallet).
 type WalletClient struct {
-	conn *grpc.ClientConn
-	wsvc pb.WalletServiceClient
+	conn        *grpc.ClientConn
+	wsvc        pb.WalletServiceClient
 	chainParams *chaincfg.Params
 }
 
@@ -53,8 +49,8 @@ func ConnectToWallet(walletHost string, walletCert string, chainParams *chaincfg
 	wsvc := pb.NewWalletServiceClient(conn)
 
 	wc := &WalletClient{
-		conn: conn,
-		wsvc: wsvc,
+		conn:        conn,
+		wsvc:        wsvc,
 		chainParams: chainParams,
 	}
 
