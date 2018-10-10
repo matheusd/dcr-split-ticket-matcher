@@ -19,7 +19,7 @@ set -ex
 # for more details.
 
 #Default GOVERSION
-GOVERSION=${1:-1.10}
+GOVERSION=${1:-1.11}
 REPOOWNER=matheusd
 REPO=dcr-split-ticket-matcher
 DOCKER_OWNER=matheusd
@@ -59,11 +59,8 @@ testrepo () {
   fi
 
   # Test application install
-  if [ $GOVERSION == "1.10" ]; then
-    go install -i
-  else
-    go install ./cmd/...
-  fi
+  go install -i
+
   if [ $? != 0 ]; then
     echo 'go install failed'
     exit 1
