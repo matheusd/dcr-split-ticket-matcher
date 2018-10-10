@@ -59,7 +59,7 @@ testrepo () {
   fi
 
   # Test application install
-  go install -i
+  go install ./cmd/...
 
   if [ $? != 0 ]; then
     echo 'go install failed'

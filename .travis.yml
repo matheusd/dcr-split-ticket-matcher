@@ -1,4 +1,9 @@
 # copied from decred/dcrd
+
+branches:
+  only:
+    - master
+
 language: go
 go:
   - 1.x
