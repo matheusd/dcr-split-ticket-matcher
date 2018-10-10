@@ -25,9 +25,9 @@ REPO=dcr-split-ticket-matcher
 DOCKER_OWNER=matheusd
 DOCKER_IMAGE_TAG=dcr-split-tickets
 
-if [ $GOVERSION != "local" ]; then
-    go version
-    go env
+if [ $GOVERSION != "local" ] ; then
+  echo `go version`
+  echo `go env`
 fi
 
 
@@ -98,7 +98,7 @@ if [ -f ~/.cache/$DOCKER_IMAGE_TAG.tar ]; then
 		exit 1
 	fi
 else
-	# pull and save image to cache 
+	# pull and save image to cache
 	docker pull $DOCKER_OWNER/$DOCKER_IMAGE_TAG
 	if [ $? != 0 ]; then
 		echo 'docker pull failed'

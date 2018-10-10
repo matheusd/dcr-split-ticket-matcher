@@ -3,10 +3,10 @@
 # supported go repos.
 # ./run_tests.sh 1.10
 
-FROM golang:1.10.2
+FROM golang:1.11.1
 
 LABEL description="Decred split tickets builder image"
-LABEL version="1.0"
+LABEL version="1.1"
 LABEL maintainer "docker-ops@matheusd.org"
 
 ENV TERM linux
@@ -27,27 +27,16 @@ RUN mkdir /release && \
 
 # create directory to get source from
 RUN mkdir /src && \
-    chown $USER /src && \
-    mkdir -p /go/src/github.com/decred/dcrd && \
-    mkdir -p /go/src/github.com/decred/dcrwallet && \
-    mkdir -p /go/src/github.com/matheusd/dcr-split-ticket-matcher && \
-    chown -R $USER /go/src
+    chown $USER /src
 
 # switch user
 USER $USER
 ENV HOME /home/$USER
+ENV PATH "${HOME}/bin:${PATH}"
 
-#Get deps
-ENV DEP_TAG v0.4.1
-ENV GOMETALINTER_TAG v2.0.5
+# Download and install gometalinter
 
 WORKDIR /go/src
-RUN go get -v github.com/alecthomas/gometalinter && \
-    cd /go/src/github.com/alecthomas/gometalinter && \
-    git checkout $GOMETALINTER_TAG && \
-    go install -i && \
-    gometalinter --install && \
-    go get -v github.com/golang/dep && \
-    cd /go/src/github.com/golang/dep && \
-    git checkout $DEP_TAG && \
-    go install -i ./...
+RUN mkdir -p /home/$USER/bin && \
+    wget -O gometalinter.tar.gz https://github.com/alecthomas/gometalinter/releases/download/v2.0.11/gometalinter-2.0.11-linux-amd64.tar.gz && \
+    tar -xf gometalinter.tar.gz -C /home/$USER/bin --strip 1
