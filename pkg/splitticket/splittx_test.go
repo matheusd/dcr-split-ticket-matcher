@@ -10,7 +10,7 @@ func TestCheckSplitStopsWrongValueIn(t *testing.T) {
 
 	data := createStdTestData(20)
 	split, ticket := data.createTestTransactions()
-	split.TxIn[1].ValueIn -= 1
+	split.TxIn[1].ValueIn--
 	data.signTicket(split, ticket)
 
 	err := data.checkSignedSplit(split)

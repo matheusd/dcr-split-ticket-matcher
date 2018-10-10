@@ -26,9 +26,9 @@ func RevocationFeeRate(params *chaincfg.Params) dcrutil.Amount {
 		// revocation. This shouldn't be a problem since in simnet the
 		// revocation should be mined anyway.
 		return 1e4
-	} else {
-		return minRelayFeeRate
 	}
+
+	return minRelayFeeRate
 }
 
 // CheckRevocation checks whether the revocation for the given ticket respects

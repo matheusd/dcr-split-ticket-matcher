@@ -112,12 +112,12 @@ func TestCheckTicketStopsWrongValueIn(t *testing.T) {
 
 	data := createStdTestData(20)
 	split, ticket := data.createTestTransactions()
-	ticket.TxIn[1].ValueIn -= 1
+	ticket.TxIn[1].ValueIn--
 	data.signTicket(split, ticket)
 
 	err := data.checkTicket(split, ticket)
 	if err == nil {
-		t.Fatalf("changing the valueIn of the ticket should have returned an "+
+		t.Fatalf("changing the valueIn of the ticket should have returned an " +
 			"error")
 	}
 }
