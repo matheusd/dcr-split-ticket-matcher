@@ -5,15 +5,10 @@ branches:
     - master
 
 language: go
-go:
-  - 1.x
 
 sudo: required
 services:
   - docker
-
-env:
-  - GOVERSION=1.11 INSTALL_GOMETALINTER_TOOLS=1
 
 install: true
 
@@ -21,4 +16,4 @@ cache:
   directories:
     - ~/.cache
 
-script: ./run_tests.sh $GOVERSION
+script: ./travis.sh
