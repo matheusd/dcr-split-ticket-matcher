@@ -25,6 +25,12 @@ REPO=dcr-split-ticket-matcher
 DOCKER_OWNER=matheusd
 DOCKER_IMAGE_TAG=dcr-split-tickets
 
+if [ $GOVERSION != "local" ]; then
+    go version
+    go env
+fi
+
+
 testrepo () {
 
   # TODO: rewrite this for go.sum
@@ -106,7 +112,6 @@ else
 fi
 
 docker run --rm -it -v $(pwd):/src $DOCKER_OWNER/$DOCKER_IMAGE_TAG /bin/bash -c "\
-  go get github.com/mattn/go-gtk/gtk && \
   mkdir -p /go/src/github.com/$REPOOWNER/$REPO && \
   rsync -ra --filter=':- .gitignore'  \
   /src/ /go/src/github.com/$REPOOWNER/$REPO/ && \

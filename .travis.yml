@@ -13,7 +13,7 @@ services:
   - docker
 
 env:
-  - GOVERSION=1.11
+  - GOVERSION=1.11 INSTALL_GOMETALINTER_TOOLS=1
 
 install: true
 
@@ -21,5 +21,4 @@ cache:
   directories:
     - ~/.cache
 
-script:
-  - ./run_tests.sh $GOVERSION
+script: ./run_tests.sh $GOVERSION
