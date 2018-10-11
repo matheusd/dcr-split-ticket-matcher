@@ -381,8 +381,11 @@ func buildUI() gtk.IWidget {
 	log := logFunc(func(format string, args ...interface{}) {
 		var end gtk.TextIter
 		msg := fmt.Sprintf(format, args...)
+
 		buffer.GetEndIter(&end)
+		buffer.InsertWithTag(&end, time.Now().Format(time.Stamp) + ": ", tag)
 		buffer.Insert(&end, msg+"\n")
+
 		endMark := buffer.GetMark("end")
 		textview.ScrollToMark(endMark, 0, true, 0, 1)
 		for gtk.EventsPending() {
