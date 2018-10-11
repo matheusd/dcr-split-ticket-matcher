@@ -383,7 +383,7 @@ func buildUI() gtk.IWidget {
 		msg := fmt.Sprintf(format, args...)
 
 		buffer.GetEndIter(&end)
-		buffer.InsertWithTag(&end, time.Now().Format(time.Stamp) + ": ", tag)
+		buffer.InsertWithTag(&end, time.Now().Format(time.Stamp)+": ", tag)
 		buffer.Insert(&end, msg+"\n")
 
 		endMark := buffer.GetMark("end")
