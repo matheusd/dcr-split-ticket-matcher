@@ -2,7 +2,7 @@
 
 Build using go 1.11 and go modules.
 
-Before building the GUI client, you'll probably need some gtk headers installed:
+Before building the GUI client, you'll probably need some gtk headers installed (see below for Windows instructions):
 
 ```
 # fedora
@@ -19,6 +19,18 @@ $ git clone https://github.com/matheusd/dcr-split-ticket-matcher
 $ cd dcr-split-ticket-matcher
 $ go build ./cmd/...
 ```
+
+## Windows Build
+
+For a Windows build you should use MSYS2. Follow the instructions at the [GTK Website](https://www.gtk.org/download/windows.php) (download and install MSYS2, then install GTK via `pacman`).
+
+On an MSYS2 shell, export the following environment variable:
+
+```
+$ export CGO_LDFLAGS_ALLOW="-Wl,-luuid"
+```
+
+Then proceed using the usual build instructions for a go 1.11+ project.
 
 # Running the Client
 

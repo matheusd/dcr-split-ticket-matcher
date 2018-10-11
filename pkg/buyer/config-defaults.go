@@ -45,7 +45,7 @@ WalletHost = 127.0.0.1:0
 WalletCertFile =
 
 # Default dir to save session data. Defaults to $HOME/.splitticketbuyer/data
-DataDir = ~/.splitticketbuyer/data
+# DataDir = ~/.splitticketbuyer/data
 
 # Private passphrase of the wallet (use "-" to read from stdin)
 # Use a command such as "promptsecret | splitticketbuyer" for better security
