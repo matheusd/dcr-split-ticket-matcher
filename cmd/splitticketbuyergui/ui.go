@@ -370,7 +370,7 @@ func buildUI() gtk.IWidget {
 	buffer.Insert(&start, "Waiting to participate in session")
 	buffer.GetEndIter(&end)
 	buffer.InsertAtCursor("\n")
-	tag := buffer.CreateTag("bold", map[string]string{"weight": "1700"})
+	tag := buffer.CreateTag("bold", map[string]string{"foreground": "gray"})
 	buffer.GetStartIter(&start)
 	buffer.GetEndIter(&end)
 	buffer.ApplyTag(tag, &start, &end)
