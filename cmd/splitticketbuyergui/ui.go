@@ -370,7 +370,7 @@ func buildUI() gtk.IWidget {
 	buffer.Insert(&start, "Waiting to participate in session")
 	buffer.GetEndIter(&end)
 	buffer.InsertAtCursor("\n")
-	tag := buffer.CreateTag("bold", map[string]string{"weight": "1700"})
+	tag := buffer.CreateTag("bold", map[string]string{"foreground": "gray"})
 	buffer.GetStartIter(&start)
 	buffer.GetEndIter(&end)
 	buffer.ApplyTag(tag, &start, &end)
@@ -381,8 +381,11 @@ func buildUI() gtk.IWidget {
 	log := logFunc(func(format string, args ...interface{}) {
 		var end gtk.TextIter
 		msg := fmt.Sprintf(format, args...)
+
 		buffer.GetEndIter(&end)
+		buffer.InsertWithTag(&end, time.Now().Format(time.Stamp)+": ", tag)
 		buffer.Insert(&end, msg+"\n")
+
 		endMark := buffer.GetMark("end")
 		textview.ScrollToMark(endMark, 0, true, 0, 1)
 		for gtk.EventsPending() {
