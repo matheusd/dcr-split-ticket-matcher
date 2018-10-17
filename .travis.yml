@@ -17,7 +17,6 @@ before_install:
   - tar -xf gometalinter.tar.gz -C $TRAVIS_HOME/bin --strip 1
   - ls $TRAVIS_HOME/bin
   - gometalinter --version
-  - gometalinter -h
 
 language: go
 
