@@ -23,18 +23,21 @@ install: true
 cache:
   directories:
     - .cache/go-build
-    - $GOPATH/src/mod
+    - $GOPATH/pkg/mod
 
 before_install:
-  - ls .cache
+  - ls .cache/go-build
   - sudo apt-get install -y libgtk2.0-dev libglib2.0-dev libgtksourceview2.0-dev
   - wget -O gometalinter.tar.gz https://github.com/alecthomas/gometalinter/releases/download/v2.0.11/gometalinter-2.0.11-linux-amd64.tar.gz
   - tar -xf gometalinter.tar.gz -C $TRAVIS_HOME/bin --strip 1
   - ls $TRAVIS_HOME/bin
   - gometalinter --version
-  - ls $GOPATH/src/mod
+  - ls $GOPATH/pkg/mod
 
 
 script:
-  - ./tests.sh
-  - ls $GOPATH/src/mod
+  - echo $GOPATH
+  - ls $GOPATH
+  - ls $GOPATH/pkg
+  # - ./tests.sh
+  - ls $GOPATH/pkg/mod
