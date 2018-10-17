@@ -29,6 +29,9 @@ testrepo () {
   #   exit 1
   # fi
 
+  # Test application install
+  go install ./cmd/...
+
   # Check linters
   # (currently disabled)
   # --enable=unconvert \
@@ -50,9 +53,6 @@ testrepo () {
     echo 'gometalinter has some complaints'
     exit 1
   fi
-
-  # Test application install
-  go install ./cmd/...
 
   if [ $? != 0 ]; then
     echo 'go install failed'
