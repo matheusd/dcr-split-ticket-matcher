@@ -36,8 +36,6 @@ before_install:
 
 
 script:
-  - echo $GOPATH
-  - ls $GOPATH
-  - ls $GOPATH/pkg
+  - go install
   # - ./tests.sh
   - ls $GOPATH/pkg/mod
