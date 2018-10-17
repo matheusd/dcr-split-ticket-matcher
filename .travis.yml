@@ -4,16 +4,20 @@ branches:
   only:
     - master
 
+addons:
+  apt:
+    update: true
+
+before_install:
+  - sudo apt-get install -y libgtk2.0-dev libglib2.0-dev libgtksourceview2.0-dev
+
 language: go
 
+go:
+  - 1.11
+
 sudo: required
-services:
-  - docker
 
 install: true
 
-cache:
-  directories:
-    - ~/.cache
-
-script: ./travis.sh
+script: ./tests.sh
