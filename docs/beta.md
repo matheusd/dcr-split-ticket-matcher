@@ -3,7 +3,9 @@
 The matcher service and split ticket buyer are currently on their second beta phase. This means the following:
 
 - The code mostly works and does what it's supposed to do
+- The service does not take ownership of your funds
 - There are binaries available for command line and GUI buyers
+- There are some known issues with integration to the wallet
 - The code has **not** been extensively vetted by automated tests and more experienced community members
 
 This is a "second phase" beta because the software has been integrated to a few select voting pools and therefore users using one of these pools can be assured that addresses are validated by them.
@@ -12,7 +14,11 @@ This is a "second phase" beta because the software has been integrated to a few 
 
 This is a list of pools that are running the split ticket service. Please note that all participants must use the same pool with the same session name in order to complete the matching session.
 
-- https://stake.decredbrasil.com ([online sessions](https://mainnet-split-tickets.matheusd.com/decredbrasil.html))
+- https://stake.decredbrasil.com
+- https://decredvoting.com
+
+You can see currently running sessions at [mainnet-split-tickets.matheusd.com](https://mainnet-split-tickets.matheusd.com).
+
 
 ## Risks in joining the beta
 
