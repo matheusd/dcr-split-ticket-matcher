@@ -11,13 +11,6 @@ addons:
 env:
   - GO111MODULE=on
 
-before_install:
-  - sudo apt-get install -y libgtk2.0-dev libglib2.0-dev libgtksourceview2.0-dev
-  - wget -O gometalinter.tar.gz https://github.com/alecthomas/gometalinter/releases/download/v2.0.11/gometalinter-2.0.11-linux-amd64.tar.gz
-  - tar -xf gometalinter.tar.gz -C $TRAVIS_HOME/bin --strip 1
-  - ls $TRAVIS_HOME/bin
-  - gometalinter --version
-
 language: go
 
 go:
@@ -26,5 +19,19 @@ go:
 sudo: required
 
 install: true
+
+cache:
+  directories:
+    - .cache/go-build
+    - $GOPATH/src/mod
+
+before_install:
+  - sudo apt-get install -y libgtk2.0-dev libglib2.0-dev libgtksourceview2.0-dev
+  - wget -O gometalinter.tar.gz https://github.com/alecthomas/gometalinter/releases/download/v2.0.11/gometalinter-2.0.11-linux-amd64.tar.gz
+  - tar -xf gometalinter.tar.gz -C $TRAVIS_HOME/bin --strip 1
+  - ls $TRAVIS_HOME/bin
+  - gometalinter --version
+  - ls $GOPATH/src/mod
+
 
 script: ./tests.sh
