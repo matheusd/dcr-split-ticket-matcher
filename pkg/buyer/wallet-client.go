@@ -17,6 +17,7 @@ import (
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 )
 
 // WalletClient is responsible for the interactions of the buyer with the local
@@ -41,7 +42,18 @@ func ConnectToWallet(walletHost string, walletCert string, chainParams *chaincfg
 		return nil, err
 	}
 
-	conn, err := grpc.Dial(walletHost, grpc.WithTransportCredentials(creds))
+	optCreds := grpc.WithTransportCredentials(creds)
+
+	connCtx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+
+	optKeepAlive := grpc.WithKeepaliveParams(keepalive.ClientParameters{
+		Time:                30 * time.Second,
+		Timeout:             5 * time.Second,
+		PermitWithoutStream: true,
+	})
+
+	conn, err := grpc.DialContext(connCtx, walletHost, optCreds, optKeepAlive)
 	if err != nil {
 		return nil, err
 	}
@@ -59,6 +71,28 @@ func ConnectToWallet(walletHost string, walletCert string, chainParams *chaincfg
 
 func (wc *WalletClient) close() error {
 	return wc.conn.Close()
+}
+
+// checkWalletWaitingForSession repeatedly pings wallet connection while the
+// buyer is waiting for a session, so that if the wallet is closed the buyer is
+// alerted about this fact.
+// If context is canceled, then this returns nil.
+// This blocks, therefore it MUST be run from a goroutine.
+func (wc *WalletClient) checkWalletWaitingForSession(waitCtx context.Context) error {
+	ticker := time.NewTicker(time.Second*30)
+	for {
+		select {
+		case <- waitCtx.Done():
+			return nil
+		case <- ticker.C:
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			_, err := wc.wsvc.Ping(ctx, &pb.PingRequest{})
+			cancel()
+			if err != nil {
+				return errors.Wrap(err, "error trying to check wallet connection")
+			}
+		}
+	}
 }
 
 func (wc *WalletClient) checkNetwork(ctx context.Context) error {

@@ -164,28 +164,10 @@ func BuySplitTicket(ctx context.Context, cfg *Config) error {
 		cfg.WalletHost = hosts[0]
 	}
 
-	maxWaitTime := time.Duration(cfg.MaxWaitTime)
-	if maxWaitTime <= 0 {
-		maxWaitTime = 60 * 60 * 24 * 365 * 10 // 10 years is plenty :)
+	resp := waitForSession(ctx, cfg)
+	if resp.err != nil {
+		return errors.Wrap(resp.err, "error waiting for session")
 	}
-	ctxWait, cancelWait := context.WithTimeout(ctx, time.Second*maxWaitTime)
-	var resp sessionWaiterResponse
-	reschan := make(chan sessionWaiterResponse)
-	go func() { reschan <- waitForSession(ctxWait, cfg) }()
-
-	select {
-	case <-ctx.Done():
-		<-reschan // Wait for f to return.
-		cancelWait()
-		return ctx.Err()
-	case resp = <-reschan:
-		if resp.err != nil {
-			cancelWait()
-			return resp.err
-		}
-	}
-
-	cancelWait()
 
 	defer func() {
 		resp.mc.close()
@@ -208,88 +190,141 @@ func BuySplitTicket(ctx context.Context, cfg *Config) error {
 
 }
 
-func waitForSession(ctx context.Context, cfg *Config) sessionWaiterResponse {
-	rep := reporterFromContext(ctx)
+func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse {
+	rep := reporterFromContext(mainCtx)
 
-	rep.reportStage(ctx, StageConnectingToWallet, nil, cfg)
+	setupCtx, setupCancel := context.WithTimeout(mainCtx, time.Second*10)
+
+	rep.reportStage(setupCtx, StageConnectingToWallet, nil, cfg)
 	wc, err := ConnectToWallet(cfg.WalletHost, cfg.WalletCertFile, cfg.ChainParams)
 	if err != nil {
-		return sessionWaiterResponse{nil, nil, nil, err}
+		setupCancel()
+		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
+			"error trying to connect to wallet")}
 	}
 
-	err = wc.checkNetwork(ctx)
+	err = wc.checkNetwork(setupCtx)
 	if err != nil {
-		return sessionWaiterResponse{nil, nil, nil, err}
+		setupCancel()
+		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
+			"error checking for wallet network")}
 	}
 
-	err = wc.testVoteAddress(ctx, cfg)
+	err = wc.testVoteAddress(setupCtx, cfg)
 	if err != nil {
-		return sessionWaiterResponse{nil, nil, nil, err}
+		setupCancel()
+		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err, 
+			"error testing buyer vote address")}
 	}
 
-	err = wc.testPassphrase(ctx, cfg)
+	err = wc.testPassphrase(setupCtx, cfg)
 	if err != nil {
-		return sessionWaiterResponse{nil, nil, nil, err}
+		setupCancel()
+		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
+			"error testing wallet passphrase")}
 	}
 
-	err = wc.testFunds(ctx, cfg)
+	err = wc.testFunds(setupCtx, cfg)
 	if err != nil {
-		return sessionWaiterResponse{nil, nil, nil, err}
+		setupCancel()
+		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
+			"error testing wallet funds")}
 	}
 
-	rep.reportStage(ctx, StageConnectingToMatcher, nil, cfg)
-	mc, err := ConnectToMatcherService(ctx, cfg.MatcherHost, cfg.MatcherCertFile,
+	rep.reportStage(setupCtx, StageConnectingToMatcher, nil, cfg)
+	mc, err := ConnectToMatcherService(setupCtx, cfg.MatcherHost, cfg.MatcherCertFile,
 		cfg.networkCfg())
 	if err != nil {
-		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err, "error connecting to matcher")}
+		setupCancel()
+		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err,
+			"error connecting to matcher")}
 	}
 
-	status, err := mc.status(ctx)
+	status, err := mc.status(setupCtx)
 	if err != nil {
-		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err, "error getting status from matcher")}
+		setupCancel()
+		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err, 
+			"error getting status from matcher")}
 	}
 	rep.reportMatcherStatus(status)
 
 	maxAmount, err := dcrutil.NewAmount(cfg.MaxAmount)
 	if err != nil {
+		setupCancel()
 		return sessionWaiterResponse{nil, nil, nil, err}
 	}
 
-	rep.reportStage(ctx, StageFindingMatches, nil, cfg)
-	session, err := mc.participate(ctx, maxAmount, cfg.SessionName, cfg.VoteAddress,
-		cfg.PoolAddress, cfg.PoolFeeRate, cfg.ChainParams)
-	if err != nil {
-		return sessionWaiterResponse{nil, nil, nil, err}
-	}
-	rep.reportStage(ctx, StageMatchesFound, session, cfg)
+	setupCancel()
 
-	chainInfo, err := wc.currentChainInfo(ctx)
-	if err != nil {
-		return sessionWaiterResponse{nil, nil, nil, err}
-	}
-	if !chainInfo.bestBlockHash.IsEqual(session.mainchainHash) {
-		return sessionWaiterResponse{nil, nil, nil, errors.Errorf("mainchain tip "+
-			"of wallet (%s) not the same as matcher (%s)",
-			chainInfo.bestBlockHash, session.mainchainHash)}
-	}
-	if chainInfo.bestBlockHeight != session.mainchainHeight {
-		return sessionWaiterResponse{nil, nil, nil, errors.Errorf("mainchain height "+
-			"of wallet (%d) not the same as matcher (%d)",
-			chainInfo.bestBlockHeight, session.mainchainHeight)}
-	}
-	if chainInfo.ticketPrice != session.TicketPrice {
-		return sessionWaiterResponse{nil, nil, nil, errors.Errorf("ticket price"+
-			"of wallet (%s) not the same as matcher (%s)",
-			chainInfo.ticketPrice, session.TicketPrice)}
-	}
+	rep.reportStage(mainCtx, StageFindingMatches, nil, cfg)
 
-	return sessionWaiterResponse{mc, wc, session, nil}
+	maxWaitTime := time.Duration(cfg.MaxWaitTime)
+	if maxWaitTime <= 0 {
+		maxWaitTime = 60 * 60 * 24 * 365 * 10 // 10 years is plenty :)
+	}
+	waitCtx, waitCancel := context.WithTimeout(mainCtx, time.Second*maxWaitTime)
+
+	walletErrChan := make(chan error)
+	go func () {
+		err := wc.checkWalletWaitingForSession(waitCtx)
+		if err != nil {
+			walletErrChan<- err
+		}
+	}()
+
+	sessionChan := make(chan *Session)
+	participateErrChan := make(chan error)
+
+	go func () {
+		session, err := mc.participate(waitCtx, maxAmount, cfg.SessionName, cfg.VoteAddress,
+			cfg.PoolAddress, cfg.PoolFeeRate, cfg.ChainParams)
+		if err != nil {
+			participateErrChan<-err
+		} else {
+			sessionChan <- session
+		}
+	}()
+
+	select {
+	case <- waitCtx.Done():
+		waitCancel()
+		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(waitCtx.Err(),
+			"timeout while waiting for session in matcher")}
+	case walletErr := <- walletErrChan:
+		waitCancel()
+		return sessionWaiterResponse{nil, nil, nil, walletErr}
+	case partErr := <- participateErrChan:
+		waitCancel()
+		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(partErr,
+			"error while waiting to participate in session")}
+	case session := <- sessionChan:
+		waitCancel()
+		rep.reportStage(mainCtx, StageMatchesFound, session, cfg)
+		return sessionWaiterResponse{mc, wc, session, nil}
+	}
 }
 
 func buySplitTicket(ctx context.Context, cfg *Config, mc *MatcherClient, wc *WalletClient, session *Session) error {
 
 	rep := reporterFromContext(ctx)
 	var err error
+
+	chainInfo, err := wc.currentChainInfo(ctx)
+	if err != nil {
+		return err
+	}
+	if !chainInfo.bestBlockHash.IsEqual(session.mainchainHash) {
+		return errors.Errorf("mainchain tip of wallet (%s) not the same as "+
+			"matcher (%s)", chainInfo.bestBlockHash, session.mainchainHash)
+	}
+	if chainInfo.bestBlockHeight != session.mainchainHeight {
+		return errors.Errorf("mainchain height of wallet (%d) not the same as "+
+			"matcher (%d)", chainInfo.bestBlockHeight, session.mainchainHeight)
+	}
+	if chainInfo.ticketPrice != session.TicketPrice {
+		return errors.Errorf("ticket price of wallet (%s) not the same as "+
+			"matcher (%s)", chainInfo.ticketPrice, session.TicketPrice)
+	}
 
 	rep.reportStage(ctx, StageGeneratingOutputs, session, cfg)
 	err = wc.generateOutputs(ctx, session, cfg)
