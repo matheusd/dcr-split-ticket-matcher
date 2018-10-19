@@ -213,7 +213,7 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 	err = wc.testVoteAddress(setupCtx, cfg)
 	if err != nil {
 		setupCancel()
-		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err, 
+		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
 			"error testing buyer vote address")}
 	}
 
@@ -243,7 +243,7 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 	status, err := mc.status(setupCtx)
 	if err != nil {
 		setupCancel()
-		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err, 
+		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err,
 			"error getting status from matcher")}
 	}
 	rep.reportMatcherStatus(status)
@@ -265,39 +265,39 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 	waitCtx, waitCancel := context.WithTimeout(mainCtx, time.Second*maxWaitTime)
 
 	walletErrChan := make(chan error)
-	go func () {
+	go func() {
 		err := wc.checkWalletWaitingForSession(waitCtx)
 		if err != nil {
-			walletErrChan<- err
+			walletErrChan <- err
 		}
 	}()
 
 	sessionChan := make(chan *Session)
 	participateErrChan := make(chan error)
 
-	go func () {
+	go func() {
 		session, err := mc.participate(waitCtx, maxAmount, cfg.SessionName, cfg.VoteAddress,
 			cfg.PoolAddress, cfg.PoolFeeRate, cfg.ChainParams)
 		if err != nil {
-			participateErrChan<-err
+			participateErrChan <- err
 		} else {
 			sessionChan <- session
 		}
 	}()
 
 	select {
-	case <- waitCtx.Done():
+	case <-waitCtx.Done():
 		waitCancel()
 		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(waitCtx.Err(),
 			"timeout while waiting for session in matcher")}
-	case walletErr := <- walletErrChan:
+	case walletErr := <-walletErrChan:
 		waitCancel()
 		return sessionWaiterResponse{nil, nil, nil, walletErr}
-	case partErr := <- participateErrChan:
+	case partErr := <-participateErrChan:
 		waitCancel()
 		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(partErr,
 			"error while waiting to participate in session")}
-	case session := <- sessionChan:
+	case session := <-sessionChan:
 		waitCancel()
 		rep.reportStage(mainCtx, StageMatchesFound, session, cfg)
 		return sessionWaiterResponse{mc, wc, session, nil}

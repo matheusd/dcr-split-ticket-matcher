@@ -79,12 +79,12 @@ func (wc *WalletClient) close() error {
 // If context is canceled, then this returns nil.
 // This blocks, therefore it MUST be run from a goroutine.
 func (wc *WalletClient) checkWalletWaitingForSession(waitCtx context.Context) error {
-	ticker := time.NewTicker(time.Second*30)
+	ticker := time.NewTicker(time.Second * 30)
 	for {
 		select {
-		case <- waitCtx.Done():
+		case <-waitCtx.Done():
 			return nil
-		case <- ticker.C:
+		case <-ticker.C:
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			_, err := wc.wsvc.Ping(ctx, &pb.PingRequest{})
 			cancel()
