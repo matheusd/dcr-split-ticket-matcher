@@ -49,3 +49,15 @@ func String() string {
 func Root() string {
 	return fmt.Sprintf("%d.%d.%d", Major, Minor, Patch)
 }
+
+// NoMeta returns the vertion of the app without build metadata (but with
+// prerelease tag if defined)
+func NoMeta() string {
+	version := fmt.Sprintf("%d.%d.%d", Major, Minor, Patch)
+
+	if PreRelease != "" {
+		version = fmt.Sprintf("%s-%s", version, PreRelease)
+	}
+
+	return version
+}

@@ -94,12 +94,13 @@ read the [instructions for joining the beta](/docs/beta.md).
 
 
 def getVersion():
-    with open("pkg/version.go") as f:
-        for l in f.readlines():
-            m = re.match(r'^const Version\s+= "(.+)"$', l)
-            if m:
-                return m.group(1)
-    return ""
+    noMeta = subprocess.check_output(["go", "run", "./pkg/version/cmd", "nometa"], encoding="utf-8").strip()
+    version = subprocess.check_output(["go", "run", "./pkg/version/cmd", "release"], encoding="utf-8").strip()
+    path = os.getcwd() + "/dist/archives/v%s" % version
+    if os.path.exists(path):
+        return version
+    else:
+        return noMeta
 
 
 def main():

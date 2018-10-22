@@ -1,10 +1,12 @@
 #!/bin/bash
 
-VERSION=`go run ./pkg/version/cmd $1`
 RELEASE=0
 CURRENT_COMMIT=`git log --pretty=format:'%h' -n 1`
 if [[ $1 == "release" ]] ; then
+    VERSION=`go run ./pkg/version/cmd release`
     RELEASE=1
+else
+    VERSION=`go run ./pkg/version/cmd nometa`
 fi
 
 DIRTY=""

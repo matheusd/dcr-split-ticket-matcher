@@ -12,6 +12,9 @@ func main() {
 		if os.Args[1] == "release" {
 			fmt.Println(version.Root())
 			return
+		} else if os.Args[1] == "nometa" {
+			fmt.Println(version.NoMeta())
+			return
 		}
 	}
 
