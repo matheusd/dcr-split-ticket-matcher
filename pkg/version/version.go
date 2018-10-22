@@ -43,3 +43,9 @@ func String() string {
 
 	return version
 }
+
+// Root returns the root version of the app (ie, no pre-release or build
+// metadata tags)
+func Root() string {
+	return fmt.Sprintf("%d.%d.%d", Major, Minor, Patch)
+}
