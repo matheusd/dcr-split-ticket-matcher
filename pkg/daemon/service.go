@@ -7,7 +7,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 	"github.com/pkg/errors"
@@ -88,9 +88,9 @@ func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.F
 	var voteAddr, poolAddr dcrutil.Address
 	var err error
 
-	if req.ProtocolVersion != pkg.ProtocolVersion {
+	if req.ProtocolVersion != version.ProtocolVersion {
 		return nil, errors.Errorf("server is running a different protocol "+
-			"version (%d) than client (%d)", pkg.ProtocolVersion,
+			"version (%d) than client (%d)", version.ProtocolVersion,
 			req.ProtocolVersion)
 	}
 

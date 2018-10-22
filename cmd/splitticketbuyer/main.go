@@ -6,7 +6,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/buyer"
 )
 
@@ -17,7 +17,7 @@ func zeroBytes(b []byte) {
 }
 
 func main() {
-	fmt.Printf("Split ticket buyer version %s\n", pkg.Version)
+	fmt.Printf("Split ticket buyer version %s\n", version.String())
 
 	if !buyer.DefaultConfigFileExists() {
 		fmt.Println("Default config file does not exist. Initializing buyer config based on existing dcrwallet.conf")

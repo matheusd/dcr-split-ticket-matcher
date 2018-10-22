@@ -1,6 +1,6 @@
 #!/bin/sh
 
-VERSION=`grep -oP "const Version = \"\K[^\"]+(?=\")" pkg/version.go`
+. ./bin/common.sh
 
 rm -fR dist/release/win64/split-ticket-buyer
 mkdir -p dist/release/win64/split-ticket-buyer
@@ -11,20 +11,14 @@ echo "Building binaries $VERSION..."
 ### win64
 
 echo "Building CLI buyer (win64)"
-env GOOS=windows GOARCH=amd64 \
-    go build \
-    -v \
-    -o dist/release/win64/split-ticket-buyer/splitticketbuyer.exe \
-    cmd/splitticketbuyer/*.go
-if [[ $? != 0 ]] ; then exit 1 ; fi
+go_build \
+    dist/release/win64/split-ticket-buyer/splitticketbuyer.exe \
+    ./cmd/splitticketbuyer
 
 echo "Building GUI buyer (win64)"
-env GOOS=windows GOARCH=amd64 \
-    go build \
-    -v \
-    -o dist/release/win64/split-ticket-buyer/splitticketbuyergui.exe \
-    cmd/splitticketbuyergui/*.go
-if [[ $? != 0 ]] ; then exit 1 ; fi
+go_build \
+    dist/release/win64/split-ticket-buyer/splitticketbuyergui.exe \
+    ./cmd/splitticketbuyergui
 
 cp docs/release-readme.md dist/release/win64/split-ticket-buyer/README.md
 cp samples/win64-dlls/* dist/release/win64/split-ticket-buyer/
