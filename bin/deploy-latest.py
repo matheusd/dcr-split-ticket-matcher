@@ -152,7 +152,7 @@ def main():
         release = existRelease
 
     releaseInfo = RELEASE_INFO
-    releaseInfoFname = "docs/release-history/%s" % tagName
+    releaseInfoFname = "docs/release-history/%s.md" % tagName
     if os.path.exists(releaseInfoFname):
         with open(releaseInfoFname) as f:
             releaseInfo += "\n" + f.read()
