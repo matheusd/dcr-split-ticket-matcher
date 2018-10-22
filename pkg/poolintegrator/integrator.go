@@ -7,7 +7,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/rpcclient"
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/integratorrpc"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/util"
 	"github.com/op/go-logging"
@@ -33,7 +33,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	logBackend := util.StandardLogBackend(true, cfg.LogDir, "stmpoolintegrator-{date}-{time}.log", cfg.LogLevel)
 	log.SetBackend(logBackend)
 
-	log.Noticef("Split Ticket Matcher / Voting Pool integrator v%s", pkg.Version)
+	log.Noticef("Split Ticket Matcher / Voting Pool integrator v%s", version.String())
 
 	chainParams := &chaincfg.MainNetParams
 	if cfg.TestNet {

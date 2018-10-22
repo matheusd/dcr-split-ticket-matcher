@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/poolintegrator"
 )
 
@@ -16,7 +16,7 @@ func main() {
 			return
 		} else if err == poolintegrator.ErrVersionRequested {
 			fmt.Printf("Split ticket matcher pool integrator version %s\n",
-				pkg.Version)
+				version.String())
 			return
 		}
 

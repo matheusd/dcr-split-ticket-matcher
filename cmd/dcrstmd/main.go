@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/daemon"
 )
 
@@ -19,7 +19,7 @@ func startDaemon(serverCtx context.Context) error {
 			os.Exit(0)
 		} else if err == daemon.ErrVersionRequested {
 			fmt.Printf("Split ticket matcher service daemon version %s\n",
-				pkg.Version)
+				version.String())
 			os.Exit(0)
 		}
 

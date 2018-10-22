@@ -13,7 +13,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/util"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
@@ -63,7 +63,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	d.logBackend = util.StandardLogBackend(true, cfg.LogDir, "dcrstmd-{date}-{time}.log", cfg.LogLevel)
 	d.log.SetBackend(d.logBackend)
 
-	d.log.Noticef("Starting dcrstmd version %s", pkg.Version)
+	d.log.Noticef("Starting dcrstmd version %s", version.String())
 
 	dcfg := &decredNetworkConfig{
 		Host:        cfg.DcrdHost,

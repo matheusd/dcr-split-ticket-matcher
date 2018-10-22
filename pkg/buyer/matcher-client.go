@@ -10,7 +10,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	intnet "github.com/matheusd/dcr-split-ticket-matcher/pkg/buyer/internal/net"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
@@ -100,7 +100,7 @@ func (mc *MatcherClient) participate(ctx context.Context, maxAmount dcrutil.Amou
 	req := &pb.FindMatchesRequest{
 		Amount:          uint64(maxAmount),
 		SessionName:     sessionName,
-		ProtocolVersion: pkg.ProtocolVersion,
+		ProtocolVersion: version.ProtocolVersion,
 		VoteAddress:     voteAddress,
 		PoolAddress:     poolAddress,
 	}
