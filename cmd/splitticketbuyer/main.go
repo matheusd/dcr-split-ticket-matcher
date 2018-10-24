@@ -6,8 +6,8 @@ import (
 	"os"
 	"path"
 
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/buyer"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 )
 
 func zeroBytes(b []byte) {

@@ -7,9 +7,9 @@ import (
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/rpcclient"
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/integratorrpc"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/util"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	"github.com/op/go-logging"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"

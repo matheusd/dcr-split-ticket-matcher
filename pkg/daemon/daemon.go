@@ -13,11 +13,11 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/util"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/poolintegrator"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	"github.com/op/go-logging"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

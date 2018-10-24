@@ -10,10 +10,10 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	intnet "github.com/matheusd/dcr-split-ticket-matcher/pkg/buyer/internal/net"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
