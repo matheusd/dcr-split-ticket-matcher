@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/daemon"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 )
 
 func startDaemon(serverCtx context.Context) error {

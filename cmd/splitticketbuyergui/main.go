@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/buyer"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	"github.com/mattn/go-gtk/glib"
 	"github.com/mattn/go-gtk/gtk"
 )

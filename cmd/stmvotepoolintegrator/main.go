@@ -5,8 +5,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/poolintegrator"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 )
 
 func main() {
