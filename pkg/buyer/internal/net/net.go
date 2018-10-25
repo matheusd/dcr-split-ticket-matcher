@@ -148,5 +148,13 @@ func DetermineMatcherHost(matcherHost string) (string, bool, error) {
 		return matcherHost, true, nil
 	}
 
+	if err != nil {
+		if strings.LastIndex(err.Error(), "no such host") == -1 {
+			// not a great way to check for the "no such error" host (target
+			// host not found)
+			return "", false, errors.Wrap(err, "error during SRV record lookup")
+		}
+	}
+
 	return matcherHost, false, nil
 }
