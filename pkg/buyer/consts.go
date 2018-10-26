@@ -17,6 +17,7 @@ const (
 // necessarily pass through all of these stages.
 const (
 	StageUnknown Stage = iota
+	StageStarting
 	StageConnectingToMatcher
 	StageConnectingToWallet
 	StageFindingMatches

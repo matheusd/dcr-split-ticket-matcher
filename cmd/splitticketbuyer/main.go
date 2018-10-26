@@ -64,9 +64,7 @@ func main() {
 		reporter)
 
 	err = buyer.BuySplitTicket(ctx, cfg)
-	if err != nil {
-		fmt.Printf("Error buying split ticket: %v\n", err)
-	} else {
+	if err == nil {
 		fmt.Printf("Success buying split ticket!\n")
 	}
 
