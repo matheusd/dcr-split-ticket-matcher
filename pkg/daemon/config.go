@@ -6,11 +6,12 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/util"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 
 	flags "github.com/btcsuite/go-flags"
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/op/go-logging"
+	"github.com/decred/slog"
 	"github.com/pkg/errors"
 )
 
@@ -31,8 +32,8 @@ type Config struct {
 
 	Port                  int    `long:"port" description:"Port to run the service on"`
 	WaitingListWSBindAddr string `long:"waitinglistwsbindaddr" description:"Address to bind the waiting list watcher websocket server. Empty disables this service"`
-	LogLevel              logging.Level
-	LogLevelName          string `long:"loglevel" description:"Log Level (CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG)"`
+	LogLevel              slog.Level
+	LogLevelName          string `long:"loglevel" description:"Log Level (CRITICAL, ERROR, WARNING, INFO, DEBUG, TRACE)"`
 	LogDir                string `long:"logdir" description:"Location to save log files."`
 	KeyFile               string `long:"keyfile" description:"Location of the rpc.key file (private key for the TLS certificate)."`
 	CertFile              string `long:"certfile" description:"Location of the rpc.cert file (TLS certificate)."`
@@ -67,6 +68,8 @@ type Config struct {
 
 	KeepAliveTime    time.Duration `long:"keepalivetime" description:"Time duration between server-requested pings to individual clients to see if they are still online"`
 	KeepAliveTimeout time.Duration `long:"keepalivetimeout" description:"Time duration to wait for a reply after a keepalive ping has been sent"`
+
+	logBackend *slog.Backend
 }
 
 var (
@@ -101,8 +104,8 @@ func LoadConfig() (*Config, error) {
 	cfg := &Config{
 		Port:         8475,
 		MinAmount:    2.0,
-		LogLevel:     logging.INFO,
-		LogLevelName: logging.INFO.String(),
+		LogLevel:     slog.LevelInfo,
+		LogLevelName: slog.LevelInfo.String(),
 		LogDir:       filepath.Join(defaultDataDir, "logs"),
 		DataDir:      defaultDataDir,
 
@@ -142,11 +145,21 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
-	logLvl, err := logging.LogLevel(cfg.LogLevelName)
-	if err != nil {
-		return nil, err
+	logLvl, ok := slog.LevelFromString(cfg.LogLevelName)
+	if !ok {
+		return nil, errors.Errorf("Uknown log level: %s", cfg.LogLevelName)
 	}
 	cfg.LogLevel = logLvl
 
 	return cfg, nil
+}
+
+func (cfg *Config) logger(subsystem string) slog.Logger {
+	if cfg.logBackend == nil {
+		cfg.logBackend = util.StandardLogBackend(true, cfg.LogDir, "dcrstmd-{date}-{time}.log")
+	}
+
+	log := cfg.logBackend.Logger(subsystem)
+	log.SetLevel(cfg.LogLevel)
+	return log
 }

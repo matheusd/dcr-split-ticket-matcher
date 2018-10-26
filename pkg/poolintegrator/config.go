@@ -6,14 +6,14 @@ import (
 
 	flags "github.com/btcsuite/go-flags"
 	"github.com/decred/dcrd/dcrutil"
-	logging "github.com/op/go-logging"
+	"github.com/decred/slog"
 	"github.com/pkg/errors"
 )
 
 // Config holds information on how to configure the voting pool integrator daemon.
 type Config struct {
 	Port         int `long:"port" description:"Port to run the service on"`
-	LogLevel     logging.Level
+	LogLevel     slog.Level
 	LogLevelName string `long:"loglevel" description:"Log Level (CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG)"`
 	LogDir       string `long:"logdir" description:"Log directory. Specify to save log messages to a file"`
 	KeyFile      string `long:"keyfile" description:"Location of the rpc.key file (private key for the TLS certificate)."`
@@ -94,9 +94,9 @@ func LoadConfig() (*Config, error) {
 			"config from stakepoold")
 	}
 
-	logLvl, err := logging.LogLevel(cfg.LogLevelName)
-	if err != nil {
-		return nil, errors.Wrapf(err, "error decoding log level name")
+	logLvl, ok := slog.LevelFromString(cfg.LogLevelName)
+	if !ok {
+		return nil, errors.Errorf("Invalid log level name %s", cfg.LogLevelName)
 	}
 	cfg.LogLevel = logLvl
 

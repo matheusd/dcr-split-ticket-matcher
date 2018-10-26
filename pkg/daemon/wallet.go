@@ -2,13 +2,13 @@ package daemon
 
 import (
 	"encoding/hex"
+	"github.com/decred/slog"
 	"io/ioutil"
 
 	"github.com/decred/dcrd/dcrjson"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/rpcclient"
 	"github.com/decred/dcrd/wire"
-	logging "github.com/op/go-logging"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 )
@@ -21,13 +21,13 @@ type WalletConfig struct {
 	Pass     string
 	CertFile string
 
-	logBackend logging.LeveledBackend
+	Log slog.Logger
 }
 
 // WalletClient is responsible for the interactions between the matcher service
 // and the wallet it requires.
 type WalletClient struct {
-	log            *logging.Logger
+	log            slog.Logger
 	client         *rpcclient.Client
 	poolFeeAddress dcrutil.Address
 }
@@ -37,10 +37,8 @@ func ConnectToDcrWallet(cfg *WalletConfig) (
 	*WalletClient, error) {
 
 	w := &WalletClient{
-		log: logging.MustGetLogger("dcrwallet client"),
+		log: cfg.Log,
 	}
-
-	w.log.SetBackend(cfg.logBackend)
 
 	certs, err := ioutil.ReadFile(cfg.CertFile)
 	if err != nil {

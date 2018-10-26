@@ -3,6 +3,7 @@ package poolintegrator
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/decred/slog"
 	"net"
 
 	"github.com/decred/dcrd/chaincfg"
@@ -10,7 +11,6 @@ import (
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/integratorrpc"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/util"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
-	"github.com/op/go-logging"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -19,7 +19,7 @@ import (
 // Daemon is the structure that defines a pool integrator daemon.
 type Daemon struct {
 	cfg               *Config
-	log               *logging.Logger
+	log               slog.Logger
 	rpcKeys           *tls.Certificate
 	chainParams       *chaincfg.Params
 	poolAddrValidator *util.MasterPubPoolAddrValidator
@@ -28,12 +28,11 @@ type Daemon struct {
 
 // NewDaemon initializes a new pool integrator daemon
 func NewDaemon(cfg *Config) (*Daemon, error) {
-	log := logging.MustGetLogger("dcr-split-ticket-matcher")
+	logBackend := util.StandardLogBackend(true, cfg.LogDir, "stmpoolintegrator-{date}-{time}.log")
+	log := logBackend.Logger("INTG")
+	log.SetLevel(cfg.LogLevel)
 
-	logBackend := util.StandardLogBackend(true, cfg.LogDir, "stmpoolintegrator-{date}-{time}.log", cfg.LogLevel)
-	log.SetBackend(logBackend)
-
-	log.Noticef("Split Ticket Matcher / Voting Pool integrator v%s", version.String())
+	log.Criticalf("Split Ticket Matcher / Voting Pool integrator v%s", version.String())
 
 	chainParams := &chaincfg.MainNetParams
 	if cfg.TestNet {
@@ -42,7 +41,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 
 	cert, err := util.LoadRPCKeyPair(cfg.KeyFile, cfg.CertFile)
 	if err == util.ErrKeyPairCreated {
-		log.Noticef("Created RPC keypair with cert '%s' and key '%s'",
+		log.Infof("Created RPC keypair with cert '%s' and key '%s'",
 			cfg.CertFile, cfg.KeyFile)
 	} else if err != nil {
 		return nil, errors.Wrap(err, "error loading rpc key pair")
@@ -87,6 +86,6 @@ func (d *Daemon) ListenAndServe() error {
 
 	pb.RegisterVotePoolIntegratorServiceServer(server, d)
 
-	d.log.Noticef("Listening on %s", intf)
+	d.log.Criticalf("Listening on %s", intf)
 	return server.Serve(lis)
 }

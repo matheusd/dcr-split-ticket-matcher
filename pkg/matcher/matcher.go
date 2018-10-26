@@ -14,7 +14,7 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
-	logging "github.com/op/go-logging"
+	"github.com/decred/slog"
 	"github.com/pkg/errors"
 )
 
@@ -59,8 +59,7 @@ type Config struct {
 	SignPoolSplitOutProvider  SignPoolSplitOutputProvider
 	VoteAddrValidator         VoteAddressValidationProvider
 	PoolAddrValidator         PoolAddressValidationProvider
-	LogLevel                  logging.Level
-	LogBackend                logging.LeveledBackend
+	Log                       slog.Logger
 	ChainParams               *chaincfg.Params
 	PoolFee                   float64
 	MaxSessionDuration        time.Duration
@@ -97,7 +96,7 @@ type Matcher struct {
 	participants        map[ParticipantID]*SessionParticipant
 	waitingListWatchers map[context.Context]chan []WaitingQueue
 	cfg                 *Config
-	log                 *logging.Logger
+	log                 slog.Logger
 
 	cancelWaitingParticipant      chan *addParticipantRequest
 	addParticipantRequests        chan addParticipantRequest
@@ -115,7 +114,7 @@ func NewMatcher(cfg *Config) *Matcher {
 	m := &Matcher{
 		cfg:                 cfg,
 		queues:              make(map[string]*splitTicketQueue),
-		log:                 logging.MustGetLogger("matcher"),
+		log:                 cfg.Log,
 		sessions:            make(map[SessionID]*Session),
 		participants:        make(map[ParticipantID]*SessionParticipant),
 		waitingListWatchers: make(map[context.Context]chan []WaitingQueue),
@@ -129,7 +128,6 @@ func NewMatcher(cfg *Config) *Matcher {
 		watchWaitingListRequests:      make(chan watchWaitingListRequest),
 		cancelWaitingListWatcher:      make(chan context.Context),
 	}
-	m.log.SetBackend(cfg.LogBackend)
 
 	return m
 }
@@ -217,7 +215,7 @@ func (matcher *Matcher) notifyWaitingListWatchers() {
 			select {
 			case w <- queues:
 			default:
-				matcher.log.Warningf("Possible block when trying to send to waiting list watcher")
+				matcher.log.Warnf("Possible block when trying to send to waiting list watcher")
 			}
 		}
 	}
@@ -279,7 +277,7 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 		matcher.cfg.ChainParams)
 	q.waitingParticipants = nil
 
-	matcher.log.Noticef("Starting new session %s: Ticket Price=%s Fees=%s "+
+	matcher.log.Infof("Starting new session %s: Ticket Price=%s Fees=%s "+
 		"Participants=%d PoolFee=%s", sessID, ticketPrice, ticketTxFee,
 		numParts, poolFee)
 
@@ -352,7 +350,7 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 		sessTimer := time.NewTimer(matcher.cfg.MaxSessionDuration)
 		<-sessTimer.C
 		if !s.Done && !s.Canceled {
-			matcher.log.Warningf("Session %s lasted more than MaxSessionDuration", s.ID)
+			matcher.log.Warnf("Session %s lasted more than MaxSessionDuration", s.ID)
 			matcher.cancelSessionChan <- cancelSessionChanReq{session: s,
 				err: errors.Errorf("session expired")}
 		}
@@ -704,7 +702,7 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 			}
 		}
 
-		matcher.log.Noticef("Session %s successfully finished as ticket %s",
+		matcher.log.Infof("Session %s successfully finished as ticket %s",
 			sess.ID, ticket.TxHash())
 		matcher.removeSession(sess, nil)
 	}

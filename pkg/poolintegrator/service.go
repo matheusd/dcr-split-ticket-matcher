@@ -20,7 +20,7 @@ func (d *Daemon) ValidateVoteAddress(ctx context.Context, req *pb.ValidateVoteAd
 	addr, err := dcrutil.DecodeAddress(req.Address)
 	if err != nil {
 		resp.Error = errors.Wrap(err, "error decoding address").Error()
-		d.log.Noticef("Received vote validate request with undecodable address (%s): %s",
+		d.log.Warnf("Received vote validate request with undecodable address (%s): %s",
 			req.Address, err)
 		return resp, nil
 	}
@@ -28,15 +28,15 @@ func (d *Daemon) ValidateVoteAddress(ctx context.Context, req *pb.ValidateVoteAd
 	wresp, err := d.wallet.ValidateAddress(addr)
 	if err != nil {
 		resp.Error = errors.Wrap(err, "error validating vote address").Error()
-		d.log.Warningf("Received error trying to validate address %s with wallet: %s",
+		d.log.Warnf("Received error trying to validate address %s with wallet: %s",
 			req.Address, err)
 	} else if !wresp.IsValid {
 		resp.Error = "provided address is not valid"
-		d.log.Noticef("Received vote validate request with invalid address (%s)",
+		d.log.Warnf("Received vote validate request with invalid address (%s)",
 			req.Address)
 	} else if !wresp.IsMine {
 		resp.Error = "address is not from this voting pool"
-		d.log.Noticef("Received vote validate request with address not owned (%s)",
+		d.log.Infof("Received vote validate request with address not owned (%s)",
 			req.Address)
 	}
 
@@ -54,7 +54,7 @@ func (d *Daemon) ValidatePoolSubsidyAddress(ctx context.Context,
 	err := d.poolAddrValidator.ValidateByEncodedAddr(req.Address)
 	if err != nil {
 		resp.Error = err.Error()
-		d.log.Noticef("Received pool validate request by wrong address (%s): %s",
+		d.log.Warnf("Received pool validate request by wrong address (%s): %s",
 			req.Address, err)
 	}
 
