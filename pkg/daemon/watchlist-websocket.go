@@ -6,16 +6,16 @@ import (
 	"sync"
 
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/slog"
 	"github.com/gorilla/websocket"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
-	logging "github.com/op/go-logging"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 )
 
 type waitlistWebsocketService struct {
 	matcher      *matcher.Matcher
-	log          *logging.Logger
+	log          slog.Logger
 	upgrader     websocket.Upgrader
 	server       *http.Server
 	openWatchers *sync.Map
@@ -23,7 +23,7 @@ type waitlistWebsocketService struct {
 }
 
 func newWaitlistWebsocketService(bindAddr string, matcher *matcher.Matcher,
-	logBackend logging.LeveledBackend) (*waitlistWebsocketService, error) {
+	log slog.Logger) (*waitlistWebsocketService, error) {
 
 	mux := http.NewServeMux()
 
@@ -36,7 +36,7 @@ func newWaitlistWebsocketService(bindAddr string, matcher *matcher.Matcher,
 	svc := &waitlistWebsocketService{
 		matcher:      matcher,
 		openWatchers: &sync.Map{},
-		log:          logging.MustGetLogger("ws-waiting-list-svc"),
+		log:          log,
 		server:       &http.Server{Addr: bindAddr, Handler: mux},
 		listener:     ln,
 		upgrader: websocket.Upgrader{
@@ -46,7 +46,6 @@ func newWaitlistWebsocketService(bindAddr string, matcher *matcher.Matcher,
 		},
 	}
 
-	svc.log.SetBackend(logBackend)
 	mux.HandleFunc("/", svc.index)
 	mux.HandleFunc("/watchWaitingList", svc.watchWaitingList)
 	svc.server.RegisterOnShutdown(svc.closeWebsockets)
@@ -119,7 +118,7 @@ func (svc *waitlistWebsocketService) watchWaitingList(w http.ResponseWriter, r *
 }
 
 func (svc *waitlistWebsocketService) closeWebsockets() {
-	svc.log.Noticef("Shutting down outstanding websocket connections")
+	svc.log.Infof("Shutting down outstanding websocket connections")
 	svc.openWatchers.Range(func(key, value interface{}) bool {
 		if shutdownChan, is := key.(chan struct{}); is {
 			go func(c chan struct{}) { c <- struct{}{} }(shutdownChan)

@@ -21,6 +21,7 @@ require (
 	github.com/decred/dcrd/wire v1.1.0
 	github.com/decred/dcrwallet/rpc/walletrpc v0.1.0
 	github.com/decred/dcrwallet/wallet v1.0.0
+	github.com/decred/slog v1.0.0
 	github.com/go-ini/ini v1.30.0
 	github.com/golang/protobuf v1.1.0
 	github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1 // indirect
@@ -29,7 +30,6 @@ require (
 	github.com/jtolds/gls v4.2.1+incompatible // indirect
 	github.com/mattn/go-gtk v0.0.0-20180626024644-7d65db4a7c69
 	github.com/mattn/go-pointer v0.0.0-20171114154726-1d30dc4b6f28 // indirect
-	github.com/op/go-logging v0.0.0-20160211212156-b2cb9fa56473
 	github.com/pkg/errors v0.8.0
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d // indirect

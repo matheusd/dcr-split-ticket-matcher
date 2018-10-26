@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"github.com/decred/slog"
 	"io/ioutil"
 	"strings"
 	"time"
@@ -11,7 +12,6 @@ import (
 	"github.com/decred/dcrd/rpcclient"
 	"github.com/decred/dcrd/wire"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
-	logging "github.com/op/go-logging"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 )
@@ -21,7 +21,7 @@ type decredNetworkConfig struct {
 	User        string
 	Pass        string
 	CertFile    string
-	logBackend  logging.LeveledBackend
+	Log         slog.Logger
 	chainParams *chaincfg.Params
 }
 
@@ -29,18 +29,15 @@ type decredNetwork struct {
 	client      *rpcclient.Client
 	blockHeight uint32
 	blockHash   chainhash.Hash
-	log         *logging.Logger
+	log         slog.Logger
 	ticketPrice uint64
 	chainParams *chaincfg.Params
 }
 
 func connectToDecredNode(cfg *decredNetworkConfig) (*decredNetwork, error) {
 
-	log := logging.MustGetLogger("decred-network")
-	log.SetBackend(cfg.logBackend)
-
 	net := &decredNetwork{
-		log:         log,
+		log:         cfg.Log,
 		chainParams: cfg.chainParams,
 	}
 
@@ -82,7 +79,7 @@ func connectToDecredNode(cfg *decredNetworkConfig) (*decredNetwork, error) {
 		return nil, err
 	}
 
-	net.log.Noticef("Connected to the decred network. Height=%d StakeDiff=%s", net.blockHeight, dcrutil.Amount(net.ticketPrice))
+	net.log.Criticalf("Connected to the decred network. Height=%d StakeDiff=%s", net.blockHeight, dcrutil.Amount(net.ticketPrice))
 
 	return net, nil
 }

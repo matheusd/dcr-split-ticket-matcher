@@ -10,6 +10,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/slog"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/poolintegrator"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
-	"github.com/op/go-logging"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -27,12 +27,11 @@ import (
 // Daemon is the main instance of a running dcr split ticket matcher daemon
 type Daemon struct {
 	cfg          *Config
-	log          *logging.Logger
+	log          slog.Logger
 	matcher      *matcher.Matcher
 	wallet       *WalletClient
 	rpcKeys      *tls.Certificate
 	dcrd         *decredNetwork
-	logBackend   logging.LeveledBackend
 	grpcListener net.Listener
 	waitlistSvc  *waitlistWebsocketService
 }
@@ -57,20 +56,17 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 
 	d := &Daemon{
 		cfg: cfg,
-		log: logging.MustGetLogger("dcr-split-ticket-matcher"),
+		log: cfg.logger("DAEM"),
 	}
 
-	d.logBackend = util.StandardLogBackend(true, cfg.LogDir, "dcrstmd-{date}-{time}.log", cfg.LogLevel)
-	d.log.SetBackend(d.logBackend)
-
-	d.log.Noticef("Starting dcrstmd version %s", version.String())
+	d.log.Criticalf("Starting dcrstmd version %s", version.String())
 
 	dcfg := &decredNetworkConfig{
 		Host:        cfg.DcrdHost,
 		Pass:        cfg.DcrdPass,
 		CertFile:    cfg.DcrdCert,
 		User:        cfg.DcrdUser,
-		logBackend:  d.logBackend,
+		Log:         cfg.logger("DCRD"),
 		chainParams: chainParams,
 	}
 	dcrd, err := connectToDecredNode(dcfg)
@@ -80,11 +76,11 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	d.dcrd = dcrd
 
 	dcrwcfg := &WalletConfig{
-		Host:       cfg.DcrwHost,
-		User:       cfg.DcrwUser,
-		Pass:       cfg.DcrwPass,
-		CertFile:   cfg.DcrwCert,
-		logBackend: d.logBackend,
+		Host:     cfg.DcrwHost,
+		User:     cfg.DcrwUser,
+		Pass:     cfg.DcrwPass,
+		CertFile: cfg.DcrwCert,
+		Log:      cfg.logger("WLLT"),
 	}
 	dcrw, err := ConnectToDcrWallet(dcrwcfg)
 	if err != nil {
@@ -96,7 +92,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		var cert *tls.Certificate
 		cert, err = util.LoadRPCKeyPair(cfg.KeyFile, cfg.CertFile)
 		if err == util.ErrKeyPairCreated {
-			d.log.Noticef("Generated key (%s) and cert (%s) files",
+			d.log.Criticalf("Generated key (%s) and cert (%s) files",
 				cfg.KeyFile, cfg.CertFile)
 		} else if err != nil {
 			panic(err)
@@ -173,7 +169,6 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		cfg.KeepAliveTimeout)
 
 	mcfg := &matcher.Config{
-		LogLevel:                  cfg.LogLevel,
 		MinAmount:                 uint64(minAmount),
 		NetworkProvider:           d.dcrd,
 		SignPoolSplitOutProvider:  poolSigner,
@@ -182,7 +177,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		ChainParams:               chainParams,
 		PoolFee:                   cfg.PoolFee,
 		MaxSessionDuration:        cfg.MaxSessionDuration,
-		LogBackend:                d.logBackend,
+		Log:                       cfg.logger("MTCH"),
 		StakeDiffChangeStopWindow: cfg.StakeDiffChangeStopWindow,
 		PublishTransactions:       cfg.PublishTransactions,
 		SessionDataDir:            filepath.Join(cfg.DataDir, "sessions"),
@@ -192,13 +187,13 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	if cfg.WaitingListWSBindAddr != "" {
 		var wssvc *waitlistWebsocketService
 		wssvc, err = newWaitlistWebsocketService(cfg.WaitingListWSBindAddr,
-			d.matcher, d.logBackend)
+			d.matcher, cfg.logger("WLWS"))
 		if err != nil {
 			return nil, errors.Wrapf(err, "error starting waitlist "+
 				"websocket service")
 		}
 		d.waitlistSvc = wssvc
-		d.log.Noticef("Waitlist WS service listening on %s",
+		d.log.Criticalf("Waitlist WS service listening on %s",
 			cfg.WaitingListWSBindAddr)
 	} else {
 		d.log.Info("Skipping start of websocket waiting list service")
@@ -210,7 +205,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		return nil, errors.Wrapf(err, "error listening on interface %s", intf)
 	}
 	d.grpcListener = lis
-	d.log.Noticef("GRPC service listening on %s", intf)
+	d.log.Criticalf("GRPC service listening on %s", intf)
 
 	return d, nil
 }
@@ -222,7 +217,7 @@ func (daemon *Daemon) Run(serverCtx context.Context) error {
 		return fmt.Errorf("RPC TLS keys not specified")
 	}
 
-	daemon.log.Noticef("Running matching engine")
+	daemon.log.Criticalf("Running matching engine")
 	go daemon.wallet.Run(serverCtx)
 	go daemon.matcher.Run(serverCtx)
 	go daemon.dcrd.run(serverCtx)
@@ -249,11 +244,11 @@ func (daemon *Daemon) Run(serverCtx context.Context) error {
 		daemon.cfg.AllowPublicSession)
 	pb.RegisterSplitTicketMatcherServiceServer(server, svc)
 
-	daemon.log.Noticef("Running daemon on pid %d", os.Getpid())
+	daemon.log.Criticalf("Running daemon on pid %d", os.Getpid())
 
 	go func() {
 		<-serverCtx.Done()
-		daemon.log.Notice("Server context done in daemon")
+		daemon.log.Infof("Server context done in daemon")
 		server.Stop()
 	}()
 
