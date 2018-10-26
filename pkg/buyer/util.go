@@ -16,6 +16,7 @@ import (
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/util"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 )
 
 func encodeSessionName(name string) string {
@@ -125,6 +126,10 @@ func (rep *WriterReporter) reportWrongTicketPublished(ticket *wire.MsgTx, sessio
 	fmt.Fprintf(rep.w, "Expected ticket hash: %s\n", session.selectedTicket.TxHash())
 }
 
+func (rep *WriterReporter) reportBuyingError(err error) {
+	fmt.Fprintf(rep.w, "Error buying split ticket: %s\n", err.Error())
+}
+
 func (rep *WriterReporter) reportStage(ctx context.Context, stage Stage, session *Session, cfg *Config) {
 
 	out := func(format string, args ...interface{}) {
@@ -135,6 +140,9 @@ func (rep *WriterReporter) reportStage(ctx context.Context, stage Stage, session
 	switch stage {
 	case StageUnknown:
 		out("ERROR: Unknown stage received\n")
+		return
+	case StageStarting:
+		out("Starting purchase process v%s\n", version.String())
 		return
 	case StageConnectingToMatcher:
 		out("Connecting to matcher service '%s'\n", cfg.MatcherHost)
@@ -286,6 +294,7 @@ func (rep NullReporter) reportSrvRecordFound(record string)                     
 func (rep NullReporter) reportSplitPublished()                                           {}
 func (rep NullReporter) reportRightTicketPublished()                                     {}
 func (rep NullReporter) reportWrongTicketPublished(ticket *wire.MsgTx, session *Session) {}
+func (rep NullReporter) reportBuyingError(err error)                                     {}
 
 func reporterFromContext(ctx context.Context) Reporter {
 	val := ctx.Value(ReporterCtxKey)

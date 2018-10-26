@@ -282,8 +282,8 @@ func participate(logf logFunc, passphrase, sessionName string,
 	for !gotResult {
 		select {
 		case err = <-splitResultChan:
-			if err != nil {
-				logf("Error trying to purchase split ticket: %v", err)
+			if err == nil {
+				logf("Success buying split ticket!")
 			}
 			timer.Stop()
 			gotResult = true

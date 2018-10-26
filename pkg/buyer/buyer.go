@@ -137,6 +137,7 @@ type Reporter interface {
 	reportSplitPublished()
 	reportRightTicketPublished()
 	reportWrongTicketPublished(ticket *wire.MsgTx, session *Session)
+	reportBuyingError(err error)
 }
 
 type sessionWaiterResponse struct {
@@ -149,6 +150,20 @@ type sessionWaiterResponse struct {
 // BuySplitTicket performs the whole split ticket purchase process, given the
 // config provided. The context may be canceled at any time to abort the session.
 func BuySplitTicket(ctx context.Context, cfg *Config) error {
+	rep := reporterFromContext(ctx)
+	rep.reportStage(ctx, StageStarting, nil, cfg)
+
+	err := buySplitTicket(ctx, cfg)
+	if err != nil {
+		rep.reportBuyingError(err)
+	}
+
+	return err
+}
+
+// buySplitTicket is the unexported version that performs the whole ticket buyer
+// process.
+func buySplitTicket(ctx context.Context, cfg *Config) error {
 
 	if cfg.WalletHost == "127.0.0.1:0" {
 		hosts, err := net.FindListeningWallets(cfg.WalletCertFile, cfg.ChainParams)
@@ -176,7 +191,7 @@ func BuySplitTicket(ctx context.Context, cfg *Config) error {
 
 	ctxBuy, cancelBuy := context.WithTimeout(ctx, time.Second*time.Duration(cfg.MaxTime))
 	reschan2 := make(chan error)
-	go func() { reschan2 <- buySplitTicket(ctxBuy, cfg, resp.mc, resp.wc, resp.session) }()
+	go func() { reschan2 <- buySplitTicketInSession(ctxBuy, cfg, resp.mc, resp.wc, resp.session) }()
 
 	select {
 	case <-ctx.Done():
@@ -304,7 +319,7 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 	}
 }
 
-func buySplitTicket(ctx context.Context, cfg *Config, mc *MatcherClient, wc *WalletClient, session *Session) error {
+func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *MatcherClient, wc *WalletClient, session *Session) error {
 
 	rep := reporterFromContext(ctx)
 	var err error
