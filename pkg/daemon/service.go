@@ -33,7 +33,9 @@ func encodeQueueName(name string) string {
 }
 
 func translateMatcherError(err error) error {
-	// TODO: fix
+	if err == matcher.ErrSessionExpired {
+		return codes.Aborted.Error(err.Error())
+	}
 	return err
 }
 
@@ -264,7 +266,7 @@ func (svc *SplitTicketMatcherService) BuyerError(ctx context.Context, req *pb.Bu
 	// TODO: ensure this session existed and that the request came from
 	// someone participating in said session
 
-	if strings.Index(req.ErrorMsg, "session expired") > -1 {
+	if strings.Index(req.ErrorMsg, matcher.ErrSessionExpired.Error()) > -1 {
 		return &pb.BuyerErrorResponse{}, nil
 	}
 
