@@ -147,6 +147,13 @@ type sessionWaiterResponse struct {
 	err     error
 }
 
+type unreportableError struct {
+	e error
+}
+
+func (e unreportableError) unreportable() bool { return true }
+func (e unreportableError) Error() string      { return e.e.Error() }
+
 // BuySplitTicket performs the whole split ticket purchase process, given the
 // config provided. The context may be canceled at any time to abort the session.
 func BuySplitTicket(ctx context.Context, cfg *Config) error {
@@ -199,6 +206,11 @@ func buySplitTicket(ctx context.Context, cfg *Config) error {
 		cancelBuy()
 		return ctx.Err()
 	case err := <-reschan2:
+		if err != nil {
+			if _, unreportable := err.(unreportableError); !unreportable && !cfg.SkipReportErrorsToSvc {
+				resp.mc.sendErrorReport(resp.session.ID, err)
+			}
+		}
 		cancelBuy()
 		return err
 	}
@@ -351,7 +363,7 @@ func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *MatcherClient
 	rep.reportStage(ctx, StageGeneratingTicket, session, cfg)
 	err = mc.generateTicket(ctx, session, cfg)
 	if err != nil {
-		return err
+		return unreportableError{err}
 	}
 	rep.reportStage(ctx, StageTicketGenerated, session, cfg)
 
@@ -365,7 +377,7 @@ func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *MatcherClient
 	rep.reportStage(ctx, StageFundingTicket, session, cfg)
 	err = mc.fundTicket(ctx, session, cfg)
 	if err != nil {
-		return err
+		return unreportableError{err}
 	}
 	rep.reportStage(ctx, StageTicketFunded, session, cfg)
 
@@ -374,7 +386,7 @@ func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *MatcherClient
 	rep.reportStage(ctx, StageFundingSplitTx, session, cfg)
 	err = mc.fundSplitTx(ctx, session, cfg)
 	if err != nil {
-		return err
+		return unreportableError{err}
 	}
 	rep.reportStage(ctx, StageSplitTxFunded, session, cfg)
 
@@ -391,7 +403,7 @@ func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *MatcherClient
 
 	err = waitForPublishedTxs(ctx, session, cfg, mc.network)
 	if err != nil {
-		return errors.Wrapf(err, "error waiting for txs to be published")
+		return unreportableError{errors.Wrapf(err, "error waiting for txs to be published")}
 	}
 
 	rep.reportStage(ctx, StageSessionEndedSuccessfully, session, cfg)

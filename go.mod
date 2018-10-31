@@ -36,5 +36,6 @@ require (
 	github.com/smartystreets/goconvey v0.0.0-20180222194500-ef6db91d284a // indirect
 	github.com/stretchr/testify v1.2.2 // indirect
 	golang.org/x/net v0.0.0-20180808004115-f9ce57c11b24
+	google.golang.org/genproto v0.0.0-20180808183934-383e8b2c3b9e
 	google.golang.org/grpc v1.14.0
 )

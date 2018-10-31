@@ -352,7 +352,7 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 		if !s.Done && !s.Canceled {
 			matcher.log.Warnf("Session %s lasted more than MaxSessionDuration", s.ID)
 			matcher.cancelSessionChan <- cancelSessionChanReq{session: s,
-				err: errors.Errorf("session expired")}
+				err: ErrSessionExpired}
 		}
 	}(sess)
 }

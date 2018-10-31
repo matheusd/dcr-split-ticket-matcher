@@ -42,30 +42,31 @@ var (
 // Config stores the configuration needed to perform a single ticket split
 // session as a buyer.
 type Config struct {
-	ConfigFile           string  `short:"C" long:"configfile" description:"Path to config file"`
-	WalletCertFile       string  `long:"wallet.certfile" description:"Path Wallet rpc.cert file"`
-	WalletHost           string  `long:"wallet.host" description:"Address of the wallet. Use 127.0.0.1:0 to try and automatically locate the running wallet on localhost."`
-	Pass                 string  `short:"P" long:"pass" description:"Passphrase to unlock the wallet"`
-	MatcherHost          string  `long:"matcher.host" description:"Address of the matcher host"`
-	MaxAmount            float64 `long:"maxamount" description:"Maximum participation amount"`
-	SourceAccount        uint32  `long:"sourceaccount" description:"Source account of funds for purchase"`
-	SStxFeeLimits        uint16  `long:"sstxfeelimits" description:"Fee limit allowance for sstx purchases"`
-	VoteAddress          string  `long:"voteaddress" description:"Voting address of the stakepool"`
-	PoolAddress          string  `long:"pooladdress" description:"Pool fee address of the stakepool"`
-	PoolFeeRate          float64 `long:"poolfeerate" description:"Pool fee rate (percentage) that the given pool has advertised as using"`
-	TestNet              bool    `long:"testnet" description:"Whether this is connecting to a testnet wallet/matcher service"`
-	SimNet               bool    `long:"simnet" description:"Whether this is connecting to a simnet wallet/matcher service"`
-	MaxTime              int     `long:"maxtime" description:"Maximum amount of time (in seconds) to wait for the completion of the split buy"`
-	MaxWaitTime          int     `long:"maxwaittime" description:"Maximum amount of time (in seconds) to wait until a new split ticket session is initiated"`
-	DataDir              string  `long:"datadir" description:"Directory where session data files are stored"`
-	MatcherCertFile      string  `long:"matchercertfile" description:"Location of the certificate file for connecting to the grpc matcher service"`
-	SessionName          string  `long:"sessionname" description:"Name of the session to connect to. Leave blank to connect to the public matching session."`
-	DcrdHost             string  `long:"dcrdhost" description:"Host of the dcrd daemon"`
-	DcrdUser             string  `long:"dcrduser" description:"Username of the dcrd daemon"`
-	DcrdPass             string  `long:"dcrpass" description:"Password of the dcrd daemon"`
-	DcrdCert             string  `long:"dcrdcert" description:"Location of the certificate for the dcrd daemon"`
-	SkipWaitPublishedTxs bool    `long:"skipwaitpublishedtxs" description:"If specified, the session ends immediately after the last step, without waiting for the matcher to publish the transactions."`
-	ShowVersion          bool    `long:"version" description:"Show version and quit"`
+	ConfigFile            string  `short:"C" long:"configfile" description:"Path to config file"`
+	WalletCertFile        string  `long:"wallet.certfile" description:"Path Wallet rpc.cert file"`
+	WalletHost            string  `long:"wallet.host" description:"Address of the wallet. Use 127.0.0.1:0 to try and automatically locate the running wallet on localhost."`
+	Pass                  string  `short:"P" long:"pass" description:"Passphrase to unlock the wallet"`
+	MatcherHost           string  `long:"matcher.host" description:"Address of the matcher host"`
+	MaxAmount             float64 `long:"maxamount" description:"Maximum participation amount"`
+	SourceAccount         uint32  `long:"sourceaccount" description:"Source account of funds for purchase"`
+	SStxFeeLimits         uint16  `long:"sstxfeelimits" description:"Fee limit allowance for sstx purchases"`
+	VoteAddress           string  `long:"voteaddress" description:"Voting address of the stakepool"`
+	PoolAddress           string  `long:"pooladdress" description:"Pool fee address of the stakepool"`
+	PoolFeeRate           float64 `long:"poolfeerate" description:"Pool fee rate (percentage) that the given pool has advertised as using"`
+	TestNet               bool    `long:"testnet" description:"Whether this is connecting to a testnet wallet/matcher service"`
+	SimNet                bool    `long:"simnet" description:"Whether this is connecting to a simnet wallet/matcher service"`
+	MaxTime               int     `long:"maxtime" description:"Maximum amount of time (in seconds) to wait for the completion of the split buy"`
+	MaxWaitTime           int     `long:"maxwaittime" description:"Maximum amount of time (in seconds) to wait until a new split ticket session is initiated"`
+	DataDir               string  `long:"datadir" description:"Directory where session data files are stored"`
+	MatcherCertFile       string  `long:"matchercertfile" description:"Location of the certificate file for connecting to the grpc matcher service"`
+	SessionName           string  `long:"sessionname" description:"Name of the session to connect to. Leave blank to connect to the public matching session."`
+	DcrdHost              string  `long:"dcrdhost" description:"Host of the dcrd daemon"`
+	DcrdUser              string  `long:"dcrduser" description:"Username of the dcrd daemon"`
+	DcrdPass              string  `long:"dcrpass" description:"Password of the dcrd daemon"`
+	DcrdCert              string  `long:"dcrdcert" description:"Location of the certificate for the dcrd daemon"`
+	SkipWaitPublishedTxs  bool    `long:"skipwaitpublishedtxs" description:"If specified, the session ends immediately after the last step, without waiting for the matcher to publish the transactions."`
+	ShowVersion           bool    `long:"version" description:"Show version and quit"`
+	SkipReportErrorsToSvc bool    `long:"skipreporterrorstosvc" description:"Skip sending buyer errors that happen during the session to the service"`
 
 	Passphrase  []byte
 	ChainParams *chaincfg.Params

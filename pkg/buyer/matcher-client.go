@@ -458,6 +458,23 @@ func (mc *MatcherClient) fundSplitTx(ctx context.Context, session *Session, cfg 
 	return nil
 }
 
+// sendErrorReport sends the given error to the matcher. It ignores all errors,
+// given that any error triggered here (eg: connection error, etc) is
+// unreportable anyway or may have been caused by the original error.
+func (mc *MatcherClient) sendErrorReport(sessionID matcher.ParticipantID, buyerErr error) {
+	req := &pb.BuyerErrorRequest{
+		ErrorMsg:  buyerErr.Error(),
+		SessionId: uint32(sessionID),
+	}
+
+	// use a separate context with timeout so that if the original session
+	// context errored, the BuyerError() call won't fail.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	mc.client.BuyerError(ctx, req)
+}
+
 func (mc *MatcherClient) close() {
 	mc.conn.Close()
 }

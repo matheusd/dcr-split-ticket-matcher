@@ -1,5 +1,7 @@
 package matcher
 
+import "github.com/pkg/errors"
+
 const (
 	// MaximumExpiry accepted for split and ticket transactions
 	MaximumExpiry = 16
@@ -17,4 +19,8 @@ var (
 		0x0, 0x0, 0x0, 0x0, 0x0, 0x88, 0xac}
 
 	originalSrcCtxKey = contextKey("OriginalSrcCtxKey")
+
+	// ErrSessionExpired is the error triggered when the session has expired the
+	// maximum allowed elapsed time.
+	ErrSessionExpired = errors.New("session expired")
 )
