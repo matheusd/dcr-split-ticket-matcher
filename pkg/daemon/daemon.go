@@ -241,7 +241,7 @@ func (daemon *Daemon) Run(serverCtx context.Context) error {
 		grpc.KeepaliveEnforcementPolicy(keepAlivePolicy))
 
 	svc := NewSplitTicketMatcherService(daemon.matcher, daemon.dcrd,
-		daemon.cfg.AllowPublicSession)
+		daemon.cfg.AllowPublicSession, daemon.cfg.logger("MSVC"))
 	pb.RegisterSplitTicketMatcherServiceServer(server, svc)
 
 	daemon.log.Criticalf("Running daemon on pid %d", os.Getpid())

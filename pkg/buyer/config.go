@@ -66,6 +66,7 @@ type Config struct {
 	DcrdCert             string  `long:"dcrdcert" description:"Location of the certificate for the dcrd daemon"`
 	SkipWaitPublishedTxs bool    `long:"skipwaitpublishedtxs" description:"If specified, the session ends immediately after the last step, without waiting for the matcher to publish the transactions."`
 	ShowVersion          bool    `long:"version" description:"Show version and quit"`
+	ReturnErrorsToSvc    bool    `long:"returnerrorstosvc" description:"Return buyer errors that happen during the session to the service"`
 
 	Passphrase  []byte
 	ChainParams *chaincfg.Params
@@ -188,6 +189,7 @@ func LoadConfig() (*Config, error) {
 		DataDir:              defaultDataDir,
 		SkipWaitPublishedTxs: false,
 		PoolFeeRate:          5.0,
+		ReturnErrorsToSvc:    true,
 	}
 
 	parser := flags.NewParser(cfg, flags.Default)

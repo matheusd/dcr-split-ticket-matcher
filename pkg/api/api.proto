@@ -9,6 +9,7 @@ service SplitTicketMatcherService {
     rpc FundTicket (FundTicketRequest) returns (FundTicketResponse);
     rpc FundSplitTx (FundSplitTxRequest) returns (FundSplitTxResponse);
     rpc Status (StatusRequest) returns (StatusResponse);
+    rpc BuyerError (BuyerErrorRequest) returns (BuyerErrorResponse);
 }
 
 message TxOut {
@@ -107,3 +108,9 @@ message StatusResponse {
     uint64 ticket_price = 1;
     uint32 protocol_version = 2;
 }
+
+message BuyerErrorRequest {
+    uint32 session_id = 1;
+    string error_msg = 2;
+}
+message BuyerErrorResponse { }

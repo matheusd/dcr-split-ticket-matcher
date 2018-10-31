@@ -3,14 +3,16 @@ package daemon
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"strings"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
+	"github.com/decred/slog"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/codes"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
-	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/peer"
 
@@ -30,22 +32,31 @@ func encodeQueueName(name string) string {
 	return hex.EncodeToString(hash[:])
 }
 
+func translateMatcherError(err error) error {
+	// TODO: fix
+	return err
+}
+
 // SplitTicketMatcherService implements the methods required to accept split
 // ticket session commands from a grpc service.
 type SplitTicketMatcherService struct {
 	matcher            *matcher.Matcher
 	networkProvider    matcher.NetworkProvider
 	allowPublicSession bool
+	log                slog.Logger
 }
 
 // NewSplitTicketMatcherService creates a new instance of a service, given all
 // required options.
 func NewSplitTicketMatcherService(matcher *matcher.Matcher,
-	networkProvider matcher.NetworkProvider, allowPublicSession bool) *SplitTicketMatcherService {
+	networkProvider matcher.NetworkProvider, allowPublicSession bool,
+	log slog.Logger) *SplitTicketMatcherService {
+
 	return &SplitTicketMatcherService{
 		matcher:            matcher,
 		networkProvider:    networkProvider,
 		allowPublicSession: allowPublicSession,
+		log:                log,
 	}
 }
 
@@ -89,28 +100,30 @@ func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.F
 	var err error
 
 	if req.ProtocolVersion != version.ProtocolVersion {
-		return nil, errors.Errorf("server is running a different protocol "+
-			"version (%d) than client (%d)", version.ProtocolVersion,
-			req.ProtocolVersion)
+		return nil, codes.FailedPrecondition.Errorf("server is "+
+			"running a different protocol version (%d) than client (%d)",
+			version.ProtocolVersion, req.ProtocolVersion)
 	}
 
 	if req.SessionName == "" && !svc.allowPublicSession {
-		return nil, errors.Errorf("server does not allow participation in " +
-			"the public session")
+		return nil, codes.FailedPrecondition.Errorf("server does not " +
+			"allow participation in the public session")
 	}
 
 	if voteAddr, err = dcrutil.DecodeAddress(req.VoteAddress); err != nil {
-		return nil, errors.Wrap(err, "error decoding vote address")
+		return nil, codes.InvalidArgument.Wrap(err,
+			"error decoding vote address")
 	}
 
 	if poolAddr, err = dcrutil.DecodeAddress(req.PoolAddress); err != nil {
-		return nil, errors.Wrap(err, "error decoding pool address")
+		return nil, codes.InvalidArgument.Wrap(err,
+			"error decoding pool address")
 	}
 
 	sess, err := svc.matcher.AddParticipant(ctx, req.Amount, req.SessionName,
 		voteAddr, poolAddr)
 	if err != nil {
-		return nil, err
+		return nil, translateMatcherError(err)
 	}
 
 	res := &pb.FindMatchesResponse{
@@ -136,11 +149,11 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 	splitChange = wire.NewTxOut(int64(req.SplitTxChange.Value), req.SplitTxChange.Script)
 
 	if commitAddr, err = dcrutil.DecodeAddress(req.CommitmentAddress); err != nil {
-		return nil, errors.Wrap(err, "error decoding commitment address")
+		return nil, codes.InvalidArgument.Error("error decoding commitment address")
 	}
 
 	if splitAddr, err = dcrutil.DecodeAddress(req.SplitTxAddress); err != nil {
-		return nil, errors.Wrap(err, "error decoding split tx address")
+		return nil, codes.InvalidArgument.Error("error decoding split tx address")
 	}
 
 	splitOutpoints := make([]*wire.OutPoint, len(req.SplitTxInputs))
@@ -154,7 +167,7 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 	}
 
 	if len(req.SecretnbHash) < splitticket.SecretNbHashSize {
-		return nil, errors.Errorf("secret hash sent does not have the " +
+		return nil, codes.InvalidArgument.Errorf("secret hash sent does not have the " +
 			"correct size")
 	}
 	var secretNbHash splitticket.SecretNumberHash
@@ -164,17 +177,17 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 		matcher.ParticipantID(req.SessionId), commitAddr,
 		splitAddr, splitChange, splitOutpoints, secretNbHash)
 	if err != nil {
-		return nil, err
+		return nil, translateMatcherError(err)
 	}
 
 	buffTicket, err := ticketTempl.Bytes()
 	if err != nil {
-		return nil, err
+		return nil, codes.Internal.Wrap(err, "error marshalling ticketTempl bytes")
 	}
 
 	buffSplit, err := split.Bytes()
 	if err != nil {
-		return nil, err
+		return nil, codes.Internal.Wrap(err, "error marshalling split bytes")
 	}
 
 	partsResp := make([]*pb.GenerateTicketResponse_Participant, len(parts))
@@ -208,7 +221,7 @@ func (svc *SplitTicketMatcherService) FundTicket(ctx context.Context, req *pb.Fu
 	tickets, revocations, err := svc.matcher.FundTicket(ctx, matcher.ParticipantID(req.SessionId),
 		ticketsInput, req.RevocationScriptSig)
 	if err != nil {
-		return nil, err
+		return nil, translateMatcherError(err)
 	}
 
 	respTickets := make([]*pb.FundTicketResponse_FundedParticipantTicket, len(tickets))
@@ -231,7 +244,7 @@ func (svc *SplitTicketMatcherService) FundSplitTx(ctx context.Context, req *pb.F
 		matcher.ParticipantID(req.SessionId),
 		req.SplitTxScriptsigs, splitticket.SecretNumber(req.Secretnb))
 	if err != nil {
-		return nil, err
+		return nil, translateMatcherError(err)
 	}
 
 	respSecrets := make([]uint64, len(secrets))
@@ -244,6 +257,21 @@ func (svc *SplitTicketMatcherService) FundSplitTx(ctx context.Context, req *pb.F
 		SecretNumbers: respSecrets,
 	}
 	return resp, nil
+}
+
+// BuyerError fulfills SplitTicketMatcherServiceServer
+func (svc *SplitTicketMatcherService) BuyerError(ctx context.Context, req *pb.BuyerErrorRequest) (*pb.BuyerErrorResponse, error) {
+	// TODO: ensure this session existed and that the request came from
+	// someone participating in said session
+
+	if strings.Index(req.ErrorMsg, "session expired") > -1 {
+		return &pb.BuyerErrorResponse{}, nil
+	}
+
+	svc.log.Warnf("Buyer error in session %s: %s", matcher.ParticipantID(req.SessionId),
+		req.ErrorMsg)
+
+	return &pb.BuyerErrorResponse{}, nil
 }
 
 // Status fulfills SplitTicketMatcherServiceServer
