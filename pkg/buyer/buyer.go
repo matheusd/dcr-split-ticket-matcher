@@ -207,7 +207,7 @@ func buySplitTicket(ctx context.Context, cfg *Config) error {
 		return ctx.Err()
 	case err := <-reschan2:
 		if err != nil {
-			if _, unreportable := err.(unreportableError); !unreportable {
+			if _, unreportable := err.(unreportableError); !unreportable && !cfg.SkipReportErrorsToSvc {
 				resp.mc.sendErrorReport(resp.session.ID, err)
 			}
 		}
@@ -335,6 +335,8 @@ func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *MatcherClient
 
 	rep := reporterFromContext(ctx)
 	var err error
+
+	return errors.New("blablabla")
 
 	chainInfo, err := wc.currentChainInfo(ctx)
 	if err != nil {
