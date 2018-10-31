@@ -336,8 +336,6 @@ func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *MatcherClient
 	rep := reporterFromContext(ctx)
 	var err error
 
-	return errors.New("blablabla")
-
 	chainInfo, err := wc.currentChainInfo(ctx)
 	if err != nil {
 		return err
