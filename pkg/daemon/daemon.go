@@ -178,6 +178,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		PoolFee:                   cfg.PoolFee,
 		MaxSessionDuration:        cfg.MaxSessionDuration,
 		Log:                       cfg.logger("MTCH"),
+		SessionLog:                cfg.logger("SESS"),
 		StakeDiffChangeStopWindow: cfg.StakeDiffChangeStopWindow,
 		PublishTransactions:       cfg.PublishTransactions,
 		SessionDataDir:            filepath.Join(cfg.DataDir, "sessions"),
