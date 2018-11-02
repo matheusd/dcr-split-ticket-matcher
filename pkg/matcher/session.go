@@ -13,6 +13,7 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
+	"github.com/decred/slog"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 	"github.com/pkg/errors"
 )
@@ -41,6 +42,7 @@ type SessionParticipant struct {
 
 	Session *Session
 	Index   int
+	log     slog.Logger
 
 	votePkScript          []byte
 	poolPkScript          []byte
@@ -170,6 +172,7 @@ type Session struct {
 	Done            bool
 	Canceled        bool
 	TicketExpiry    uint32
+	log             slog.Logger
 }
 
 // AllOutputsFilled returns true if all commitment and change outputs for all

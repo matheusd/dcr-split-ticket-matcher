@@ -73,3 +73,91 @@ func StandardLogBackend(toStdErr bool, dir string, baseName string) *slog.Backen
 
 	return slog.NewBackend(multi)
 }
+
+// PrefixLogger logs messages prefixed with a given string prefix
+type PrefixLogger struct {
+	parent        slog.Logger
+	prefix        string
+	prefixNoSpace string
+}
+
+// NewPrefixLogger returns a new PrefixLogger configured to use the given prefix
+// and send log messages to the specified parent
+func NewPrefixLogger(prefix string, parent slog.Logger) *PrefixLogger {
+	prefix = strings.TrimSpace(prefix)
+	prefixNoSpace := prefix
+	if prefix != "" {
+		prefix += " "
+	}
+
+	return &PrefixLogger{
+		prefix:        prefix,
+		prefixNoSpace: prefixNoSpace,
+		parent:        parent,
+	}
+}
+
+func (pl *PrefixLogger) unshiftPrefix(v ...interface{}) []interface{} {
+	if pl.prefix != "" {
+		newv := make([]interface{}, 0, len(v)+1)
+		newv = append(newv, pl.prefixNoSpace)
+		newv = append(newv, v...)
+		return newv
+	}
+
+	return v
+}
+
+// Tracef fulfills the slog.Logger interface
+func (pl *PrefixLogger) Tracef(format string, params ...interface{}) {
+	pl.parent.Tracef(pl.prefix+format, params...)
+}
+
+// Debugf fulfills the slog.Logger interface
+func (pl *PrefixLogger) Debugf(format string, params ...interface{}) {
+	pl.parent.Debugf(pl.prefix+format, params...)
+}
+
+// Infof fulfills the slog.Logger interface
+func (pl *PrefixLogger) Infof(format string, params ...interface{}) {
+	pl.parent.Infof(pl.prefix+format, params...)
+}
+
+// Warnf fulfills the slog.Logger interface
+func (pl *PrefixLogger) Warnf(format string, params ...interface{}) {
+	pl.parent.Warnf(pl.prefix+format, params...)
+}
+
+// Errorf fulfills the slog.Logger interface
+func (pl *PrefixLogger) Errorf(format string, params ...interface{}) {
+	pl.parent.Errorf(pl.prefix+format, params...)
+}
+
+// Criticalf fulfills the slog.Logger interface
+func (pl *PrefixLogger) Criticalf(format string, params ...interface{}) {
+	pl.parent.Criticalf(pl.prefix+format, params...)
+}
+
+// Debug fulfills the slog.Logger interface
+func (pl *PrefixLogger) Debug(v ...interface{}) { pl.parent.Debug(pl.unshiftPrefix(v...)...) }
+
+// Trace fulfills the slog.Logger interface
+func (pl *PrefixLogger) Trace(v ...interface{}) { pl.parent.Trace(pl.unshiftPrefix(v...)...) }
+
+// Info fulfills the slog.Logger interface
+func (pl *PrefixLogger) Info(v ...interface{}) { pl.parent.Info(pl.unshiftPrefix(v...)...) }
+
+// Warn fulfills the slog.Logger interface
+func (pl *PrefixLogger) Warn(v ...interface{}) { pl.parent.Warn(pl.unshiftPrefix(v...)...) }
+
+// Error fulfills the slog.Logger interface
+func (pl *PrefixLogger) Error(v ...interface{}) { pl.parent.Error(pl.unshiftPrefix(v...)...) }
+
+// Critical fulfills the slog.Logger interface
+func (pl *PrefixLogger) Critical(v ...interface{}) { pl.parent.Critical(pl.unshiftPrefix(v...)...) }
+
+// Level fulfills the slog.Logger interface
+func (pl *PrefixLogger) Level() slog.Level { return pl.parent.Level() }
+
+// SetLevel fulfills the slog.Logger interface
+func (pl *PrefixLogger) SetLevel(level slog.Level) { pl.parent.SetLevel(level) }

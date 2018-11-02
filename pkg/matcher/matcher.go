@@ -3,6 +3,7 @@ package matcher
 import (
 	"context"
 	"encoding/hex"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/util"
 	"math/rand"
 	"sort"
 	"time"
@@ -60,6 +61,7 @@ type Config struct {
 	VoteAddrValidator         VoteAddressValidationProvider
 	PoolAddrValidator         PoolAddressValidationProvider
 	Log                       slog.Logger
+	SessionLog                slog.Logger
 	ChainParams               *chaincfg.Params
 	PoolFee                   float64
 	MaxSessionDuration        time.Duration
@@ -156,21 +158,48 @@ func (matcher *Matcher) Run(serverCtx context.Context) error {
 
 			matcher.notifyWaitingListWatchers()
 		case req := <-matcher.setParticipantOutputsRequests:
-			err := matcher.setParticipantsOutputs(&req)
+			var err error
+			if part, has := matcher.participants[req.sessionID]; has {
+				err = matcher.setParticipantsOutputs(&req, part)
+				if err != nil {
+					part.log.Error(err)
+				}
+			} else {
+				err = errors.Errorf("session %s not found", req.sessionID.String())
+			}
+
 			if err != nil {
 				req.resp <- setParticipantOutputsResponse{
 					err: err,
 				}
 			}
 		case req := <-matcher.fundTicketRequests:
-			err := matcher.fundTicket(&req)
+			var err error
+			if part, has := matcher.participants[req.sessionID]; has {
+				err = matcher.fundTicket(&req, part)
+				if err != nil {
+					part.log.Error(err)
+				}
+			} else {
+				err = errors.Errorf("session %s not found", req.sessionID.String())
+			}
+
 			if err != nil {
 				req.resp <- fundTicketResponse{
 					err: err,
 				}
 			}
 		case req := <-matcher.fundSplitTxRequests:
-			err := matcher.fundSplitTx(&req)
+			var err error
+			if part, has := matcher.participants[req.sessionID]; has {
+				err = matcher.fundSplitTx(&req, part)
+				if err != nil {
+					part.log.Error(err)
+				}
+			} else {
+				err = errors.Errorf("session %s not found", req.sessionID.String())
+			}
+
 			if err != nil {
 				req.resp <- fundSplitTxResponse{
 					err: err,
@@ -277,10 +306,6 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 		matcher.cfg.ChainParams)
 	q.waitingParticipants = nil
 
-	matcher.log.Infof("Starting new session %s: Ticket Price=%s Fees=%s "+
-		"Participants=%d PoolFee=%s", sessID, ticketPrice, ticketTxFee,
-		numParts, poolFee)
-
 	splitPoolOutAddr := matcher.cfg.SignPoolSplitOutProvider.PoolFeeAddress()
 	splitPoolOutScript, err := txscript.PayToAddrScript(splitPoolOutAddr)
 	if err != nil {
@@ -301,9 +326,14 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 		ID:              sessID,
 		StartTime:       time.Now(),
 		TicketExpiry:    expiry,
+		log:             util.NewPrefixLogger(sessID.String(), matcher.cfg.SessionLog),
 		VoterIndex:      -1, // voter not decided yet
 	}
 	matcher.sessions[sessID] = sess
+
+	sess.log.Infof("Starting new session with Ticket Price=%s Fees=%s "+
+		"Participants=%d PoolFee=%s", ticketPrice, ticketTxFee,
+		numParts, poolFee)
 
 	sort.Sort(addParticipantRequestsByAmount(parts))
 	maxAmounts := make([]dcrutil.Amount, len(parts))
@@ -313,7 +343,7 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 	commitments, poolFees, err := splitticket.SelectContributionAmounts(
 		maxAmounts, ticketPrice, partFee, poolFee)
 	if err != nil {
-		matcher.log.Errorf("Error selecting contribution amounts: %v", err)
+		sess.log.Errorf("Error selecting contribution amounts: %v", err)
 		panic(err)
 	}
 
@@ -335,6 +365,7 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 			ID:           id,
 			VoteAddress:  r.voteAddress,
 			PoolAddress:  r.poolAddress,
+			log:          util.NewPrefixLogger(id.String(), matcher.cfg.SessionLog),
 		}
 		sess.Participants[i] = sessPart
 		matcher.participants[id] = sessPart
@@ -343,14 +374,15 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 			participant: sessPart,
 		}
 
-		matcher.log.Infof("Participant %s contributing with %s", id, commitments[i])
+		sessPart.log.Infof("Participant contribution %s ticket address %s",
+			commitments[i], sessPart.VoteAddress.EncodeAddress())
 	}
 
 	go func(s *Session) {
 		sessTimer := time.NewTimer(matcher.cfg.MaxSessionDuration)
 		<-sessTimer.C
 		if !s.Done && !s.Canceled {
-			matcher.log.Warnf("Session %s lasted more than MaxSessionDuration", s.ID)
+			sess.log.Warnf("Session lasted more than MaxSessionDuration")
 			matcher.cancelSessionChan <- cancelSessionChanReq{session: s,
 				err: ErrSessionExpired}
 		}
@@ -376,14 +408,10 @@ func (matcher *Matcher) newParticipantID(sessionID SessionID) ParticipantID {
 	return id
 }
 
-func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest) error {
+func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest,
+	part *SessionParticipant) error {
 
 	var err error
-
-	if _, has := matcher.participants[req.sessionID]; !has {
-		return errors.Errorf("session %s not found", req.sessionID.String())
-	}
-	part := matcher.participants[req.sessionID]
 
 	utxos, err := matcher.cfg.NetworkProvider.GetUtxos(req.splitTxOutPoints)
 	if err != nil {
@@ -433,14 +461,12 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 		return errors.Wrap(err, "error creating IOs for participant")
 	}
 
-	matcher.log.Infof("Participant %s set output commitment %s", req.sessionID,
-		part.CommitAmount)
+	part.log.Infof("Participant set output commitment %s", part.CommitAmount)
 
 	sess := part.Session
 
 	if sess.AllOutputsFilled() {
-		matcher.log.Infof("All outputs for session %s received. Creating txs.",
-			sess.ID)
+		sess.log.Infof("All outputs received. Creating txs.")
 
 		var ticket, splitTx *wire.MsgTx
 		var poolTicketInSig []byte
@@ -459,13 +485,13 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 					part.Fee, sess.ParticipantAmounts(),
 					sess.MainchainHeight, matcher.cfg.ChainParams)
 				if err != nil {
-					matcher.log.Errorf("error checking ticket: %v", err)
+					sess.log.Errorf("error checking ticket: %v", err)
 				}
 			} else {
-				matcher.log.Errorf("error checking split tx: %v", err)
+				sess.log.Errorf("error checking split tx: %v", err)
 			}
 		} else {
-			matcher.log.Errorf("error obtaining utxo map for session: %v", err)
+			sess.log.Errorf("error obtaining utxo map for session: %v", err)
 		}
 
 		if err == nil {
@@ -474,14 +500,14 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 				p.replaceTicketIOs(toSign)
 				poolTicketInSig, err = matcher.cfg.SignPoolSplitOutProvider.SignPoolSplitOutput(splitTx, toSign)
 				if err != nil {
-					matcher.log.Errorf("Error signing pool fee output: %v", err)
+					p.log.Errorf("Error signing pool fee output: %v", err)
 					return err
 				}
 				p.poolFeeInputScriptSig = poolTicketInSig
 			}
 
 		} else {
-			matcher.log.Errorf("Error generating session transactions: %v", err)
+			sess.log.Errorf("Error generating session transactions: %v", err)
 		}
 
 		parts := sess.ParticipantTicketOutputs()
@@ -496,19 +522,13 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 			})
 		}
 
-		matcher.log.Infof("Notified participants of created txs for session %s",
-			sess.ID)
+		sess.log.Infof("Notified participants of created txs")
 	}
 
 	return nil
 }
 
-func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
-	if _, has := matcher.participants[req.sessionID]; !has {
-		return errors.Errorf("session %s not found", req.sessionID.String())
-	}
-
-	part := matcher.participants[req.sessionID]
+func (matcher *Matcher) fundTicket(req *fundTicketRequest, part *SessionParticipant) error {
 	sess := part.Session
 
 	if len(req.ticketsInputScriptSig) != len(sess.Participants) {
@@ -522,14 +542,14 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 
 	// TODO: check if ticketInputScriptSig actually commits to the ticket's outputs
 
-	matcher.log.Infof("Participant %s sent ticket input sigs", req.sessionID)
+	part.log.Infof("Participant sent ticket input sigs")
 
 	part.ticketsScriptSig = req.ticketsInputScriptSig
 	part.revocationScriptSig = req.revocationScriptSig
 	part.chanFundTicketResponse = req.resp
 
 	if sess.TicketIsFunded() {
-		matcher.log.Infof("All sigscripts for ticket received. Creating  " +
+		sess.log.Infof("All sigscripts for ticket received. Creating  " +
 			"funded ticket.")
 
 		var ticketHash chainhash.Hash
@@ -549,7 +569,7 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 			revocation, err = splitticket.CreateUnsignedRevocation(&ticketHash,
 				ticket, splitticket.RevocationFeeRate(sess.ChainParams))
 			if err != nil {
-				matcher.log.Errorf("Error creating participant's revocation: %v", err)
+				p.log.Errorf("Error creating participant's revocation: %v", err)
 				return err
 			}
 
@@ -557,13 +577,13 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 
 			buff, err = ticket.Bytes()
 			if err != nil {
-				matcher.log.Errorf("Error serializing ticket with changed IOs: %v", err)
+				p.log.Errorf("Error serializing ticket with changed IOs: %v", err)
 				return err
 			}
 
 			buffRevocation, err = revocation.Bytes()
 			if err != nil {
-				matcher.log.Errorf("Error serializing revocation with changed input: %v", err)
+				p.log.Errorf("Error serializing revocation with changed input: %v", err)
 				return err
 			}
 
@@ -579,18 +599,13 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest) error {
 			})
 		}
 
-		matcher.log.Infof("Alerted participants of funded ticked on session %s",
-			sess.ID)
+		sess.log.Infof("Alerted participants of funded ticked")
 	}
 
 	return nil
 }
 
-func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
-	if _, has := matcher.participants[req.sessionID]; !has {
-		return errors.Errorf("session %s not found", req.sessionID.String())
-	}
-	part := matcher.participants[req.sessionID]
+func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest, part *SessionParticipant) error {
 	sess := part.Session
 
 	if len(part.splitTxInputs) != len(req.inputScriptSigs) {
@@ -614,7 +629,7 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 	}
 	part.chanFundSplitTxResponse = req.resp
 
-	matcher.log.Infof("Participant %s sent split tx input sigs", req.sessionID)
+	part.log.Infof("Participant sent split tx input sigs")
 
 	if sess.SplitTxIsFunded() {
 		var splitBytes []byte
@@ -626,13 +641,13 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 		sess.SelectedCoin = selCoin
 		voter := sess.Participants[sess.VoterIndex]
 
-		matcher.log.Infof("All inputs for split tx received. Creating split tx.")
-		matcher.log.Infof("Voter index selected: %d (%s)", sess.VoterIndex,
+		sess.log.Infof("All inputs for split tx received. Creating split tx.")
+		sess.log.Infof("Voter index selected: %d (%s)", sess.VoterIndex,
 			voter.ID)
 
 		ticket, splitTx, revocation, err := sess.CreateVoterTransactions()
 		if err != nil {
-			matcher.log.Errorf("error generating voter txs: %v", err)
+			sess.log.Errorf("error generating voter txs: %v", err)
 			return err
 		}
 		secrets := sess.SecretNumbers()
@@ -643,43 +658,43 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 			sess.SecretNumberHashes(), &sess.MainchainHash, sess.MainchainHeight,
 			matcher.cfg.ChainParams)
 		if err != nil {
-			matcher.log.Errorf("error on final checkSplit: %v", err)
+			sess.log.Errorf("error on final checkSplit: %v", err)
 		}
 
 		err = splitticket.CheckSignedSplit(splitTx, splitUtxoMap,
 			matcher.cfg.ChainParams)
 		if err != nil {
-			matcher.log.Errorf("error on final checkSignedSplit: %v", err)
+			sess.log.Errorf("error on final checkSignedSplit: %v", err)
 		}
 
 		err = splitticket.CheckTicket(splitTx, ticket, sess.TicketPrice,
 			part.Fee, sess.ParticipantAmounts(),
 			sess.MainchainHeight, matcher.cfg.ChainParams)
 		if err != nil {
-			matcher.log.Errorf("error on final checkTicket: %v", err)
+			sess.log.Errorf("error on final checkTicket: %v", err)
 		}
 
 		err = splitticket.CheckSignedTicket(splitTx, ticket,
 			matcher.cfg.ChainParams)
 		if err != nil {
-			matcher.log.Errorf("error on final checkSignedTicket: %v", err)
+			sess.log.Errorf("error on final checkSignedTicket: %v", err)
 		}
 
 		err = splitticket.CheckRevocation(ticket, revocation,
 			matcher.cfg.ChainParams)
 		if err != nil {
-			matcher.log.Errorf("error on final checkRevocation: %v", err)
+			sess.log.Errorf("error on final checkRevocation: %v", err)
 		}
 
 		if matcher.cfg.PublishTransactions {
 			txs := []*wire.MsgTx{splitTx, ticket}
-			matcher.log.Infof("Publishing transactions of session %s", sess.ID)
+			sess.log.Infof("Publishing transactions")
 			err = matcher.cfg.NetworkProvider.PublishTransactions(txs)
 			if err != nil {
-				matcher.log.Errorf("Error publishing transactions: %s", err)
+				sess.log.Errorf("Error publishing transactions: %s", err)
 			}
 		} else {
-			matcher.log.Infof("Skipping publishing transactions")
+			sess.log.Infof("Skipping publishing transactions")
 		}
 
 		if err == nil {
@@ -697,13 +712,12 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest) error {
 		if matcher.cfg.SessionDataDir != "" {
 			err = sess.SaveSession(matcher.cfg.SessionDataDir)
 			if err != nil {
-				matcher.log.Errorf("Error saving session %s: %v",
-					sess.ID.String(), err)
+				sess.log.Errorf("Error saving session: %v", err)
 			}
 		}
 
-		matcher.log.Infof("Session %s successfully finished as ticket %s",
-			sess.ID, ticket.TxHash())
+		sess.log.Infof("Session successfully finished as ticket %s",
+			ticket.TxHash())
 		matcher.removeSession(sess, nil)
 	}
 
