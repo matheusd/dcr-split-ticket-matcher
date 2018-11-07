@@ -184,7 +184,7 @@ func CheckParticipantInSplit(split *wire.MsgTx, splitAddress dcrutil.Address,
 		}
 	}
 
-	if changeIdx == -1 {
+	if (splitChange != nil) && (changeIdx == -1) {
 		return errors.Errorf("could not find change output in split tx")
 	}
 

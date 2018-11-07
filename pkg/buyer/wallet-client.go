@@ -249,15 +249,15 @@ func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *Sess
 		return err
 	}
 
-	foundChangeOut := false
-	for _, out := range tx.TxOut {
-		if bytes.Equal(out.PkScript, splitChangeDest.Script) {
-			foundChangeOut = true
-			session.splitChange.Value = out.Value
+	if resp.ChangeIndex > -1 {
+		out := tx.TxOut[resp.ChangeIndex]
+		if !bytes.Equal(out.PkScript, splitChangeDest.Script) {
+			return errors.Errorf("wallet changed split change pkscript")
 		}
-	}
-	if !foundChangeOut {
-		return errors.Errorf("split change not found on contructed split tx")
+
+		session.splitChange.Value = out.Value
+	} else {
+		session.splitChange = nil
 	}
 
 	session.splitInputs = make([]*wire.TxIn, len(tx.TxIn))

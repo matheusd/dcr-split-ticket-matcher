@@ -551,7 +551,11 @@ func saveSession(ctx context.Context, session *Session, cfg *Config) error {
 	out("\n")
 	out("====== My Participation Info ======\n")
 	out("Total input amount: %s\n", session.myTotalAmountIn())
-	out("Change amount: %s\n", dcrutil.Amount(session.splitChange.Value))
+	if session.splitChange != nil {
+		out("Change amount: %s\n", dcrutil.Amount(session.splitChange.Value))
+	} else {
+		out("Change amount: [none]\n")
+	}
 	out("Commitment Address: %s\n", session.ticketOutputAddress.EncodeAddress())
 	out("Split Output Address: %s\n", session.splitOutputAddress.EncodeAddress())
 	out("Vote Address: %s\n", cfg.VoteAddress)

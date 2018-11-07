@@ -150,17 +150,22 @@ func (mc *MatcherClient) generateTicket(ctx context.Context, session *Session, c
 		return err
 	}
 
+	var splitTxChange *pb.TxOut
+	if session.splitChange != nil {
+		splitTxChange = &pb.TxOut{
+			Script: session.splitChange.PkScript,
+			Value:  uint64(session.splitChange.Value),
+		}
+	}
+
 	session.secretNb = splitticket.SecretNumber(matcher.MustRandUint64())
 	session.secretNbHash = session.secretNb.Hash(session.mainchainHash)
 	session.voteAddress = voteAddr
 	session.poolAddress = poolAddr
 
 	req := &pb.GenerateTicketRequest{
-		SessionId: uint32(session.ID),
-		SplitTxChange: &pb.TxOut{
-			Script: session.splitChange.PkScript,
-			Value:  uint64(session.splitChange.Value),
-		},
+		SessionId:         uint32(session.ID),
+		SplitTxChange:     splitTxChange,
 		CommitmentAddress: session.ticketOutputAddress.String(),
 		SplitTxAddress:    session.splitOutputAddress.String(),
 		SecretnbHash:      session.secretNbHash[:],
