@@ -584,32 +584,86 @@ func (wc *WalletClient) testPassphrase(ctx context.Context, cfg *Config) error {
 
 // testFunds tests whether the wallet has sufficient funds to contribute the
 // specified maxAmount into a split ticket session.
+//
+// It returns the maximum contribution amount when accounting for possible
 func (wc *WalletClient) testFunds(ctx context.Context, cfg *Config) error {
 
-	amount, err := dcrutil.NewAmount(cfg.MaxAmount + 0.3)
+	amount, err := dcrutil.NewAmount(cfg.MaxAmount)
 	if err != nil {
 		return errors.Wrapf(err, "error decoding maxAmount")
 	}
-	output := &pb.ConstructTransactionRequest_Output{
+
+	zeroed := [20]byte{}
+	addrP2PKH, _ := dcrutil.NewAddressPubKeyHash(zeroed[:], cfg.ChainParams, 0)
+
+	// estimate the worst case (largest contribution amount): a split ticket
+	// where we are the sole participant.
+	outputs := make([]*pb.ConstructTransactionRequest_Output, 4)
+
+	// split the total amount in 3 parts, one for each simulated output and add
+	// the ticket fee
+	ticketFee := splitticket.SessionFeeEstimate(1)
+	poolFee := amount / 3
+	changeAmount := poolFee
+	amount = amount - poolFee - changeAmount + ticketFee
+
+	// participanting with the maximum contribution (assuming the amount is
+	// enough for a full ticket)
+	outputs[0] = &pb.ConstructTransactionRequest_Output{
 		Amount: int64(amount),
 		Destination: &pb.ConstructTransactionRequest_OutputDestination{
 			Address: cfg.VoteAddress,
 		},
 	}
-	outputs := []*pb.ConstructTransactionRequest_Output{output}
+
+	// force the tx to have a simulated change output so that we ensure we
+	// contribute with enough to generate change.
+	outputs[1] = &pb.ConstructTransactionRequest_Output{
+		Amount: int64(changeAmount),
+		Destination: &pb.ConstructTransactionRequest_OutputDestination{
+			Address: addrP2PKH.EncodeAddress(),
+		},
+	}
+
+	// pool fee output
+	outputs[2] = &pb.ConstructTransactionRequest_Output{
+		Amount: int64(poolFee),
+		Destination: &pb.ConstructTransactionRequest_OutputDestination{
+			Address: cfg.PoolAddress,
+		},
+	}
+
+	// lottery commitment output
+	nullData2 := bytes.Repeat([]byte{0x00}, splitticket.LotteryCommitmentHashSize)
+	script := append([]byte{txscript.OP_RETURN, txscript.OP_DATA_32}, nullData2...)
+	outputs[3] = &pb.ConstructTransactionRequest_Output{
+		Amount: 0,
+		Destination: &pb.ConstructTransactionRequest_OutputDestination{
+			Script: script,
+		},
+	}
+
+	splitChangeDest := &pb.ConstructTransactionRequest_OutputDestination{
+		Address:       addrP2PKH.EncodeAddress(),
+		ScriptVersion: uint32(txscript.DefaultScriptVersion),
+	}
 
 	req := &pb.ConstructTransactionRequest{
 		FeePerKb:              0,
-		RequiredConfirmations: minRequredConfirmations,
+		RequiredConfirmations: 0, // minRequredConfirmations,
 		SourceAccount:         cfg.SourceAccount,
 		NonChangeOutputs:      outputs,
+		ChangeDestination:     splitChangeDest,
 	}
 
-	_, err = wc.wsvc.ConstructTransaction(ctx, req)
+	resp, err := wc.wsvc.ConstructTransaction(ctx, req)
 	if err != nil {
 		return errors.Wrapf(err, "error testing funds for session")
 	}
 
+	if resp.ChangeIndex < 0 {
+		return errors.Wrapf(err, "no change back to wallet when testing funds for transaction")
+	}
 	return nil
 }
 
