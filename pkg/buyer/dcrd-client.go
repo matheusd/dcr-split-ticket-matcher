@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 	"io/ioutil"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -111,4 +112,8 @@ func (dcrd *decredNetwork) onTxAccepted(txDetails *dcrjson.TxRawResult) {
 
 		dcrd.publishedTicket = tx
 	}
+}
+
+func (dcrd *decredNetwork) fetchSplitUtxos(split *wire.MsgTx) (splitticket.UtxoMap, error) {
+	return splitticket.UtxoMapFromNetwork(dcrd.client, split)
 }

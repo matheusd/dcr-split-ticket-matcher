@@ -258,9 +258,16 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 			"error testing wallet funds")}
 	}
 
+	dcrd, err := connectToDecredNode(cfg.networkCfg())
+	if err != nil {
+		setupCancel()
+		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
+			"error connecting to dcrd")}
+	}
+
 	rep.reportStage(setupCtx, StageConnectingToMatcher, nil, cfg)
 	mc, err := ConnectToMatcherService(setupCtx, cfg.MatcherHost, cfg.MatcherCertFile,
-		cfg.networkCfg())
+		dcrd.fetchSplitUtxos)
 	if err != nil {
 		setupCancel()
 		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err,
@@ -381,7 +388,8 @@ func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *MatcherClient
 	}
 	rep.reportStage(ctx, StageTicketFunded, session, cfg)
 
-	mc.network.monitorSession(ctx, session)
+	// FIXME: change to use wallet
+	// mc.network.monitorSession(ctx, session)
 
 	rep.reportStage(ctx, StageFundingSplitTx, session, cfg)
 	err = mc.fundSplitTx(ctx, session, cfg)
@@ -401,10 +409,11 @@ func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *MatcherClient
 		return nil
 	}
 
-	err = waitForPublishedTxs(ctx, session, cfg, mc.network)
-	if err != nil {
-		return unreportableError{errors.Wrapf(err, "error waiting for txs to be published")}
-	}
+	// FIXME: change to use wallet
+	// err = waitForPublishedTxs(ctx, session, cfg, mc.network)
+	// if err != nil {
+	// 	return unreportableError{errors.Wrapf(err, "error waiting for txs to be published")}
+	// }
 
 	rep.reportStage(ctx, StageSessionEndedSuccessfully, session, cfg)
 	return nil
