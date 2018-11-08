@@ -148,7 +148,9 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 	var commitAddr, splitAddr dcrutil.Address
 	var err error
 
-	splitChange = wire.NewTxOut(int64(req.SplitTxChange.Value), req.SplitTxChange.Script)
+	if req.SplitTxChange != nil {
+		splitChange = wire.NewTxOut(int64(req.SplitTxChange.Value), req.SplitTxChange.Script)
+	}
 
 	if commitAddr, err = dcrutil.DecodeAddress(req.CommitmentAddress); err != nil {
 		return nil, codes.InvalidArgument.Error("error decoding commitment address")

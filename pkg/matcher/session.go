@@ -624,7 +624,11 @@ func (sess *Session) SaveSession(sessionDir string) error {
 		out("\n")
 		out("== Participant %d ==\n", i)
 		out("Amount = %s\n", p.CommitAmount)
-		out("Change = %s\n", dcrutil.Amount(p.splitTxChange.Value))
+		if p.splitTxChange != nil {
+			out("Change = %s\n", dcrutil.Amount(p.splitTxChange.Value))
+		} else {
+			out("Change = [none]\n")
+		}
 		out("Secret Hash = %s\n", p.SecretHash)
 		out("Secret Number = %d\n", p.SecretNb)
 		out("Vote Address = %s\n", p.VoteAddress.EncodeAddress())

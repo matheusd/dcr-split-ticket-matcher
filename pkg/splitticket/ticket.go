@@ -448,20 +448,22 @@ func CheckParticipantInTicket(split, ticket *wire.MsgTx, amount,
 		}
 	}
 
-	found := false
-	for _, out := range split.TxOut {
-		if (out.Value != splitChange.Value) ||
-			(out.Version != splitChange.Version) ||
-			(!bytes.Equal(out.PkScript, splitChange.PkScript)) {
-			continue
+	if splitChange != nil {
+		found := false
+		for _, out := range split.TxOut {
+			if (out.Value != splitChange.Value) ||
+				(out.Version != splitChange.Version) ||
+				(!bytes.Equal(out.PkScript, splitChange.PkScript)) {
+				continue
+			}
+
+			found = true
+			break
 		}
 
-		found = true
-		break
-	}
-
-	if !found {
-		return errors.Errorf("could not find change output in split tx")
+		if !found {
+			return errors.Errorf("could not find change output in split tx")
+		}
 	}
 
 	return nil
