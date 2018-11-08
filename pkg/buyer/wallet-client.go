@@ -17,15 +17,16 @@ import (
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/keepalive"
 )
 
 // WalletClient is responsible for the interactions of the buyer with the local
 // wallet daemon (dcrwallet).
 type WalletClient struct {
-	conn        *grpc.ClientConn
-	wsvc        pb.WalletServiceClient
-	chainParams *chaincfg.Params
+	conn            *grpc.ClientConn
+	wsvc            pb.WalletServiceClient
+	chainParams     *chaincfg.Params
+	publishedSplit  bool
+	publishedTicket *wire.MsgTx
 }
 
 type currentChainInfo struct {
@@ -47,13 +48,15 @@ func ConnectToWallet(walletHost string, walletCert string, chainParams *chaincfg
 	connCtx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
-	optKeepAlive := grpc.WithKeepaliveParams(keepalive.ClientParameters{
-		Time:                30 * time.Second,
-		Timeout:             5 * time.Second,
-		PermitWithoutStream: true,
-	})
+	// wallet doesn't allow config of keepalive for the moment, so disable it
+	// and perform a manual ping.
+	// optKeepAlive := grpc.WithKeepaliveParams(keepalive.ClientParameters{
+	// 	Time:                30 * time.Second,
+	// 	Timeout:             5 * time.Second,
+	// 	PermitWithoutStream: true,
+	// })
 
-	conn, err := grpc.DialContext(connCtx, walletHost, optCreds, optKeepAlive)
+	conn, err := grpc.DialContext(connCtx, walletHost, optCreds)
 	if err != nil {
 		return nil, err
 	}
@@ -650,7 +653,7 @@ func (wc *WalletClient) testFunds(ctx context.Context, cfg *Config) error {
 
 	req := &pb.ConstructTransactionRequest{
 		FeePerKb:              0,
-		RequiredConfirmations: 0, // minRequredConfirmations,
+		RequiredConfirmations: minRequredConfirmations,
 		SourceAccount:         cfg.SourceAccount,
 		NonChangeOutputs:      outputs,
 		ChangeDestination:     splitChangeDest,
@@ -689,4 +692,79 @@ func (wc *WalletClient) currentChainInfo(ctx context.Context) (*currentChainInfo
 		bestBlockHeight: resp.Height,
 		ticketPrice:     dcrutil.Amount(respTicket.TicketPrice),
 	}, nil
+}
+
+// monitorSession monitors the given session (split tx and possible tickets) for
+// publishing. Assumes the split and ticket templates have been received and the
+// vote/pool pkscripts of individual participants have also been received.
+//
+// This starts a new goroutine that will watch over new wallet transactions,
+// registering whether it has seen the split and ticket transactions.
+func (wc *WalletClient) monitorSession(ctx context.Context, sess *Session) error {
+
+	ticketsHashes := make(map[chainhash.Hash]*wire.MsgTx, sess.nbParticipants)
+	for _, p := range sess.participants {
+		ticketsHashes[p.ticket.TxHash()] = p.ticket
+	}
+	splitHash := sess.splitTx.TxHash()
+
+	ntfs, err := wc.wsvc.TransactionNotifications(ctx, &pb.TransactionNotificationsRequest{})
+	if err != nil {
+		return errors.Wrap(err, "error attaching to transaction notifications")
+	}
+	go func() {
+		for {
+			resp, err := ntfs.Recv()
+			if err != nil {
+				// probably is due to the context closing
+				return
+			}
+
+			for _, tx := range resp.UnminedTransactions {
+				txh, err := chainhash.NewHash(tx.Hash)
+				if err != nil {
+					// maybe log?
+					continue
+				}
+
+				if !wc.publishedSplit && splitHash.IsEqual(txh) {
+					wc.publishedSplit = true
+					continue
+				}
+
+				ticket, has := ticketsHashes[*txh]
+				if has {
+					wc.publishedTicket = ticket
+				}
+			}
+
+			// unlikley to appear directly as a mined tx, but we should be thorough
+			for _, block := range resp.GetAttachedBlocks() {
+				for _, tx := range block.Transactions {
+					txh, err := chainhash.NewHash(tx.Hash)
+					if err != nil {
+						// maybe log?
+						continue
+					}
+
+					if !wc.publishedSplit && splitHash.IsEqual(txh) {
+						wc.publishedSplit = true
+						continue
+					}
+
+					ticket, has := ticketsHashes[*txh]
+					if has {
+						wc.publishedTicket = ticket
+					}
+				}
+			}
+
+			if wc.publishedSplit && (wc.publishedTicket != nil) {
+				// got both transactions. can exit.
+				return
+			}
+		}
+	}()
+
+	return nil
 }

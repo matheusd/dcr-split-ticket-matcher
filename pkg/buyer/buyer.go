@@ -388,8 +388,11 @@ func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *MatcherClient
 	}
 	rep.reportStage(ctx, StageTicketFunded, session, cfg)
 
-	// FIXME: change to use wallet
-	// mc.network.monitorSession(ctx, session)
+	err = wc.monitorSession(ctx, session)
+	if err != nil {
+		return errors.Wrapf(err, "error when trying to start monitoring for "+
+			"session txs")
+	}
 
 	rep.reportStage(ctx, StageFundingSplitTx, session, cfg)
 	err = mc.fundSplitTx(ctx, session, cfg)
@@ -409,18 +412,17 @@ func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *MatcherClient
 		return nil
 	}
 
-	// FIXME: change to use wallet
-	// err = waitForPublishedTxs(ctx, session, cfg, mc.network)
-	// if err != nil {
-	// 	return unreportableError{errors.Wrapf(err, "error waiting for txs to be published")}
-	// }
+	err = waitForPublishedTxs(ctx, session, cfg, wc)
+	if err != nil {
+		return unreportableError{errors.Wrapf(err, "error waiting for txs to be published")}
+	}
 
 	rep.reportStage(ctx, StageSessionEndedSuccessfully, session, cfg)
 	return nil
 }
 
 func waitForPublishedTxs(ctx context.Context, session *Session,
-	cfg *Config, net *decredNetwork) error {
+	cfg *Config, wc *WalletClient) error {
 
 	var notifiedSplit, notifiedTicket bool
 	rep := reporterFromContext(ctx)
@@ -439,18 +441,18 @@ func waitForPublishedTxs(ctx context.Context, session *Session,
 			return errors.Errorf("context done while waiting for published" +
 				"txs")
 		default:
-			if !notifiedSplit && net.publishedSplit {
+			if !notifiedSplit && wc.publishedSplit {
 				rep.reportSplitPublished()
 				notifiedSplit = true
 			}
 
-			if !notifiedTicket && net.publishedTicket != nil {
-				publishedHash := net.publishedTicket.TxHash()
+			if !notifiedTicket && wc.publishedTicket != nil {
+				publishedHash := wc.publishedTicket.TxHash()
 				if expectedTicketHash.IsEqual(&publishedHash) {
 					rep.reportRightTicketPublished()
 					correctTicket = true
 				} else {
-					rep.reportWrongTicketPublished(net.publishedTicket, session)
+					rep.reportWrongTicketPublished(wc.publishedTicket, session)
 				}
 				notifiedTicket = true
 			}
