@@ -155,6 +155,12 @@ func (rep *WriterReporter) reportStage(ctx context.Context, stage Stage, session
 	case StageConnectingToWallet:
 		out("Connecting to wallet %s\n", cfg.WalletHost)
 		return
+	case StageConnectingToDcrd:
+		out("Connecting to dcrd %s\n", cfg.DcrdHost)
+		return
+	case StageConnectingToDcrdata:
+		out("Verified dcrdata online %s\n", cfg.DcrdataURL)
+		return
 	}
 
 	// from here on, all stages need a session

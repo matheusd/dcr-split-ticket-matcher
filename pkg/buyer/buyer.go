@@ -220,7 +220,7 @@ func buySplitTicket(ctx context.Context, cfg *Config) error {
 func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse {
 	rep := reporterFromContext(mainCtx)
 
-	setupCtx, setupCancel := context.WithTimeout(mainCtx, time.Second*10)
+	setupCtx, setupCancel := context.WithTimeout(mainCtx, time.Second*60)
 
 	rep.reportStage(setupCtx, StageConnectingToWallet, nil, cfg)
 	wc, err := ConnectToWallet(cfg.WalletHost, cfg.WalletCertFile, cfg.ChainParams)
@@ -258,16 +258,32 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 			"error testing wallet funds")}
 	}
 
-	dcrd, err := connectToDecredNode(cfg.networkCfg())
-	if err != nil {
-		setupCancel()
-		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
-			"error connecting to dcrd")}
+	var dcrd *decredNetwork
+	var utxoProvider UtxoMapProvider
+	if !cfg.UtxosFromDcrdata {
+		dcrd, err = connectToDecredNode(cfg.networkCfg())
+		if err != nil {
+			setupCancel()
+			return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
+				"error connecting to dcrd")}
+		}
+		rep.reportStage(setupCtx, StageConnectingToDcrd, nil, cfg)
+		utxoProvider = dcrd.fetchSplitUtxos
+	} else {
+		err = isDcrdataOnline(cfg.DcrdataURL, cfg.ChainParams)
+		if err != nil {
+			setupCancel()
+			return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
+				"error checking if dcrdata is online")}
+		}
+
+		rep.reportStage(setupCtx, StageConnectingToDcrdata, nil, cfg)
+		utxoProvider = utxoProviderForDcrdataURL(cfg.DcrdataURL)
 	}
 
 	rep.reportStage(setupCtx, StageConnectingToMatcher, nil, cfg)
 	mc, err := ConnectToMatcherService(setupCtx, cfg.MatcherHost, cfg.MatcherCertFile,
-		dcrd.fetchSplitUtxos)
+		utxoProvider)
 	if err != nil {
 		setupCancel()
 		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err,
@@ -307,12 +323,14 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 	}()
 
 	dcrdErrChan := make(chan error)
-	go func() {
-		err := dcrd.checkDcrdWaitingForSession(waitCtx)
-		if err != nil {
-			dcrdErrChan <- err
-		}
-	}()
+	if !cfg.UtxosFromDcrdata {
+		go func() {
+			err := dcrd.checkDcrdWaitingForSession(waitCtx)
+			if err != nil {
+				dcrdErrChan <- err
+			}
+		}()
+	}
 
 	sessionChan := make(chan *Session)
 	participateErrChan := make(chan error)

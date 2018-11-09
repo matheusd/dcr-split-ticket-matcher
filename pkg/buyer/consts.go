@@ -19,6 +19,8 @@ const (
 	StageUnknown Stage = iota
 	StageStarting
 	StageConnectingToMatcher
+	StageConnectingToDcrd
+	StageConnectingToDcrdata
 	StageConnectingToWallet
 	StageFindingMatches
 	StageMatchesFound
