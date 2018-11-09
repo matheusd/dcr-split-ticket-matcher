@@ -12,4 +12,16 @@ const (
 	// MinimumSplitInputConfirms is how many confirmations any utxo being used
 	// in the split transaction must have before being allowed in
 	MinimumSplitInputConfirms = 2
+
+	// MaximumSplitInputs is the maximum number of inputs into a split
+	// transaction that a single participant should provide.
+	//
+	// Sending too many inputs might cause a DoS in either the server or the
+	// participants, so servers should limit participants to this number of
+	// inputs. Participants need to consolidate their funds if they have more
+	// utxos than this.
+	//
+	// As of 2018-11-09 only ~3% of all mainnet txs used more than 20 inputs, so
+	// this should be reasonable.
+	MaximumSplitInputs = 20
 )
