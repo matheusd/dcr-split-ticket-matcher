@@ -18,6 +18,11 @@ PoolAddress =
 # Maximum amount (in DCR) to participate in the split purchase
 MaxAmount = 0.0
 
+# Fetch utxo data from dcrdata instead of using a local dcrd instance. This
+# allows the buyer to use an SPV wallet to participate in a split ticket
+# session.
+UtxosFromDcrdata = 0
+
 # Pool subsidy fee rate (as a percentage). The buyer stops the session if the
 # the service attempt to use a rate higher than this.
 PoolFeeRate = 5.0
