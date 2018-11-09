@@ -424,7 +424,13 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 	}
 
 	var inputAmount dcrutil.Amount
-	for _, utxo := range utxos {
+	for outp, utxo := range utxos {
+		if utxo.Confirmations < splitticket.MinimumSplitInputConfirms {
+			return errors.Errorf("split tx input utxo %s has less confirmations "+
+				"(%d) than the minimum required (%d)", outp.String(),
+				utxo.Confirmations, splitticket.MinimumSplitInputConfirms)
+		}
+
 		inputAmount += utxo.Value
 	}
 

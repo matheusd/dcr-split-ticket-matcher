@@ -42,9 +42,10 @@ func totalOutputAmount(tx *wire.MsgTx) dcrutil.Amount {
 
 // UtxoEntry is an entry of the utxo set of the network
 type UtxoEntry struct {
-	PkScript []byte
-	Value    dcrutil.Amount
-	Version  uint16
+	PkScript      []byte
+	Value         dcrutil.Amount
+	Version       uint16
+	Confirmations int64
 }
 
 // UtxoMap is an auxilary type for the split transaction checks.
@@ -76,7 +77,7 @@ func UtxoMapOutpointsFromNetwork(client *rpcclient.Client, outpoints []*wire.Out
 		}
 
 		if txOut == nil {
-			return nil, errors.Wrapf(err, "outpoint is spent: %s", outp)
+			return nil, errors.Errorf("outpoint is spent/unknown: %s", outp)
 		}
 
 		pkScript, err := hex.DecodeString(txOut.ScriptPubKey.Hex)
@@ -92,9 +93,10 @@ func UtxoMapOutpointsFromNetwork(client *rpcclient.Client, outpoints []*wire.Out
 		}
 
 		res[*outp] = UtxoEntry{
-			PkScript: pkScript,
-			Value:    amount,
-			Version:  uint16(txOut.Version),
+			PkScript:      pkScript,
+			Value:         amount,
+			Version:       uint16(txOut.Version),
+			Confirmations: txOut.Confirmations,
 		}
 	}
 
