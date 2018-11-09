@@ -220,7 +220,7 @@ func buySplitTicket(ctx context.Context, cfg *Config) error {
 func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse {
 	rep := reporterFromContext(mainCtx)
 
-	setupCtx, setupCancel := context.WithTimeout(mainCtx, time.Second*10)
+	setupCtx, setupCancel := context.WithTimeout(mainCtx, time.Second*60)
 
 	rep.reportStage(setupCtx, StageConnectingToWallet, nil, cfg)
 	wc, err := ConnectToWallet(cfg.WalletHost, cfg.WalletCertFile, cfg.ChainParams)
@@ -258,9 +258,32 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 			"error testing wallet funds")}
 	}
 
+	var dcrd *decredNetwork
+	var utxoProvider UtxoMapProvider
+	if !cfg.UtxosFromDcrdata {
+		dcrd, err = connectToDecredNode(cfg.networkCfg())
+		if err != nil {
+			setupCancel()
+			return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
+				"error connecting to dcrd")}
+		}
+		rep.reportStage(setupCtx, StageConnectingToDcrd, nil, cfg)
+		utxoProvider = dcrd.fetchSplitUtxos
+	} else {
+		err = isDcrdataOnline(cfg.DcrdataURL, cfg.ChainParams)
+		if err != nil {
+			setupCancel()
+			return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
+				"error checking if dcrdata is online")}
+		}
+
+		rep.reportStage(setupCtx, StageConnectingToDcrdata, nil, cfg)
+		utxoProvider = utxoProviderForDcrdataURL(cfg.DcrdataURL)
+	}
+
 	rep.reportStage(setupCtx, StageConnectingToMatcher, nil, cfg)
 	mc, err := ConnectToMatcherService(setupCtx, cfg.MatcherHost, cfg.MatcherCertFile,
-		cfg.networkCfg())
+		utxoProvider)
 	if err != nil {
 		setupCancel()
 		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err,
@@ -299,6 +322,16 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 		}
 	}()
 
+	dcrdErrChan := make(chan error)
+	if !cfg.UtxosFromDcrdata {
+		go func() {
+			err := dcrd.checkDcrdWaitingForSession(waitCtx)
+			if err != nil {
+				dcrdErrChan <- err
+			}
+		}()
+	}
+
 	sessionChan := make(chan *Session)
 	participateErrChan := make(chan error)
 
@@ -320,6 +353,9 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 	case walletErr := <-walletErrChan:
 		waitCancel()
 		return sessionWaiterResponse{nil, nil, nil, walletErr}
+	case dcrdErr := <-dcrdErrChan:
+		waitCancel()
+		return sessionWaiterResponse{nil, nil, nil, dcrdErr}
 	case partErr := <-participateErrChan:
 		waitCancel()
 		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(partErr,
@@ -381,7 +417,11 @@ func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *MatcherClient
 	}
 	rep.reportStage(ctx, StageTicketFunded, session, cfg)
 
-	mc.network.monitorSession(ctx, session)
+	err = wc.monitorSession(ctx, session)
+	if err != nil {
+		return errors.Wrapf(err, "error when trying to start monitoring for "+
+			"session txs")
+	}
 
 	rep.reportStage(ctx, StageFundingSplitTx, session, cfg)
 	err = mc.fundSplitTx(ctx, session, cfg)
@@ -401,7 +441,7 @@ func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *MatcherClient
 		return nil
 	}
 
-	err = waitForPublishedTxs(ctx, session, cfg, mc.network)
+	err = waitForPublishedTxs(ctx, session, cfg, wc)
 	if err != nil {
 		return unreportableError{errors.Wrapf(err, "error waiting for txs to be published")}
 	}
@@ -411,7 +451,7 @@ func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *MatcherClient
 }
 
 func waitForPublishedTxs(ctx context.Context, session *Session,
-	cfg *Config, net *decredNetwork) error {
+	cfg *Config, wc *WalletClient) error {
 
 	var notifiedSplit, notifiedTicket bool
 	rep := reporterFromContext(ctx)
@@ -430,18 +470,18 @@ func waitForPublishedTxs(ctx context.Context, session *Session,
 			return errors.Errorf("context done while waiting for published" +
 				"txs")
 		default:
-			if !notifiedSplit && net.publishedSplit {
+			if !notifiedSplit && wc.publishedSplit {
 				rep.reportSplitPublished()
 				notifiedSplit = true
 			}
 
-			if !notifiedTicket && net.publishedTicket != nil {
-				publishedHash := net.publishedTicket.TxHash()
+			if !notifiedTicket && wc.publishedTicket != nil {
+				publishedHash := wc.publishedTicket.TxHash()
 				if expectedTicketHash.IsEqual(&publishedHash) {
 					rep.reportRightTicketPublished()
 					correctTicket = true
 				} else {
-					rep.reportWrongTicketPublished(net.publishedTicket, session)
+					rep.reportWrongTicketPublished(wc.publishedTicket, session)
 				}
 				notifiedTicket = true
 			}

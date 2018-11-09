@@ -25,25 +25,32 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+// UtxoMapProvider is the function that will provide the matcher client with
+// information about the utxos of a given split transaction.
+//
+// This function will be passed the split transaction and must return an utxo
+// map with entries for all the outpoints in the provided tx or an error.
+type UtxoMapProvider func(*wire.MsgTx) (splitticket.UtxoMap, error)
+
 // MatcherClient is handles all requests and checks done by the buyer when
 // interacting to a remote matcher server.
 type MatcherClient struct {
-	client  pb.SplitTicketMatcherServiceClient
-	conn    *grpc.ClientConn
-	network *decredNetwork
+	client       pb.SplitTicketMatcherServiceClient
+	conn         *grpc.ClientConn
+	utxoProvider UtxoMapProvider
 }
 
 // ConnectToMatcherService tries to connect to the given matcher host and to a
 // dcrd daemon, given the provided config options.
 func ConnectToMatcherService(ctx context.Context, matcherHost string,
-	certFile string, netCfg *decredNetworkConfig) (*MatcherClient, error) {
+	certFile string, utxoProvider UtxoMapProvider) (*MatcherClient, error) {
 
 	rep := reporterFromContext(ctx)
 
-	network, err := connectToDecredNode(netCfg)
-	if err != nil {
-		return nil, errors.Wrapf(err, "error connecting to dcrd")
-	}
+	// network, err := connectToDecredNode(netCfg)
+	// if err != nil {
+	// 	return nil, errors.Wrapf(err, "error connecting to dcrd")
+	// }
 
 	matcherHost, isSrv, err := intnet.DetermineMatcherHost(matcherHost)
 	if err != nil {
@@ -82,9 +89,9 @@ func ConnectToMatcherService(ctx context.Context, matcherHost string,
 	client := pb.NewSplitTicketMatcherServiceClient(conn)
 
 	mc := &MatcherClient{
-		client:  client,
-		conn:    conn,
-		network: network,
+		client:       client,
+		conn:         conn,
+		utxoProvider: utxoProvider,
 	}
 	return mc, err
 }
@@ -211,7 +218,7 @@ func (mc *MatcherClient) generateTicket(ctx context.Context, session *Session, c
 	}
 
 	// cache the utxo map of the split so we can check for the validity of the tx
-	utxoMap, err := splitticket.UtxoMapFromNetwork(mc.network.client, session.splitTx)
+	utxoMap, err := mc.utxoProvider(session.splitTx)
 	if err != nil {
 		return err
 	}

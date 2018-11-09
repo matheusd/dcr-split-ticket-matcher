@@ -2,12 +2,17 @@ package splitticket
 
 import (
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/rpcclient"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
+	dcrdatatypes "github.com/decred/dcrdata/api/types"
 	"github.com/pkg/errors"
 )
 
@@ -37,9 +42,10 @@ func totalOutputAmount(tx *wire.MsgTx) dcrutil.Amount {
 
 // UtxoEntry is an entry of the utxo set of the network
 type UtxoEntry struct {
-	PkScript []byte
-	Value    dcrutil.Amount
-	Version  uint16
+	PkScript      []byte
+	Value         dcrutil.Amount
+	Version       uint16
+	Confirmations int64
 }
 
 // UtxoMap is an auxilary type for the split transaction checks.
@@ -71,7 +77,7 @@ func UtxoMapOutpointsFromNetwork(client *rpcclient.Client, outpoints []*wire.Out
 		}
 
 		if txOut == nil {
-			return nil, errors.Wrapf(err, "outpoint is spent: %s", outp)
+			return nil, errors.Errorf("outpoint is spent/unknown: %s", outp)
 		}
 
 		pkScript, err := hex.DecodeString(txOut.ScriptPubKey.Hex)
@@ -87,13 +93,76 @@ func UtxoMapOutpointsFromNetwork(client *rpcclient.Client, outpoints []*wire.Out
 		}
 
 		res[*outp] = UtxoEntry{
-			PkScript: pkScript,
-			Value:    amount,
-			Version:  uint16(txOut.Version),
+			PkScript:      pkScript,
+			Value:         amount,
+			Version:       uint16(txOut.Version),
+			Confirmations: txOut.Confirmations,
 		}
 	}
 
 	return res, nil
+}
+
+// UtxoMapFromDcrdata queries the dcrdata server for the outpoints of the given
+// transaction and returns an utxo map for use in validation functions.
+func UtxoMapFromDcrdata(dcrdataURL string, tx *wire.MsgTx) (UtxoMap, error) {
+
+	outpoints := make([]*wire.OutPoint, len(tx.TxIn))
+	for i, in := range tx.TxIn {
+		outpoints[i] = &in.PreviousOutPoint
+	}
+	return UtxoMapOutpointsFromDcrdata(dcrdataURL, outpoints)
+}
+
+// UtxoMapOutpointsFromDcrdata queries the dcrdata server for the outpoints of
+// the given transaction and returns an utxo map for use in validation
+// functions.
+func UtxoMapOutpointsFromDcrdata(dcrdataURL string, outpoints []*wire.OutPoint) (UtxoMap, error) {
+
+	// Ideally, this should be a batched call, but dcrdata doesn't currently
+	// have one that will return the pkscript of multiple utxos.
+
+	client := http.Client{Timeout: time.Second * 10}
+	utxos := make(UtxoMap, len(outpoints))
+	respTxOut := new(dcrdatatypes.TxOut)
+
+	for _, outp := range outpoints {
+		url := fmt.Sprintf("%s/api/tx/%s/out/%d", dcrdataURL, outp.Hash.String(),
+			outp.Index)
+
+		urlResp, err := client.Get(url)
+		if err != nil {
+			return nil, errors.Wrapf(err, "error during GET of outpoint %s",
+				outp.String())
+		}
+
+		dec := json.NewDecoder(urlResp.Body)
+		err = dec.Decode(respTxOut)
+		urlResp.Body.Close()
+		if err != nil {
+			return nil, errors.Wrap(err, "error decoding json response")
+		}
+
+		amount, err := dcrutil.NewAmount(respTxOut.Value)
+		if err != nil {
+			return nil, errors.Wrapf(err, "error converting outpoint %s value "+
+				"(%f) to amount", outp.String(), respTxOut.Value)
+		}
+
+		pkscript, err := hex.DecodeString(respTxOut.PkScript)
+		if err != nil {
+			return nil, errors.Wrapf(err, "error decoding pkscript of outpoint "+
+				"%s from hex", outp.String())
+		}
+
+		utxos[*outp] = UtxoEntry{
+			PkScript: pkscript,
+			Value:    amount,
+			Version:  respTxOut.Version,
+		}
+	}
+
+	return utxos, nil
 }
 
 // FindTxFee finds the total transaction fee paid on the the given transaction

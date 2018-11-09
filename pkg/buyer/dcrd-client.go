@@ -2,16 +2,14 @@ package buyer
 
 import (
 	"context"
-	"encoding/hex"
-	"fmt"
-	"io/ioutil"
-
-	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrjson"
-	"github.com/decred/dcrd/wire"
 	"github.com/pkg/errors"
+	"io/ioutil"
+	"time"
+
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 
 	"github.com/decred/dcrd/rpcclient"
+	"github.com/decred/dcrd/wire"
 )
 
 type decredNetworkConfig struct {
@@ -22,11 +20,7 @@ type decredNetworkConfig struct {
 }
 
 type decredNetwork struct {
-	splitHash       chainhash.Hash
-	ticketsHashes   []chainhash.Hash
-	client          *rpcclient.Client
-	publishedSplit  bool
-	publishedTicket *wire.MsgTx
+	client *rpcclient.Client
 }
 
 func connectToDecredNode(cfg *decredNetworkConfig) (*decredNetwork, error) {
@@ -39,25 +33,19 @@ func connectToDecredNode(cfg *decredNetworkConfig) (*decredNetwork, error) {
 		return nil, err
 	}
 	connCfg := &rpcclient.ConnConfig{
-		Host:         cfg.Host,
-		Endpoint:     "ws",
-		User:         cfg.User,
-		Pass:         cfg.Pass,
-		Certificates: certs,
+		Host:                 cfg.Host,
+		Endpoint:             "ws",
+		User:                 cfg.User,
+		Pass:                 cfg.Pass,
+		Certificates:         certs,
+		DisableAutoReconnect: true,
 	}
 
-	ntfsHandler := &rpcclient.NotificationHandlers{
-		OnTxAcceptedVerbose: net.onTxAccepted,
-	}
+	ntfsHandler := &rpcclient.NotificationHandlers{}
 
 	client, err := rpcclient.New(connCfg, ntfsHandler)
 	if err != nil {
 		return nil, err
-	}
-
-	err = client.NotifyNewTransactions(true)
-	if err != nil {
-		return nil, errors.Wrapf(err, "error subscribing to tx notifications")
 	}
 
 	net.client = client
@@ -65,50 +53,26 @@ func connectToDecredNode(cfg *decredNetworkConfig) (*decredNetwork, error) {
 	return net, nil
 }
 
-// monitorSession monitors the given session (split and possible tickets) for
-// publishing. Assumes the split and ticket templates have been received and
-// the vote/pool pkscripts of individual participants have also been received.
-func (dcrd *decredNetwork) monitorSession(ctx context.Context, sess *Session) {
-	dcrd.splitHash = sess.splitTx.TxHash()
-
-	dcrd.ticketsHashes = make([]chainhash.Hash, len(sess.participants))
-	for i, p := range sess.participants {
-		dcrd.ticketsHashes[i] = p.ticket.TxHash()
+// checkDcrdWaitingForSession repeatedly pings the dcrd node while the
+// buyer is waiting for a session, so that if the node is closed the buyer is
+// alerted about this fact.
+// If context is canceled, then this returns nil.
+// This blocks, therefore it MUST be run from a goroutine.
+func (dcrd *decredNetwork) checkDcrdWaitingForSession(waitCtx context.Context) error {
+	ticker := time.NewTicker(time.Second * 30)
+	for {
+		select {
+		case <-waitCtx.Done():
+			return nil
+		case <-ticker.C:
+			err := dcrd.client.Ping()
+			if err != nil {
+				return errors.Wrap(err, "error pinging dcrd node")
+			}
+		}
 	}
 }
 
-func (dcrd *decredNetwork) onTxAccepted(txDetails *dcrjson.TxRawResult) {
-	txHash, err := chainhash.NewHashFromStr(txDetails.Txid)
-	if err != nil {
-		// we just ignore this wrong tx hash, as it is not relevant to us.
-		return
-	}
-
-	if txHash.IsEqual(&dcrd.splitHash) {
-		dcrd.publishedSplit = true
-		return
-	}
-
-	for _, th := range dcrd.ticketsHashes {
-		if !txHash.IsEqual(&th) {
-			continue
-		}
-
-		bts, err := hex.DecodeString(txDetails.Hex)
-		if err != nil {
-			// maybe alert here?
-			fmt.Println("err deocding hex")
-			return
-		}
-
-		tx := wire.NewMsgTx()
-		err = tx.FromBytes(bts)
-		if err != nil {
-			// maybe alert here?
-			fmt.Println("err deocding tx")
-			return
-		}
-
-		dcrd.publishedTicket = tx
-	}
+func (dcrd *decredNetwork) fetchSplitUtxos(split *wire.MsgTx) (splitticket.UtxoMap, error) {
+	return splitticket.UtxoMapFromNetwork(dcrd.client, split)
 }

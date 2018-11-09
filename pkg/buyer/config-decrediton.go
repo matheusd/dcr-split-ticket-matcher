@@ -24,6 +24,7 @@ type decreditonGlobalConfig struct {
 	Network             string                       `json:"network"`
 	DaemonStartAdvanced bool                         `json:"daemon_start_advanced"`
 	RemoteCredentials   *decreditonRemoteCredentials `json:"remote_credentials"`
+	SPVMode             bool                         `json:"spv_mode"`
 }
 type decreditonRemoteCredentials struct {
 	RPCUser     string `json:"rpc_user"`
@@ -265,7 +266,9 @@ func InitConfigFromDecrediton(walletName, poolHost string) error {
 		creds = walletCfg.RemoteCredentials
 	}
 
-	if globalCfg.DaemonStartAdvanced && creds != nil {
+	if globalCfg.SPVMode {
+		dstSection.Key("UtxosFromDcrdata").SetValue("1")
+	} else if globalCfg.DaemonStartAdvanced && creds != nil {
 		dstSection.Key("DcrdHost").SetValue(creds.RPCHost + ":" + creds.RPCPort)
 		dstSection.Key("DcrdUser").SetValue(creds.RPCUser)
 		dstSection.Key("DcrdPass").SetValue(creds.RPCPassword)

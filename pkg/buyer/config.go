@@ -67,6 +67,8 @@ type Config struct {
 	SkipWaitPublishedTxs  bool    `long:"skipwaitpublishedtxs" description:"If specified, the session ends immediately after the last step, without waiting for the matcher to publish the transactions."`
 	ShowVersion           bool    `long:"version" description:"Show version and quit"`
 	SkipReportErrorsToSvc bool    `long:"skipreporterrorstosvc" description:"Skip sending buyer errors that happen during the session to the service"`
+	UtxosFromDcrdata      bool    `long:"utxosfromdcrdata" description:"Fetch utxo information of other participants from dcrdata instead of dcrd"`
+	DcrdataURL            string  `long:"dcrdataurl" description:"URL to use when connecting to dcrdata. Uses the default dcrdata URL for the given network if left empty"`
 
 	Passphrase  []byte
 	ChainParams *chaincfg.Params
@@ -100,6 +102,10 @@ func (cfg *Config) Validate() error {
 		return missingConfigParameterError(pmt)
 	}
 
+	if cfg.SimNet && cfg.TestNet {
+		return errors.New("specify only one of --testnet or --simnet")
+	}
+
 	if cfg.VoteAddress == "" {
 		return missing("VoteAddress")
 	}
@@ -116,20 +122,34 @@ func (cfg *Config) Validate() error {
 		return missing("WalletHost")
 	}
 
-	if cfg.DcrdHost == "" {
-		return missing("DcrdHost")
-	}
+	if !cfg.UtxosFromDcrdata {
+		if cfg.DcrdHost == "" {
+			return missing("DcrdHost")
+		}
 
-	if cfg.DcrdUser == "" {
-		return missing("DcrdUser")
-	}
+		if cfg.DcrdUser == "" {
+			return missing("DcrdUser")
+		}
 
-	if cfg.DcrdPass == "" {
-		return missing("DcrdPass")
-	}
+		if cfg.DcrdPass == "" {
+			return missing("DcrdPass")
+		}
 
-	if cfg.DcrdCert == "" {
-		return missing("DcrdCertfile")
+		if cfg.DcrdCert == "" {
+			return missing("DcrdCertfile")
+		}
+	} else {
+		cfg.DcrdataURL = strings.TrimRight(cfg.DcrdataURL, "/")
+		if cfg.DcrdataURL == "" {
+			switch {
+			case cfg.TestNet:
+				cfg.DcrdataURL = "https://testnet.dcrdata.org"
+			case cfg.SimNet:
+				cfg.DcrdataURL = "http://localhost:7777"
+			default:
+				cfg.DcrdataURL = "https://explorer.dcrdata.org"
+			}
+		}
 	}
 
 	if cfg.WalletCertFile == "" {
