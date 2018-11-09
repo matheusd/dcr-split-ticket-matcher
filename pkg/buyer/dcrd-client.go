@@ -1,13 +1,15 @@
 package buyer
 
 import (
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
+	"context"
+	"github.com/pkg/errors"
 	"io/ioutil"
+	"time"
 
-	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/wire"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 
 	"github.com/decred/dcrd/rpcclient"
+	"github.com/decred/dcrd/wire"
 )
 
 type decredNetworkConfig struct {
@@ -18,11 +20,7 @@ type decredNetworkConfig struct {
 }
 
 type decredNetwork struct {
-	splitHash       chainhash.Hash
-	ticketsHashes   []chainhash.Hash
-	client          *rpcclient.Client
-	publishedSplit  bool
-	publishedTicket *wire.MsgTx
+	client *rpcclient.Client
 }
 
 func connectToDecredNode(cfg *decredNetworkConfig) (*decredNetwork, error) {
@@ -35,11 +33,12 @@ func connectToDecredNode(cfg *decredNetworkConfig) (*decredNetwork, error) {
 		return nil, err
 	}
 	connCfg := &rpcclient.ConnConfig{
-		Host:         cfg.Host,
-		Endpoint:     "ws",
-		User:         cfg.User,
-		Pass:         cfg.Pass,
-		Certificates: certs,
+		Host:                 cfg.Host,
+		Endpoint:             "ws",
+		User:                 cfg.User,
+		Pass:                 cfg.Pass,
+		Certificates:         certs,
+		DisableAutoReconnect: true,
 	}
 
 	ntfsHandler := &rpcclient.NotificationHandlers{}
@@ -52,6 +51,26 @@ func connectToDecredNode(cfg *decredNetworkConfig) (*decredNetwork, error) {
 	net.client = client
 
 	return net, nil
+}
+
+// checkDcrdWaitingForSession repeatedly pings the dcrd node while the
+// buyer is waiting for a session, so that if the node is closed the buyer is
+// alerted about this fact.
+// If context is canceled, then this returns nil.
+// This blocks, therefore it MUST be run from a goroutine.
+func (dcrd *decredNetwork) checkDcrdWaitingForSession(waitCtx context.Context) error {
+	ticker := time.NewTicker(time.Second * 30)
+	for {
+		select {
+		case <-waitCtx.Done():
+			return nil
+		case <-ticker.C:
+			err := dcrd.client.Ping()
+			if err != nil {
+				return errors.Wrap(err, "error pinging dcrd node")
+			}
+		}
+	}
 }
 
 func (dcrd *decredNetwork) fetchSplitUtxos(split *wire.MsgTx) (splitticket.UtxoMap, error) {

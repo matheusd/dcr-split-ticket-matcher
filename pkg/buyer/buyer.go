@@ -306,6 +306,14 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 		}
 	}()
 
+	dcrdErrChan := make(chan error)
+	go func() {
+		err := dcrd.checkDcrdWaitingForSession(waitCtx)
+		if err != nil {
+			dcrdErrChan <- err
+		}
+	}()
+
 	sessionChan := make(chan *Session)
 	participateErrChan := make(chan error)
 
@@ -327,6 +335,9 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 	case walletErr := <-walletErrChan:
 		waitCancel()
 		return sessionWaiterResponse{nil, nil, nil, walletErr}
+	case dcrdErr := <-dcrdErrChan:
+		waitCancel()
+		return sessionWaiterResponse{nil, nil, nil, dcrdErr}
 	case partErr := <-participateErrChan:
 		waitCancel()
 		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(partErr,
