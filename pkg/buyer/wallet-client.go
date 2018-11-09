@@ -665,8 +665,21 @@ func (wc *WalletClient) testFunds(ctx context.Context, cfg *Config) error {
 	}
 
 	if resp.ChangeIndex < 0 {
-		return errors.Wrapf(err, "no change back to wallet when testing funds for transaction")
+		return errors.Wrapf(err, "no change back to wallet when testing funds "+
+			"for transaction")
 	}
+
+	tx := new(wire.MsgTx)
+	err = tx.FromBytes(resp.UnsignedTransaction)
+	if err != nil {
+		return errors.Wrapf(err, "error unserializing response tx")
+	}
+	if len(tx.TxIn) > splitticket.MaximumSplitInputs {
+		return errors.Errorf("number of utxos to send into split tx (%d) "+
+			"larger than maximum allowed (%d)", len(tx.TxIn),
+			splitticket.MaximumSplitInputs)
+	}
+
 	return nil
 }
 

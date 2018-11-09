@@ -413,6 +413,11 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 
 	var err error
 
+	if len(req.splitTxOutPoints) > splitticket.MaximumSplitInputs {
+		return errors.Errorf("participant tried to use too many inputs "+
+			"into the split tx (%d)", len(req.splitTxOutPoints))
+	}
+
 	utxos, err := matcher.cfg.NetworkProvider.GetUtxos(req.splitTxOutPoints)
 	if err != nil {
 		return errors.Wrapf(err, "error obtaining utxos")
