@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
 	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/slog"
 	"github.com/pkg/errors"
@@ -183,6 +185,9 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		PublishTransactions:       cfg.PublishTransactions,
 		SessionDataDir:            filepath.Join(cfg.DataDir, "sessions"),
 	}
+	if cfg.SuccessfulSessionCmd != "" {
+		mcfg.SuccessfulSesssionNtfn = d.onSuccessfulSessionNtfn
+	}
 	d.matcher = matcher.NewMatcher(mcfg)
 
 	if cfg.WaitingListWSBindAddr != "" {
@@ -209,6 +214,26 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	d.log.Criticalf("GRPC service listening on %s", intf)
 
 	return d, nil
+}
+
+func (daemon *Daemon) onSuccessfulSessionNtfn(ticketHash chainhash.Hash) {
+	if daemon.cfg.SuccessfulSessionCmd == "" {
+		return
+	}
+
+	daemon.log.Debugf("Running cmd after successful session: '%s %s'",
+		daemon.cfg.SuccessfulSessionCmd, ticketHash.String())
+	cmd := exec.Command(daemon.cfg.SuccessfulSessionCmd, ticketHash.String())
+	err := cmd.Run()
+	if err == nil {
+		return
+	}
+	if exitErr, is := err.(*exec.ExitError); is {
+		daemon.log.Warnf("Session success cmd exited with error: %s. %s",
+			exitErr.Error(), string(exitErr.Stderr))
+	} else {
+		daemon.log.Errorf("Session success cmd failed: %v", err)
+	}
 }
 
 // Run the grpc server matcher and all associated connections as goroutines.

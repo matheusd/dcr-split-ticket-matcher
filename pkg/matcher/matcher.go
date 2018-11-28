@@ -68,6 +68,10 @@ type Config struct {
 	StakeDiffChangeStopWindow int32
 	PublishTransactions       bool
 	SessionDataDir            string
+
+	// SuccessfulSesssionNtfn is a function run after a successful session is
+	// completed. This is run as a goroutine.
+	SuccessfulSesssionNtfn func(ticketHash chainhash.Hash)
 }
 
 type cancelSessionChanReq struct {
@@ -729,6 +733,10 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest, part *SessionPartic
 
 		sess.log.Infof("Session successfully finished as ticket %s",
 			ticket.TxHash())
+
+		if matcher.cfg.SuccessfulSesssionNtfn != nil {
+			go matcher.cfg.SuccessfulSesssionNtfn(ticket.TxHash())
+		}
 		matcher.removeSession(sess, nil)
 	}
 

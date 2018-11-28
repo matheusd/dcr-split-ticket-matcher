@@ -69,6 +69,8 @@ type Config struct {
 	KeepAliveTime    time.Duration `long:"keepalivetime" description:"Time duration between server-requested pings to individual clients to see if they are still online"`
 	KeepAliveTimeout time.Duration `long:"keepalivetimeout" description:"Time duration to wait for a reply after a keepalive ping has been sent"`
 
+	SuccessfulSessionCmd string `long:"successfulsessioncmd" description:"An executable to be executed after a successful session is completed. It will receive the ticket hash as first argument."`
+
 	logBackend *slog.Backend
 }
 
