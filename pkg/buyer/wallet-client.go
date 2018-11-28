@@ -16,7 +16,9 @@ import (
 
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/status"
 )
 
 // WalletClient is responsible for the interactions of the buyer with the local
@@ -660,6 +662,27 @@ func (wc *WalletClient) testFunds(ctx context.Context, cfg *Config) error {
 	}
 
 	resp, err := wc.wsvc.ConstructTransaction(ctx, req)
+	errCode := status.Code(err)
+	if errCode == codes.ResourceExhausted {
+		// not enough funds to participate in split session. Let's see if the
+		// issue is unconfirmed funds by changing requiredConfirmations to 0
+
+		req.RequiredConfirmations = 0
+		_, errConfirm := wc.wsvc.ConstructTransaction(ctx, req)
+		errCodeConfirm := status.Code(errConfirm)
+		if errCodeConfirm == codes.ResourceExhausted {
+			// it's not. We really don't have enough funds, so error out
+			// appropriately
+			return errors.Errorf("Not enough funds to participate with given "+
+				"maximum amount (tested for %s + split tx fees)",
+				amount+poolFee+changeAmount)
+		} else if errCodeConfirm == codes.OK {
+			// it is. Then alert the user that it's a matter of having enough
+			// confirmations.
+			return errors.Errorf("Not enough confirmed funds to participate. " +
+				"Wait a few more blocks for confirmation.")
+		}
+	}
 	if err != nil {
 		return errors.Wrapf(err, "error testing funds for session")
 	}
