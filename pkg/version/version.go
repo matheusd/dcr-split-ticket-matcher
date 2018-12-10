@@ -11,14 +11,16 @@ const (
 	// v2: Modified algo that calculates the lottery commiment hash to include
 	// the amounts and voter addresses
 	// v3: Modified pool fee to be proportional by contribution amount
-	ProtocolVersion = 3
+	// v4: Added the session_token return to FindMatchesResponse, which must
+	// be sent back on all further requests to validate the access.
+	ProtocolVersion = 4
 )
 
 // These are the individual version numbers
 const (
 	Major = 0
-	Minor = 6
-	Patch = 2
+	Minor = 7
+	Patch = 0
 )
 
 // These are pre-release and build metadata vars that can be modified by linking

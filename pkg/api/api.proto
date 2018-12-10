@@ -51,6 +51,7 @@ message FindMatchesResponse {
     uint32 mainchain_height = 6;
     uint64 ticket_price = 7;
     uint32 nb_participants = 8;
+    bytes session_token = 9;
 }
 
 message GenerateTicketRequest {
@@ -60,6 +61,7 @@ message GenerateTicketRequest {
     TxOut split_tx_change = 4;
     repeated OutPoint split_tx_inputs = 5;
     bytes secretnb_hash = 6;
+    bytes session_token = 7;
 }
 
 message GenerateTicketResponse {
@@ -82,6 +84,7 @@ message FundTicketRequest {
     uint32 session_id = 1;
     repeated FundedParticipantTicket tickets = 2;
     bytes revocation_script_sig = 3;
+    bytes session_token = 4;
 }
 
 message FundTicketResponse {
@@ -96,6 +99,7 @@ message FundSplitTxRequest {
     uint32 session_id = 1;
     repeated bytes split_tx_scriptsigs = 2;
     uint64 secretnb = 3;
+    bytes session_token = 4;
 }
 
 message FundSplitTxResponse {

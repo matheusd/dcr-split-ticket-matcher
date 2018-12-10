@@ -33,11 +33,12 @@ type buyerSessionParticipant struct {
 // Session is the structure that stores data for a single split ticket
 // session in progress.
 type Session struct {
-	ID          matcher.ParticipantID
-	Amount      dcrutil.Amount
-	Fee         dcrutil.Amount
-	PoolFee     dcrutil.Amount
-	TicketPrice dcrutil.Amount
+	ID           matcher.ParticipantID
+	Amount       dcrutil.Amount
+	Fee          dcrutil.Amount
+	PoolFee      dcrutil.Amount
+	TicketPrice  dcrutil.Amount
+	sessionToken []byte
 
 	mainchainHash   *chainhash.Hash
 	mainchainHeight uint32

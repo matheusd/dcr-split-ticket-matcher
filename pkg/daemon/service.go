@@ -14,7 +14,6 @@ import (
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
 	"golang.org/x/net/context"
-	"google.golang.org/grpc/peer"
 
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 )
@@ -66,12 +65,7 @@ func NewSplitTicketMatcherService(matcher *matcher.Matcher,
 func (svc *SplitTicketMatcherService) WatchWaitingList(req *pb.WatchWaitingListRequest, server pb.SplitTicketMatcherService_WatchWaitingListServer) error {
 
 	watcher := make(chan []matcher.WaitingQueue)
-	ctx := server.Context()
-	if pr, ok := peer.FromContext(ctx); ok {
-		ctx = matcher.WithOriginalSrc(ctx, pr.Addr.String())
-	} else {
-		ctx = matcher.WithOriginalSrc(ctx, "[peer unkonwn]")
-	}
+	ctx := withOriginalSrcFromPeerCtx(server.Context())
 	svc.matcher.WatchWaitingList(ctx, watcher, req.SendCurrent)
 
 	for {
@@ -100,6 +94,7 @@ func (svc *SplitTicketMatcherService) WatchWaitingList(req *pb.WatchWaitingListR
 func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.FindMatchesRequest) (*pb.FindMatchesResponse, error) {
 	var voteAddr, poolAddr dcrutil.Address
 	var err error
+	ctx = withOriginalSrcFromPeerCtx(ctx)
 
 	if req.ProtocolVersion != version.ProtocolVersion {
 		return nil, codes.FailedPrecondition.Errorf("server is "+
@@ -137,6 +132,7 @@ func (svc *SplitTicketMatcherService) FindMatches(ctx context.Context, req *pb.F
 		MainchainHeight: sess.Session.MainchainHeight,
 		TicketPrice:     uint64(sess.Session.TicketPrice),
 		NbParticipants:  uint32(len(sess.Session.Participants)),
+		SessionToken:    sess.SessionToken,
 	}
 	return res, nil
 }
@@ -147,6 +143,8 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 	var splitChange *wire.TxOut
 	var commitAddr, splitAddr dcrutil.Address
 	var err error
+
+	ctx = withOriginalSrcFromPeerCtx(ctx)
 
 	if req.SplitTxChange != nil {
 		splitChange = wire.NewTxOut(int64(req.SplitTxChange.Value), req.SplitTxChange.Script)
@@ -179,7 +177,7 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 
 	split, ticketTempl, parts, partIndex, err := svc.matcher.SetParticipantsOutputs(ctx,
 		matcher.ParticipantID(req.SessionId), commitAddr,
-		splitAddr, splitChange, splitOutpoints, secretNbHash)
+		splitAddr, splitChange, splitOutpoints, secretNbHash, req.SessionToken)
 	if err != nil {
 		return nil, translateMatcherError(err)
 	}
@@ -217,13 +215,16 @@ func (svc *SplitTicketMatcherService) GenerateTicket(ctx context.Context, req *p
 // FundTicket fulfills SplitTicketMatcherServiceServer
 func (svc *SplitTicketMatcherService) FundTicket(ctx context.Context, req *pb.FundTicketRequest) (*pb.FundTicketResponse, error) {
 
+	ctx = withOriginalSrcFromPeerCtx(ctx)
+
 	ticketsInput := make([][]byte, len(req.Tickets))
 	for i, t := range req.Tickets {
 		ticketsInput[i] = t.TicketInputScriptsig
 	}
 
-	tickets, revocations, err := svc.matcher.FundTicket(ctx, matcher.ParticipantID(req.SessionId),
-		ticketsInput, req.RevocationScriptSig)
+	tickets, revocations, err := svc.matcher.FundTicket(ctx,
+		matcher.ParticipantID(req.SessionId), ticketsInput,
+		req.RevocationScriptSig, req.SessionToken)
 	if err != nil {
 		return nil, translateMatcherError(err)
 	}
@@ -244,9 +245,13 @@ func (svc *SplitTicketMatcherService) FundTicket(ctx context.Context, req *pb.Fu
 
 // FundSplitTx fulfills SplitTicketMatcherServiceServer
 func (svc *SplitTicketMatcherService) FundSplitTx(ctx context.Context, req *pb.FundSplitTxRequest) (*pb.FundSplitTxResponse, error) {
+
+	ctx = withOriginalSrcFromPeerCtx(ctx)
+
 	split, secrets, err := svc.matcher.FundSplit(ctx,
 		matcher.ParticipantID(req.SessionId),
-		req.SplitTxScriptsigs, splitticket.SecretNumber(req.Secretnb))
+		req.SplitTxScriptsigs, splitticket.SecretNumber(req.Secretnb),
+		req.SessionToken)
 	if err != nil {
 		return nil, translateMatcherError(err)
 	}

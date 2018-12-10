@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainec"
 	"github.com/decred/dcrd/dcrec"
@@ -8,7 +9,9 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/pkg/errors"
+	"google.golang.org/grpc/peer"
 )
 
 // privateKeySplitPoolSigner fulfills the SignPoolSplitOutputProvider by storing
@@ -107,4 +110,16 @@ func (signer *privateKeySplitPoolSigner) SignPoolSplitOutput(split, ticket *wire
 	}
 
 	return sigScript, nil
+}
+
+// withOriginalSrcFromPeerCtx returns a new context usable within the matcher
+// package that indicates the original source for a given matcher operation. It
+// tries to extract the original source by using the peer grpc package to
+// extract the source information.
+func withOriginalSrcFromPeerCtx(parent context.Context) context.Context {
+	if pr, ok := peer.FromContext(parent); ok {
+		return matcher.WithOriginalSrc(parent, pr.Addr.String())
+	}
+
+	return matcher.WithOriginalSrc(parent, "[peer unkonwn]")
 }

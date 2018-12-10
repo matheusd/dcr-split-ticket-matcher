@@ -39,6 +39,7 @@ type SessionParticipant struct {
 	SplitTxAddress    dcrutil.Address
 	SecretHash        splitticket.SecretNumberHash
 	SecretNb          splitticket.SecretNumber
+	SessionToken      []byte
 
 	Session *Session
 	Index   int

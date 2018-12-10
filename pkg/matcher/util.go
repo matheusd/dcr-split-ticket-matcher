@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 )
 
@@ -148,4 +149,17 @@ func OriginalSrcFromCtx(ctx context.Context) string {
 		return val
 	}
 	return "[original src not provided]"
+}
+
+// mustGenSessionToken generates a random session token so that individual
+// participants are correctly identified
+func mustGenSessionToken() []byte {
+	var b [32]byte
+	_, err := rand.Read(b[:])
+	if err != nil {
+		// out of entropy...
+		panic(err)
+	}
+
+	return chainhash.HashB(b[:])
 }

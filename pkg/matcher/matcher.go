@@ -2,6 +2,7 @@ package matcher
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/hex"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/util"
 	"math/rand"
@@ -370,6 +371,7 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 			VoteAddress:  r.voteAddress,
 			PoolAddress:  r.poolAddress,
 			log:          util.NewPrefixLogger(id.String(), matcher.cfg.SessionLog),
+			SessionToken: mustGenSessionToken(),
 		}
 		sess.Participants[i] = sessPart
 		matcher.participants[id] = sessPart
@@ -378,8 +380,9 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 			participant: sessPart,
 		}
 
-		sessPart.log.Infof("Participant contribution %s ticket address %s",
-			commitments[i], sessPart.VoteAddress.EncodeAddress())
+		sessPart.log.Infof("Participant contribution %s ticket address %s "+
+			"source %s", commitments[i], sessPart.VoteAddress.EncodeAddress(),
+			OriginalSrcFromCtx(r.ctx))
 	}
 
 	go func(s *Session) {
@@ -414,6 +417,12 @@ func (matcher *Matcher) newParticipantID(sessionID SessionID) ParticipantID {
 
 func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest,
 	part *SessionParticipant) error {
+
+	if subtle.ConstantTimeCompare(part.SessionToken, req.sessionToken) != 1 {
+		part.log.Warnf("Wrong session token submitted by remote host on "+
+			"setParticipantsOutputs %s", OriginalSrcFromCtx(req.ctx))
+		return errors.Errorf("Wrong session token submitted on setParticipantsOutputs")
+	}
 
 	var err error
 
@@ -544,6 +553,13 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 }
 
 func (matcher *Matcher) fundTicket(req *fundTicketRequest, part *SessionParticipant) error {
+
+	if subtle.ConstantTimeCompare(part.SessionToken, req.sessionToken) != 1 {
+		part.log.Warnf("Wrong session token submitted by remote host on "+
+			"fundTicket %s", OriginalSrcFromCtx(req.ctx))
+		return errors.Errorf("Wrong session token submitted on fundTicket")
+	}
+
 	sess := part.Session
 
 	if len(req.ticketsInputScriptSig) != len(sess.Participants) {
@@ -621,6 +637,13 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest, part *SessionParticip
 }
 
 func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest, part *SessionParticipant) error {
+
+	if subtle.ConstantTimeCompare(part.SessionToken, req.sessionToken) != 1 {
+		part.log.Warnf("Wrong session token submitted by remote host on "+
+			"fundSplitTx %s", OriginalSrcFromCtx(req.ctx))
+		return errors.Errorf("Wrong session token submitted on fundSplitTx")
+	}
+
 	sess := part.Session
 
 	if len(part.splitTxInputs) != len(req.inputScriptSigs) {
@@ -784,7 +807,7 @@ func (matcher *Matcher) AddParticipant(ctx context.Context, maxAmount uint64,
 	}
 
 	if !matcher.cfg.NetworkProvider.ConnectedToDecredNetwork() {
-		return nil, errors.Errorf("matcher is not currently connected to the" +
+		return nil, errors.Errorf("matcher is not currently connected to the " +
 			"decred network")
 	}
 
@@ -848,11 +871,10 @@ func (matcher *Matcher) WatchWaitingList(ctx context.Context,
 // outputs, then generates the ticket tx and returns the index of the input
 // that should receive this participants funds
 func (matcher *Matcher) SetParticipantsOutputs(ctx context.Context,
-	sessionID ParticipantID, commitAddress,
-	splitTxAddress dcrutil.Address, splitTxChange *wire.TxOut,
-	splitTxOutPoints []*wire.OutPoint,
-	secretNbHash splitticket.SecretNumberHash) (*wire.MsgTx, *wire.MsgTx,
-	[]*ParticipantTicketOutput, uint32, error) {
+	sessionID ParticipantID, commitAddress, splitTxAddress dcrutil.Address,
+	splitTxChange *wire.TxOut, splitTxOutPoints []*wire.OutPoint,
+	secretNbHash splitticket.SecretNumberHash, sessionToken []byte) (*wire.MsgTx,
+	*wire.MsgTx, []*ParticipantTicketOutput, uint32, error) {
 
 	if commitAddress == nil {
 		return nil, nil, nil, 0, errors.New("empty commitment address")
@@ -867,9 +889,6 @@ func (matcher *Matcher) SetParticipantsOutputs(ctx context.Context,
 			"split tx provided")
 	}
 
-	// TODO: check if number of split inputs is < than a certain threshold
-	// (maybe 5 per part?)
-
 	req := setParticipantOutputsRequest{
 		ctx:              ctx,
 		sessionID:        sessionID,
@@ -878,6 +897,7 @@ func (matcher *Matcher) SetParticipantsOutputs(ctx context.Context,
 		splitTxChange:    splitTxChange,
 		splitTxOutPoints: splitTxOutPoints,
 		secretHash:       secretNbHash,
+		sessionToken:     sessionToken,
 		resp:             make(chan setParticipantOutputsResponse),
 	}
 
@@ -889,7 +909,7 @@ func (matcher *Matcher) SetParticipantsOutputs(ctx context.Context,
 // FundTicket is the matcher public API to participants in a session to fund the
 // ticket transaction.
 func (matcher *Matcher) FundTicket(ctx context.Context, sessionID ParticipantID,
-	inputsScriptSig [][]byte, revocationScriptSig []byte) ([][]byte, [][]byte, error) {
+	inputsScriptSig [][]byte, revocationScriptSig []byte, sessionToken []byte) ([][]byte, [][]byte, error) {
 
 	if revocationScriptSig == nil {
 		return nil, nil, errors.Errorf("empty revocationScriptSig")
@@ -900,6 +920,7 @@ func (matcher *Matcher) FundTicket(ctx context.Context, sessionID ParticipantID,
 		sessionID:             sessionID,
 		ticketsInputScriptSig: inputsScriptSig,
 		revocationScriptSig:   revocationScriptSig,
+		sessionToken:          sessionToken,
 		resp:                  make(chan fundTicketResponse),
 	}
 
@@ -911,7 +932,7 @@ func (matcher *Matcher) FundTicket(ctx context.Context, sessionID ParticipantID,
 // FundSplit is the public matcher API for participants to fund their respective
 // split ticket inputs.
 func (matcher *Matcher) FundSplit(ctx context.Context, sessionID ParticipantID,
-	inputScriptSigs [][]byte, secretNb splitticket.SecretNumber) ([]byte,
+	inputScriptSigs [][]byte, secretNb splitticket.SecretNumber, sessionToken []byte) ([]byte,
 	[]splitticket.SecretNumber, error) {
 
 	req := fundSplitTxRequest{
@@ -919,6 +940,7 @@ func (matcher *Matcher) FundSplit(ctx context.Context, sessionID ParticipantID,
 		sessionID:       sessionID,
 		inputScriptSigs: inputScriptSigs,
 		secretNb:        secretNb,
+		sessionToken:    sessionToken,
 		resp:            make(chan fundSplitTxResponse),
 	}
 	matcher.fundSplitTxRequests <- req

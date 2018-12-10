@@ -187,7 +187,7 @@ func (net *decredNetwork) onBlockDisconnected(blockHeader []byte) {
 
 func (net *decredNetwork) onReorganization(oldHash *chainhash.Hash, oldHeight int32,
 	newHash *chainhash.Hash, newHeight int32) {
-	net.log.Info("Chain reorg. OldHeight=%d NewHeight=%d", oldHeight, newHeight)
+	net.log.Infof("Chain reorg. OldHeight=%d NewHeight=%d", oldHeight, newHeight)
 	net.updateFromBestBlock()
 }
 

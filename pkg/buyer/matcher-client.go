@@ -131,6 +131,7 @@ func (mc *MatcherClient) participate(ctx context.Context, maxAmount dcrutil.Amou
 		mainchainHash:   mainchainHash,
 		mainchainHeight: resp.MainchainHeight,
 		nbParticipants:  resp.NbParticipants,
+		sessionToken:    resp.SessionToken,
 	}
 
 	err = splitticket.CheckParticipantSessionPoolFee(int(sess.nbParticipants),
@@ -176,6 +177,7 @@ func (mc *MatcherClient) generateTicket(ctx context.Context, session *Session, c
 		CommitmentAddress: session.ticketOutputAddress.String(),
 		SplitTxAddress:    session.splitOutputAddress.String(),
 		SecretnbHash:      session.secretNbHash[:],
+		SessionToken:      session.sessionToken,
 	}
 
 	req.SplitTxInputs = make([]*pb.OutPoint, len(session.splitInputs))
@@ -338,6 +340,7 @@ func (mc *MatcherClient) fundTicket(ctx context.Context, session *Session, cfg *
 		SessionId:           uint32(session.ID),
 		Tickets:             tickets,
 		RevocationScriptSig: session.revocationScriptSig,
+		SessionToken:        session.sessionToken,
 	}
 
 	resp, err := mc.client.FundTicket(ctx, req)
@@ -412,6 +415,7 @@ func (mc *MatcherClient) fundSplitTx(ctx context.Context, session *Session, cfg 
 		SessionId:         uint32(session.ID),
 		SplitTxScriptsigs: splitTxSigs,
 		Secretnb:          uint64(session.secretNb),
+		SessionToken:      session.sessionToken,
 	}
 
 	resp, err := mc.client.FundSplitTx(ctx, req)

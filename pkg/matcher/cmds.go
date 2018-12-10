@@ -53,6 +53,7 @@ type (
 		secretHash       splitticket.SecretNumberHash
 		sessionID        ParticipantID
 		splitTxChange    *wire.TxOut
+		sessionToken     []byte
 		resp             chan setParticipantOutputsResponse
 	}
 
@@ -61,6 +62,7 @@ type (
 		sessionID             ParticipantID
 		ticketsInputScriptSig [][]byte
 		revocationScriptSig   []byte
+		sessionToken          []byte
 		resp                  chan fundTicketResponse
 	}
 
@@ -69,6 +71,7 @@ type (
 		sessionID       ParticipantID
 		inputScriptSigs [][]byte
 		secretNb        splitticket.SecretNumber
+		sessionToken    []byte
 		resp            chan fundSplitTxResponse
 	}
 
