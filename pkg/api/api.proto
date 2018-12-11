@@ -111,6 +111,7 @@ message StatusRequest { }
 message StatusResponse {
     uint64 ticket_price = 1;
     uint32 protocol_version = 2;
+    bytes mainchain_hash = 3;
 }
 
 message BuyerErrorRequest {

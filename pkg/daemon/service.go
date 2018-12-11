@@ -285,7 +285,10 @@ func (svc *SplitTicketMatcherService) BuyerError(ctx context.Context, req *pb.Bu
 
 // Status fulfills SplitTicketMatcherServiceServer
 func (svc *SplitTicketMatcherService) Status(context.Context, *pb.StatusRequest) (*pb.StatusResponse, error) {
+	currentHash := svc.networkProvider.CurrentBlockHash()
+
 	return &pb.StatusResponse{
-		TicketPrice: svc.networkProvider.CurrentTicketPrice(),
+		TicketPrice:   svc.networkProvider.CurrentTicketPrice(),
+		MainchainHash: currentHash[:],
 	}, nil
 }
