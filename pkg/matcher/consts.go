@@ -24,3 +24,33 @@ var (
 	// maximum allowed elapsed time.
 	ErrSessionExpired = errors.New("session expired")
 )
+
+// SessionStage is the stage of a given session
+type SessionStage int
+
+// String returns the string representation of the session stage
+func (ss SessionStage) String() string {
+	switch ss {
+	case StageUnknown:
+		return "unknown"
+	case StageWaitingOutputs:
+		return "waiting outputs"
+	case StageWaitingTicketFunds:
+		return "waiting ticket funds"
+	case StageWaitingSplitFunds:
+		return "waiting split funds"
+	case StageDone:
+		return "done"
+	default:
+		return "invalid"
+	}
+}
+
+// The below constants are for the possible stages a session can be in.
+const (
+	StageUnknown SessionStage = iota
+	StageWaitingOutputs
+	StageWaitingTicketFunds
+	StageWaitingSplitFunds
+	StageDone
+)

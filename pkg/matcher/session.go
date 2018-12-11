@@ -40,6 +40,7 @@ type SessionParticipant struct {
 	SecretHash        splitticket.SecretNumberHash
 	SecretNb          splitticket.SecretNumber
 	SessionToken      []byte
+	CurrentStage      SessionStage
 
 	Session *Session
 	Index   int
@@ -173,6 +174,7 @@ type Session struct {
 	Done            bool
 	Canceled        bool
 	TicketExpiry    uint32
+	CurrentStage    SessionStage
 	log             slog.Logger
 }
 

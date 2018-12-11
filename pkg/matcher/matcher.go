@@ -333,6 +333,7 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 		TicketExpiry:    expiry,
 		log:             util.NewPrefixLogger(sessID.String(), matcher.cfg.SessionLog),
 		VoterIndex:      -1, // voter not decided yet
+		CurrentStage:    StageWaitingOutputs,
 	}
 	matcher.sessions[sessID] = sess
 
@@ -372,6 +373,7 @@ func (matcher *Matcher) startNewSession(q *splitTicketQueue) {
 			PoolAddress:  r.poolAddress,
 			log:          util.NewPrefixLogger(id.String(), matcher.cfg.SessionLog),
 			SessionToken: mustGenSessionToken(),
+			CurrentStage: StageWaitingOutputs,
 		}
 		sess.Participants[i] = sessPart
 		matcher.participants[id] = sessPart
@@ -424,6 +426,16 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 		return errors.Errorf("Wrong session token submitted on setParticipantsOutputs")
 	}
 
+	if part.Session.CurrentStage != StageWaitingOutputs {
+		return errors.Errorf("participant tried to send outputs while session "+
+			"was in stage [%s]", part.Session.CurrentStage)
+	}
+
+	if part.CurrentStage != StageWaitingOutputs {
+		return errors.Errorf("participant tried to send outputs while "+
+			"participant was in stage [%s]", part.CurrentStage)
+	}
+
 	var err error
 
 	if len(req.splitTxOutPoints) > splitticket.MaximumSplitInputs {
@@ -470,6 +482,7 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 			expectedInputAmount.String())
 	}
 
+	part.CurrentStage = StageWaitingTicketFunds
 	part.CommitmentAddress = req.commitAddress
 	part.SplitTxAddress = req.splitTxAddress
 	part.SecretHash = req.secretHash
@@ -491,6 +504,8 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 
 	if sess.AllOutputsFilled() {
 		sess.log.Infof("All outputs received. Creating txs.")
+
+		sess.CurrentStage = StageWaitingTicketFunds
 
 		var ticket, splitTx *wire.MsgTx
 		var poolTicketInSig []byte
@@ -560,6 +575,16 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest, part *SessionParticip
 		return errors.Errorf("Wrong session token submitted on fundTicket")
 	}
 
+	if part.Session.CurrentStage != StageWaitingTicketFunds {
+		return errors.Errorf("participant tried to fund ticket while session "+
+			"was in stage [%s]", part.Session.CurrentStage)
+	}
+
+	if part.CurrentStage != StageWaitingTicketFunds {
+		return errors.Errorf("participant tried to fund ticket while "+
+			"participant was in stage [%s]", part.CurrentStage)
+	}
+
 	sess := part.Session
 
 	if len(req.ticketsInputScriptSig) != len(sess.Participants) {
@@ -575,6 +600,7 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest, part *SessionParticip
 
 	part.log.Infof("Participant sent ticket input sigs")
 
+	part.CurrentStage = StageWaitingSplitFunds
 	part.ticketsScriptSig = req.ticketsInputScriptSig
 	part.revocationScriptSig = req.revocationScriptSig
 	part.chanFundTicketResponse = req.resp
@@ -582,6 +608,8 @@ func (matcher *Matcher) fundTicket(req *fundTicketRequest, part *SessionParticip
 	if sess.TicketIsFunded() {
 		sess.log.Infof("All sigscripts for ticket received. Creating  " +
 			"funded ticket.")
+
+		sess.CurrentStage = StageWaitingSplitFunds
 
 		var ticketHash chainhash.Hash
 
@@ -644,6 +672,16 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest, part *SessionPartic
 		return errors.Errorf("Wrong session token submitted on fundSplitTx")
 	}
 
+	if part.Session.CurrentStage != StageWaitingSplitFunds {
+		return errors.Errorf("participant tried to fund split while session "+
+			"was in stage [%s]", part.Session.CurrentStage)
+	}
+
+	if part.CurrentStage != StageWaitingSplitFunds {
+		return errors.Errorf("participant tried to fund split while "+
+			"participant was in stage [%s]", part.CurrentStage)
+	}
+
 	sess := part.Session
 
 	if len(part.splitTxInputs) != len(req.inputScriptSigs) {
@@ -661,6 +699,7 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest, part *SessionPartic
 
 	// TODO: make sure the script sigs actually sign the split tx
 
+	part.CurrentStage = StageDone
 	part.SecretNb = req.secretNb
 	for i, script := range req.inputScriptSigs {
 		part.splitTxInputs[i].SignatureScript = script
@@ -672,6 +711,8 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest, part *SessionPartic
 	if sess.SplitTxIsFunded() {
 		var splitBytes []byte
 		var err error
+
+		sess.CurrentStage = StageDone
 
 		selCoin, selIndex := sess.FindVoterCoinIndex()
 		sess.Done = true
