@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	unsafe_rand "math/rand"
 	"os"
 	"path/filepath"
 	"time"
@@ -333,6 +334,14 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 		}()
 	}
 
+	checkSyncChan := make(chan error)
+	go func() {
+		err := checkMatcherWalletBlockchainSync(waitCtx, mc, wc)
+		if err != nil {
+			checkSyncChan <- err
+		}
+	}()
+
 	sessionChan := make(chan *Session)
 	participateErrChan := make(chan error)
 
@@ -361,10 +370,77 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 		waitCancel()
 		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(partErr,
 			"error while waiting to participate in session")}
+	case syncErr := <-checkSyncChan:
+		waitCancel()
+		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(syncErr,
+			"error while checking matcher and wallet sync to the network")}
 	case session := <-sessionChan:
 		waitCancel()
 		rep.reportStage(mainCtx, StageMatchesFound, session, cfg)
 		return sessionWaiterResponse{mc, wc, session, nil}
+	}
+}
+
+// checkMatcherWalletBlockchainSync checks whether the given matcher and wallet
+// clients are synced to the same height.
+//
+// This function will keep checking the sync every 5 minutes or until the
+// context is cancelled, so it needs to be called on a goroutine.
+//
+// It returns nil if the context was canceled or an error if the matcher and
+// wallet grow out of sync.
+func checkMatcherWalletBlockchainSync(waitCtx context.Context, mc *MatcherClient, wc *WalletClient) error {
+	ticker := time.NewTicker(time.Minute * 5)
+	defer ticker.Stop()
+
+	checkSync := func() error {
+		mcStatus, err := mc.status(waitCtx)
+		if err != nil {
+			return errors.Wrap(err, "error checking status of matcher")
+		}
+
+		wcChainInfo, err := wc.currentChainInfo(waitCtx)
+		if err != nil {
+			return errors.Wrap(err, "error checking wallet chain info")
+		}
+
+		hashMatcher, err := chainhash.NewHash(mcStatus.MainchainHash)
+		if err != nil {
+			return errors.Wrap(err, "matcher sent an invalid hash")
+		}
+
+		if !hashMatcher.IsEqual(wcChainInfo.bestBlockHash) {
+			return errors.Errorf("matcher mainchain hash (%s) different than "+
+				"wallet mainchain hash (%s)", hashMatcher, wcChainInfo.bestBlockHash)
+		}
+
+		return nil
+	}
+
+	for {
+		select {
+		case <-waitCtx.Done():
+			return nil
+		case <-ticker.C:
+			err := checkSync()
+			if err == nil {
+				// matcher and wallet are in sync
+				continue
+			}
+
+			// matcher and wallet are out of sync. Let's wait a 10 +- 10 seconds
+			// to let them catch up in case they were just momentarily out of
+			// sync, then try again.
+			sleeptime := time.Duration(10 + unsafe_rand.Intn(10))
+			time.Sleep(time.Second * sleeptime)
+			err = checkSync()
+			if err != nil {
+				// an actual error in sync. return.
+				return err
+			}
+
+			// wallet and matcher are in sync again, so just continue checking.
+		}
 	}
 }
 

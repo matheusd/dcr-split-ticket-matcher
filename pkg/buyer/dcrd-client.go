@@ -60,6 +60,8 @@ func connectToDecredNode(cfg *decredNetworkConfig) (*decredNetwork, error) {
 // This blocks, therefore it MUST be run from a goroutine.
 func (dcrd *decredNetwork) checkDcrdWaitingForSession(waitCtx context.Context) error {
 	ticker := time.NewTicker(time.Second * 30)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-waitCtx.Done():

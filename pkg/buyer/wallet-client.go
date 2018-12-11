@@ -85,6 +85,8 @@ func (wc *WalletClient) close() error {
 // This blocks, therefore it MUST be run from a goroutine.
 func (wc *WalletClient) checkWalletWaitingForSession(waitCtx context.Context) error {
 	ticker := time.NewTicker(time.Second * 30)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-waitCtx.Done():
