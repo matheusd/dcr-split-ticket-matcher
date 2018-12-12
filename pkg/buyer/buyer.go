@@ -136,6 +136,7 @@ type Reporter interface {
 	reportMatcherStatus(*pbm.StatusResponse)
 	reportSavedSession(string)
 	reportSrvRecordFound(record string)
+	reportSrvLookupError(err error)
 	reportSplitPublished()
 	reportRightTicketPublished()
 	reportWrongTicketPublished(ticket *wire.MsgTx, session *Session)

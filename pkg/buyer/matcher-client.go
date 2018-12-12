@@ -47,14 +47,9 @@ func ConnectToMatcherService(ctx context.Context, matcherHost string,
 
 	rep := reporterFromContext(ctx)
 
-	// network, err := connectToDecredNode(netCfg)
-	// if err != nil {
-	// 	return nil, errors.Wrapf(err, "error connecting to dcrd")
-	// }
-
 	matcherHost, isSrv, err := intnet.DetermineMatcherHost(matcherHost)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error determining target matcher host")
+		rep.reportSrvLookupError(err)
 	}
 	if isSrv {
 		rep.reportSrvRecordFound(matcherHost)

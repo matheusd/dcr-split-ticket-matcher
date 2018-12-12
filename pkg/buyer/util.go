@@ -109,6 +109,10 @@ func (rep *WriterReporter) reportSrvRecordFound(record string) {
 	fmt.Fprintf(rep.w, "Found SRV record to use host %s\n", record)
 }
 
+func (rep *WriterReporter) reportSrvLookupError(err error) {
+	fmt.Fprintf(rep.w, "SRV lookup error: %s\n", err)
+}
+
 func (rep *WriterReporter) reportSplitPublished() {
 	fmt.Fprintf(rep.w, "Split tx published in the network\n")
 }
@@ -297,6 +301,7 @@ func (rep NullReporter) reportStage(ctx context.Context, stage Stage, session *S
 func (rep NullReporter) reportMatcherStatus(status *pb.StatusResponse)                   {}
 func (rep NullReporter) reportSavedSession(string)                                       {}
 func (rep NullReporter) reportSrvRecordFound(record string)                              {}
+func (rep NullReporter) reportSrvLookupError(err error)                                  {}
 func (rep NullReporter) reportSplitPublished()                                           {}
 func (rep NullReporter) reportRightTicketPublished()                                     {}
 func (rep NullReporter) reportWrongTicketPublished(ticket *wire.MsgTx, session *Session) {}

@@ -126,7 +126,9 @@ func IsSubDomain(root, subdomain string) bool {
 // This uses DNS requests to consult applicable SRV records to redirect the
 // connection to a specific server.
 // Returns the target host, whether the host was changed due to the presence of
-// an SRV record or an error
+// an SRV record and any errors that happened.
+//
+// Note that in case of errors, the original matcherHost is returned.
 func DetermineMatcherHost(matcherHost string) (string, bool, error) {
 	host := RemoveHostPort(matcherHost)
 
@@ -141,20 +143,29 @@ func DetermineMatcherHost(matcherHost string) (string, bool, error) {
 		matcherHost = fmt.Sprintf("%s:%d", target, addrs[0].Port)
 
 		if !IsSubDomain(host, target) {
-			return "", false, errors.Errorf("SRV target host %s is not a "+
-				"subdomain of %s", target, host)
+			return matcherHost, false, errors.Errorf("SRV target host %s is "+
+				"not a subdomain of %s", target, host)
 		}
 
 		return matcherHost, true, nil
 	}
 
 	if err != nil {
-		if strings.LastIndex(err.Error(), "no such host") == -1 {
-			// not a great way to check for the "no such error" host (target
-			// host not found)
-			return "", false, errors.Wrap(err, "error during SRV record lookup")
+		// These are not a great ways to check for the "no such error" host
+		// (target host not found) - ie the stakepool did not configure an SRV
+		// record and we should continue with process.
+		errstr := err.Error()
+
+		if strings.LastIndex(errstr, "no such host") == len(errstr)-12 {
+			// Matches on linux platforms.
+			return matcherHost, false, nil
+		}
+
+		if strings.LastIndex(errstr, "name does not exist.") == len(errstr)-20 {
+			// Matches on windows platforms.
+			return matcherHost, false, nil
 		}
 	}
 
-	return matcherHost, false, nil
+	return matcherHost, false, err
 }
