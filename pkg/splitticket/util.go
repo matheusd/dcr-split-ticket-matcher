@@ -25,10 +25,6 @@ var currentScriptFlags = txscript.ScriptDiscourageUpgradableNops |
 	txscript.ScriptVerifyCheckSequenceVerify |
 	txscript.ScriptVerifySHA256
 
-// minRelayFeeRate is the minimum tx fee rate for inclusion on the network.
-// Measured as Atoms/KB. 1e5 = 0.001 DCR
-const minRelayFeeRate dcrutil.Amount = 1e5
-
 // totalOutputAmount calculates the total amount of outputs for a transaction.
 // Only safe to be called on transactions which passed
 // blockchain.CheckTransactionSanity()

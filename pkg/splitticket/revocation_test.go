@@ -68,7 +68,7 @@ func TestCreateUnsignedRevocation(t *testing.T) {
 
 		revocation.TxIn[0].SignatureScript = revocationSigScript
 		size := revocation.SerializeSize()
-		minFee := dcrutil.Amount((size * int(minRelayFeeRate)) / 1000)
+		minFee := dcrutil.Amount((size * int(TxFeeRate)) / 1000)
 
 		fee, err := FindRevocationTxFee(ticket, revocation)
 		if err != nil {

@@ -122,7 +122,7 @@ func CheckSignedSplit(split *wire.MsgTx, utxos UtxoMap, params *chaincfg.Params)
 	txFee := totalAmountIn - int64(totalAmountOut)
 
 	serializedSize := int64(split.SerializeSize())
-	minFee := (serializedSize * int64(minRelayFeeRate)) / 1000
+	minFee := (serializedSize * int64(TxFeeRate)) / 1000
 	if txFee < minFee {
 		return errors.Errorf("split tx fee (%s) less than minimum required "+
 			"amount (%s)", dcrutil.Amount(txFee), dcrutil.Amount(minFee))

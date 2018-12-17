@@ -24,10 +24,6 @@ const (
 		1 + 108 + // TxIn len(ScriptSig) + ScriptSig
 		8 + 2 + 1 + 32 + // Stake Commitment TxOut = amount + version + script
 		8 + 2 + 1 + 26 // Stake Change TxOut = amount + version + script
-
-	// TicketFeeEstimate is the fee rate estimate (in dcr/byte) of the fee in
-	// a ticket purchase
-	TicketFeeEstimate float64 = 0.001 / 1000
 )
 
 // TicketSizeEstimate returns the size estimate for the ticket transaction for
@@ -41,8 +37,9 @@ func TicketSizeEstimate(numParticipants int) int {
 // SessionParticipantFee returns the fee that a single participant of a ticket
 // split tx with the given number of participants should pay
 func SessionParticipantFee(numParticipants int) dcrutil.Amount {
+	feeRate := float64(TxFeeRate) / 1e11 // 1e11 = 1e8 * 1e3
 	txSize := TicketSizeEstimate(numParticipants)
-	ticketFee, _ := dcrutil.NewAmount(float64(txSize) * TicketFeeEstimate)
+	ticketFee, _ := dcrutil.NewAmount(float64(txSize) * feeRate)
 	partFee := dcrutil.Amount(math.Ceil(float64(ticketFee) / float64(numParticipants)))
 	return partFee
 }

@@ -246,7 +246,7 @@ func CheckSignedTicket(split, ticket *wire.MsgTx, params *chaincfg.Params) error
 	}
 	txFee := totalAmountIn - totalAmountOut
 	serializedSize := int64(ticket.SerializeSize())
-	minFee := (serializedSize * int64(minRelayFeeRate)) / 1000
+	minFee := (serializedSize * int64(TxFeeRate)) / 1000
 	if txFee < minFee {
 		return errors.Errorf("ticket fee (%s) less than minimum required amount (%s)",
 			dcrutil.Amount(txFee), dcrutil.Amount(minFee))

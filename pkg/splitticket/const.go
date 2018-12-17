@@ -1,5 +1,7 @@
 package splitticket
 
+import "github.com/decred/dcrd/dcrutil"
+
 const (
 	// SplitTicketSrvService is the _service_ part of an SRV record that is
 	// looked up prior to connecting to the split ticket service
@@ -24,4 +26,10 @@ const (
 	// As of 2018-11-09 only ~3% of all mainnet txs used more than 20 inputs, so
 	// this should be reasonable.
 	MaximumSplitInputs = 20
+
+	// TxFeeRate is the expected transaction fee rate for the split and ticket
+	// transactions of participants of split tickets.
+	//
+	// Measured as Atoms/KB. 1e5 = 0.001 DCR
+	TxFeeRate dcrutil.Amount = 1e5
 )

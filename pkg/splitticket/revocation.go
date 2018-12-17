@@ -28,7 +28,7 @@ func RevocationFeeRate(params *chaincfg.Params) dcrutil.Amount {
 		return 1e4
 	}
 
-	return minRelayFeeRate
+	return TxFeeRate
 }
 
 // CheckRevocation checks whether the revocation for the given ticket respects
