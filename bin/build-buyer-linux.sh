@@ -1,29 +1,32 @@
-#!/bin/sh
+#!/bin/bash
 
 . ./bin/common.sh
 
-rm -fR dist/release/linux64/split-ticket-buyer
-mkdir -p dist/release/linux64/split-ticket-buyer
+ARCH=`uname -m`
+PLAT="linux-$ARCH"
+
+rm -fR dist/release/$PLAT/split-ticket-buyer
+mkdir -p dist/release/$PLAT/split-ticket-buyer
 mkdir -p dist/archives/v$VERSION
 
 echo "Building binaries $VERSION..."
 
-echo "Building CLI buyer (linux64)"
+echo "Building CLI buyer ($PLAT)"
 go_build \
-    dist/release/linux64/split-ticket-buyer/splitticketbuyer \
+    dist/release/$PLAT/split-ticket-buyer/splitticketbuyer \
     ./cmd/splitticketbuyer
 
-echo "Building GUI buyer (linux64)"
+echo "Building GUI buyer ($PLAT)"
 go_build \
-    dist/release/linux64/split-ticket-buyer/splitticketbuyergui \
+    dist/release/$PLAT/split-ticket-buyer/splitticketbuyergui \
     ./cmd/splitticketbuyergui
 
-cp docs/release-readme.md dist/release/linux64/split-ticket-buyer/README.md
+cp docs/release-readme.md dist/release/$PLAT/split-ticket-buyer/README.md
 
-ZIPFILE="splitticketbuyer-linux64-$VERSION.tar.gz"
+ZIPFILE="splitticketbuyer-$PLAT-$VERSION.tar.gz"
 
 rm -f dist/archives/v$VERSION/$ZIPFILE
 
-cd dist/release/linux64 && tar -czf ../../archives/v$VERSION/$ZIPFILE split-ticket-buyer
+cd dist/release/$PLAT && tar -czf ../../archives/v$VERSION/$ZIPFILE split-ticket-buyer
 
 echo "Built Binaries $VERSION"
