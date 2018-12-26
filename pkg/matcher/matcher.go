@@ -249,7 +249,9 @@ func (matcher *Matcher) notifyWaitingListWatchers() {
 			select {
 			case w <- queues:
 			default:
-				matcher.log.Warnf("Possible block when trying to send to waiting list watcher")
+				origSrc := OriginalSrcFromCtx(ctx)
+				matcher.log.Warnf("Possible block when trying to send to "+
+					"waiting list watcher from %s", origSrc)
 			}
 		}
 	}
