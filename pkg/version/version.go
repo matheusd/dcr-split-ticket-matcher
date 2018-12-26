@@ -20,7 +20,7 @@ const (
 const (
 	Major = 0
 	Minor = 7
-	Patch = 0
+	Patch = 1
 )
 
 // These are pre-release and build metadata vars that can be modified by linking
