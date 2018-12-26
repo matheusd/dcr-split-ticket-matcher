@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	flags "github.com/btcsuite/go-flags"
+	flags "github.com/jessevdk/go-flags"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/buyer"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 )
