@@ -105,6 +105,13 @@ type Matcher struct {
 	cfg                 *Config
 	log                 slog.Logger
 
+	// waitingListWatcherTimer is filled when there's an active timer for
+	// sending waiting list notifications. It is nil (and therefore always
+	// blocking) when there are no outstanding notifications for waiting list
+	// changes.
+	waitingListWatcherTimer      <-chan time.Time
+	waitingListChangedDuringWait bool
+
 	cancelWaitingParticipant      chan *addParticipantRequest
 	addParticipantRequests        chan addParticipantRequest
 	setParticipantOutputsRequests chan setParticipantOutputsRequest
@@ -161,7 +168,7 @@ func (matcher *Matcher) Run(serverCtx context.Context) error {
 				}
 			}
 
-			matcher.notifyWaitingListWatchers()
+			matcher.enqueueWaitingListNotification()
 		case req := <-matcher.setParticipantOutputsRequests:
 			var err error
 			if part, has := matcher.participants[req.sessionID]; has {
@@ -226,6 +233,12 @@ func (matcher *Matcher) Run(serverCtx context.Context) error {
 			origSrc := OriginalSrcFromCtx(cancelReq)
 			matcher.log.Infof("Removing waiting list watcher from %s", origSrc)
 			delete(matcher.waitingListWatchers, cancelReq)
+		case <-matcher.waitingListWatcherTimer:
+			if matcher.waitingListChangedDuringWait {
+				matcher.notifyWaitingListWatchers()
+				matcher.waitingListChangedDuringWait = false
+			}
+			matcher.waitingListWatcherTimer = nil
 		case <-serverCtx.Done():
 			matcher.log.Infof("Server context done in matcher")
 			return serverCtx.Err()
@@ -233,6 +246,9 @@ func (matcher *Matcher) Run(serverCtx context.Context) error {
 	}
 }
 
+// notifyWaitingListWatchers sends the current queues for all currently
+// outstanding waiting list watcher channels. It will not block if any of
+// the watchers are blocked.
 func (matcher *Matcher) notifyWaitingListWatchers() {
 	queues := make([]WaitingQueue, len(matcher.queues))
 	i := 0
@@ -243,6 +259,8 @@ func (matcher *Matcher) notifyWaitingListWatchers() {
 		}
 		i++
 	}
+
+	matcher.log.Trace("Sending waiting list change notification")
 
 	for ctx, w := range matcher.waitingListWatchers {
 		if ctx.Err() == nil {
@@ -255,6 +273,24 @@ func (matcher *Matcher) notifyWaitingListWatchers() {
 			}
 		}
 	}
+}
+
+// enqueueWaitingListNotification will send a notification to waiting list
+// watchers (if one is not yet outstanding) or enqueue a request so that
+// notifications are sent at a rate of at most once every 5 seconds.
+func (matcher *Matcher) enqueueWaitingListNotification() {
+
+	if matcher.waitingListWatcherTimer != nil {
+		matcher.waitingListChangedDuringWait = true
+		matcher.log.Trace("Waiting list changed during wait")
+		return
+	}
+
+	matcher.notifyWaitingListWatchers()
+
+	matcher.log.Trace("Enqueuing waiting list notification")
+	t := time.NewTimer(time.Second * 5)
+	matcher.waitingListWatcherTimer = t.C
 }
 
 func (matcher *Matcher) addParticipant(req *addParticipantRequest) error {
@@ -297,7 +333,7 @@ func (matcher *Matcher) addParticipant(req *addParticipantRequest) error {
 		}(req)
 	}
 
-	matcher.notifyWaitingListWatchers()
+	matcher.enqueueWaitingListNotification()
 
 	return nil
 }
