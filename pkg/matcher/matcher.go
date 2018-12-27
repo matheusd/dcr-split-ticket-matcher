@@ -765,8 +765,8 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest, part *SessionPartic
 		voter := sess.Participants[sess.VoterIndex]
 
 		sess.log.Infof("All inputs for split tx received. Creating split tx.")
-		sess.log.Infof("Voter index selected: %d (%s)", sess.VoterIndex,
-			voter.ID)
+		sess.log.Infof("Voter index selected: %d (%s coin %s)", sess.VoterIndex,
+			voter.ID, selCoin)
 
 		ticket, splitTx, revocation, err := sess.CreateVoterTransactions()
 		if err != nil {
