@@ -258,15 +258,20 @@ func (matcher *Matcher) notifyWaitingListWatchers() {
 }
 
 func (matcher *Matcher) addParticipant(req *addParticipantRequest) error {
+
 	err := matcher.cfg.VoteAddrValidator.ValidateVoteAddress(req.voteAddress)
 	if err != nil {
-		matcher.log.Errorf("Participant sent invalid vote address: %s", err)
+		origSrc := OriginalSrcFromCtx(req.ctx)
+		matcher.log.Errorf("Participant sent invalid vote address %s from "+
+			"%s: %s", req.voteAddress.EncodeAddress(), origSrc, err)
 		return errors.Wrapf(err, "invalid vote address")
 	}
 
 	err = matcher.cfg.PoolAddrValidator.ValidatePoolSubsidyAddress(req.poolAddress)
 	if err != nil {
-		matcher.log.Errorf("Participant sent invalid pool address: %s", err)
+		origSrc := OriginalSrcFromCtx(req.ctx)
+		matcher.log.Errorf("Participant sent invalid pool address %s from "+
+			"%s: %s", req.poolAddress.EncodeAddress(), origSrc, err)
 		return errors.Wrapf(err, "invalid pool address")
 	}
 

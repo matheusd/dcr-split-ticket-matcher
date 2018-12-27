@@ -82,8 +82,7 @@ func (v *MasterPubPoolAddrValidator) ValidatePoolSubsidyAddress(poolAddr dcrutil
 // the result of a call to EncodeAddress()
 func (v *MasterPubPoolAddrValidator) ValidateByEncodedAddr(addr string) error {
 	if _, has := v.addresses[addr]; !has {
-		return errors.Errorf("pool address %s not found in addresses map",
-			addr)
+		return errors.Errorf("pool address not found in addresses map")
 	}
 
 	return nil

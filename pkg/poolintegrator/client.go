@@ -73,7 +73,7 @@ func (c *Client) ValidatePoolSubsidyAddress(poolAddr dcrutil.Address) error {
 	resp, err := c.client.ValidatePoolSubsidyAddress(ctx, req)
 	if err != nil {
 		return errors.Wrapf(err, "error contacting stakepoold integrator to "+
-			"validate pool subsidy address %s", req.Address)
+			"validate pool subsidy address")
 	}
 
 	if resp.Error != "" {

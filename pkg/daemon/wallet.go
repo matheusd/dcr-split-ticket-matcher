@@ -115,19 +115,17 @@ func (wallet *WalletClient) SignPoolSplitOutput(split, ticket *wire.MsgTx) ([]by
 // transactions with the provided addresses
 func (wallet *WalletClient) ValidateVoteAddress(voteAddr dcrutil.Address) error {
 
-	voteAddrStr := voteAddr.EncodeAddress()
-
 	resp, err := wallet.client.ValidateAddress(voteAddr)
 	if err != nil {
-		return errors.Wrapf(err, "error validating vote address %s", voteAddrStr)
+		return errors.Wrapf(err, "error validating vote address")
 	}
 
 	if !resp.IsValid {
-		return errors.Errorf("vote address is invalid: %s", voteAddrStr)
+		return errors.Errorf("vote address is invalid")
 	}
 
 	if !resp.IsMine {
-		return errors.Errorf("vote address not controlled by matcher: %s", voteAddrStr)
+		return errors.Errorf("vote address not controlled by matcher wallet")
 	}
 
 	return nil
