@@ -2,15 +2,11 @@ package buyer
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"time"
 
-	"google.golang.org/grpc/keepalive"
-
 	"github.com/pkg/errors"
 
-	intnet "github.com/matheusd/dcr-split-ticket-matcher/pkg/buyer/internal/net"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/version"
@@ -21,82 +17,32 @@ import (
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
-// UtxoMapProvider is the function that will provide the matcher client with
-// information about the utxos of a given split transaction.
-//
-// This function will be passed the split transaction and must return an utxo
-// map with entries for all the outpoints in the provided tx or an error.
-type UtxoMapProvider func(*wire.MsgTx) (splitticket.UtxoMap, error)
+// MatcherClientConn is an interface defining the functions needed on a remote
+// matcher service.
+type MatcherClientConn interface {
+	pb.SplitTicketMatcherServiceClient
+	Close()
 
-// MatcherClient is handles all requests and checks done by the buyer when
-// interacting to a remote matcher server.
-type MatcherClient struct {
-	client       pb.SplitTicketMatcherServiceClient
-	conn         *grpc.ClientConn
-	utxoProvider UtxoMapProvider
+	// FetchSpentUtxos should fetch the utxos being spent by the provided
+	// transaction (ie. the outpoints for every input of the argument) and
+	// return the utxo map.
+	FetchSpentUtxos(*wire.MsgTx) (splitticket.UtxoMap, error)
 }
 
-// ConnectToMatcherService tries to connect to the given matcher host and to a
-// dcrd daemon, given the provided config options.
-func ConnectToMatcherService(ctx context.Context, matcherHost string,
-	certFile string, utxoProvider UtxoMapProvider) (*MatcherClient, error) {
-
-	rep := reporterFromContext(ctx)
-
-	matcherHost, isSrv, err := intnet.DetermineMatcherHost(matcherHost)
-	if err != nil {
-		rep.reportSrvLookupError(err)
-	}
-	if isSrv {
-		rep.reportSrvRecordFound(matcherHost)
-	}
-
-	var opt grpc.DialOption
-	var creds credentials.TransportCredentials
-
-	if certFile != "" {
-		creds, err = credentials.NewClientTLSFromFile(certFile, "localhost")
-		if err != nil {
-			return nil, errors.Wrapf(err, "error creating credentials")
-		}
-	} else {
-		tlsCfg := &tls.Config{
-			ServerName: intnet.RemoveHostPort(matcherHost),
-		}
-		creds = credentials.NewTLS(tlsCfg)
-	}
-	opt = grpc.WithTransportCredentials(creds)
-	optKeepAlive := grpc.WithKeepaliveParams(keepalive.ClientParameters{
-		Time:                5 * time.Minute,
-		Timeout:             20 * time.Second,
-		PermitWithoutStream: true,
-	})
-
-	conn, err := grpc.Dial(matcherHost, opt, optKeepAlive)
-	if err != nil {
-		return nil, errors.Wrapf(err, "error connecting to matcher host")
-	}
-
-	client := pb.NewSplitTicketMatcherServiceClient(conn)
-
-	mc := &MatcherClient{
-		client:       client,
-		conn:         conn,
-		utxoProvider: utxoProvider,
-	}
-	return mc, err
+// matcherClient handles all requests and checks done by the buyer when
+// interacting with a matcher service.
+type matcherClient struct {
+	client MatcherClientConn
 }
 
-func (mc *MatcherClient) status(ctx context.Context) (*pb.StatusResponse, error) {
+func (mc *matcherClient) status(ctx context.Context) (*pb.StatusResponse, error) {
 	req := &pb.StatusRequest{}
 	return mc.client.Status(ctx, req)
 }
 
-func (mc *MatcherClient) participate(ctx context.Context, maxAmount dcrutil.Amount,
+func (mc *matcherClient) participate(ctx context.Context, maxAmount dcrutil.Amount,
 	sessionName string, voteAddress, poolAddress string, poolFeeRate float64,
 	chainParams *chaincfg.Params) (*Session, error) {
 	req := &pb.FindMatchesRequest{
@@ -141,7 +87,7 @@ func (mc *MatcherClient) participate(ctx context.Context, maxAmount dcrutil.Amou
 	return sess, nil
 }
 
-func (mc *MatcherClient) generateTicket(ctx context.Context, session *Session, cfg *Config) error {
+func (mc *matcherClient) generateTicket(ctx context.Context, session *Session, cfg *Config) error {
 
 	voteAddr, err := dcrutil.DecodeAddress(cfg.VoteAddress)
 	if err != nil {
@@ -215,7 +161,7 @@ func (mc *MatcherClient) generateTicket(ctx context.Context, session *Session, c
 	}
 
 	// cache the utxo map of the split so we can check for the validity of the tx
-	utxoMap, err := mc.utxoProvider(session.splitTx)
+	utxoMap, err := mc.client.FetchSpentUtxos(session.splitTx)
 	if err != nil {
 		return errors.Wrap(err, "error fetching split tx spent utxos")
 	}
@@ -320,7 +266,7 @@ func (mc *MatcherClient) generateTicket(ctx context.Context, session *Session, c
 	return nil
 }
 
-func (mc *MatcherClient) fundTicket(ctx context.Context, session *Session, cfg *Config) error {
+func (mc *matcherClient) fundTicket(ctx context.Context, session *Session, cfg *Config) error {
 
 	var err error
 
@@ -399,7 +345,7 @@ func (mc *MatcherClient) fundTicket(ctx context.Context, session *Session, cfg *
 	return nil
 }
 
-func (mc *MatcherClient) fundSplitTx(ctx context.Context, session *Session, cfg *Config) error {
+func (mc *matcherClient) fundSplitTx(ctx context.Context, session *Session, cfg *Config) error {
 
 	splitTxSigs := make([][]byte, len(session.splitInputs))
 	for i, in := range session.splitInputs {
@@ -472,7 +418,7 @@ func (mc *MatcherClient) fundSplitTx(ctx context.Context, session *Session, cfg 
 // sendErrorReport sends the given error to the matcher. It ignores all errors,
 // given that any error triggered here (eg: connection error, etc) is
 // unreportable anyway or may have been caused by the original error.
-func (mc *MatcherClient) sendErrorReport(sessionID matcher.ParticipantID, buyerErr error) {
+func (mc *matcherClient) sendErrorReport(sessionID matcher.ParticipantID, buyerErr error) {
 	req := &pb.BuyerErrorRequest{
 		ErrorMsg:  buyerErr.Error(),
 		SessionId: uint32(sessionID),
@@ -486,6 +432,6 @@ func (mc *MatcherClient) sendErrorReport(sessionID matcher.ParticipantID, buyerE
 	mc.client.BuyerError(ctx, req)
 }
 
-func (mc *MatcherClient) close() {
-	mc.conn.Close()
+func (mc *matcherClient) close() {
+	mc.client.Close()
 }

@@ -144,7 +144,7 @@ type Reporter interface {
 }
 
 type sessionWaiterResponse struct {
-	mc      *MatcherClient
+	mc      *matcherClient
 	wc      *WalletClient
 	session *Session
 	err     error
@@ -262,7 +262,7 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 	}
 
 	var dcrd *decredNetwork
-	var utxoProvider UtxoMapProvider
+	var utxoProvider utxoMapProvider
 	if !cfg.UtxosFromDcrdata {
 		dcrd, err = connectToDecredNode(cfg.networkCfg())
 		if err != nil {
@@ -285,13 +285,14 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 	}
 
 	rep.reportStage(setupCtx, StageConnectingToMatcher, nil, cfg)
-	mc, err := ConnectToMatcherService(setupCtx, cfg.MatcherHost, cfg.MatcherCertFile,
+	mcc, err := connectToMatcherService(setupCtx, cfg.MatcherHost, cfg.MatcherCertFile,
 		utxoProvider)
 	if err != nil {
 		setupCancel()
 		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err,
 			"error connecting to matcher")}
 	}
+	mc := &matcherClient{mcc}
 
 	status, err := mc.status(setupCtx)
 	if err != nil {
@@ -390,7 +391,7 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 //
 // It returns nil if the context was canceled or an error if the matcher and
 // wallet grow out of sync.
-func checkMatcherWalletBlockchainSync(waitCtx context.Context, mc *MatcherClient, wc *WalletClient) error {
+func checkMatcherWalletBlockchainSync(waitCtx context.Context, mc *matcherClient, wc *WalletClient) error {
 	ticker := time.NewTicker(time.Minute * 5)
 	defer ticker.Stop()
 
@@ -445,7 +446,7 @@ func checkMatcherWalletBlockchainSync(waitCtx context.Context, mc *MatcherClient
 	}
 }
 
-func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *MatcherClient, wc *WalletClient, session *Session) error {
+func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *matcherClient, wc *WalletClient, session *Session) error {
 
 	rep := reporterFromContext(ctx)
 	var err error

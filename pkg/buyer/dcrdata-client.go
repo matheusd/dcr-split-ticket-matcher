@@ -13,7 +13,7 @@ import (
 
 // utxoProviderForDcrdataURL returns a UtxoMapProvider function that fetches
 // utxo information from the given dcrdata URL.
-func utxoProviderForDcrdataURL(dcrdataURL string) UtxoMapProvider {
+func utxoProviderForDcrdataURL(dcrdataURL string) utxoMapProvider {
 	return func(tx *wire.MsgTx) (splitticket.UtxoMap, error) {
 		return splitticket.UtxoMapFromDcrdata(dcrdataURL, tx)
 	}
