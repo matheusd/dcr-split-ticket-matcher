@@ -139,13 +139,13 @@ type Reporter interface {
 	reportSrvLookupError(err error)
 	reportSplitPublished()
 	reportRightTicketPublished()
-	reportWrongTicketPublished(ticket *wire.MsgTx, session *Session)
+	reportWrongTicketPublished(ticket *chainhash.Hash, session *Session)
 	reportBuyingError(err error)
 }
 
 type sessionWaiterResponse struct {
 	mc      *matcherClient
-	wc      *WalletClient
+	wc      *walletClient
 	session *Session
 	err     error
 }
@@ -226,11 +226,15 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 	setupCtx, setupCancel := context.WithTimeout(mainCtx, time.Second*60)
 
 	rep.reportStage(setupCtx, StageConnectingToWallet, nil, cfg)
-	wc, err := ConnectToWallet(cfg.WalletHost, cfg.WalletCertFile, cfg.ChainParams)
+	wcc, err := connectToWallet(cfg.WalletHost, cfg.WalletCertFile)
 	if err != nil {
 		setupCancel()
 		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
 			"error trying to connect to wallet")}
+	}
+	wc := &walletClient{
+		wsvc:        wcc,
+		chainParams: cfg.ChainParams,
 	}
 
 	err = wc.checkNetwork(setupCtx)
@@ -391,7 +395,7 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 //
 // It returns nil if the context was canceled or an error if the matcher and
 // wallet grow out of sync.
-func checkMatcherWalletBlockchainSync(waitCtx context.Context, mc *matcherClient, wc *WalletClient) error {
+func checkMatcherWalletBlockchainSync(waitCtx context.Context, mc *matcherClient, wc *walletClient) error {
 	ticker := time.NewTicker(time.Minute * 5)
 	defer ticker.Stop()
 
@@ -446,7 +450,7 @@ func checkMatcherWalletBlockchainSync(waitCtx context.Context, mc *matcherClient
 	}
 }
 
-func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *matcherClient, wc *WalletClient, session *Session) error {
+func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *matcherClient, wc *walletClient, session *Session) error {
 
 	rep := reporterFromContext(ctx)
 	var err error
@@ -530,7 +534,7 @@ func buySplitTicketInSession(ctx context.Context, cfg *Config, mc *matcherClient
 }
 
 func waitForPublishedTxs(ctx context.Context, session *Session,
-	cfg *Config, wc *WalletClient) error {
+	cfg *Config, wc *walletClient) error {
 
 	var notifiedSplit, notifiedTicket bool
 	rep := reporterFromContext(ctx)
@@ -549,18 +553,18 @@ func waitForPublishedTxs(ctx context.Context, session *Session,
 			return errors.Errorf("context done while waiting for published" +
 				"txs")
 		default:
-			if !notifiedSplit && wc.publishedSplit {
+			if !notifiedSplit && wc.wsvc.PublishedSplitTx() {
 				rep.reportSplitPublished()
 				notifiedSplit = true
 			}
 
-			if !notifiedTicket && wc.publishedTicket != nil {
-				publishedHash := wc.publishedTicket.TxHash()
-				if expectedTicketHash.IsEqual(&publishedHash) {
+			if !notifiedTicket && wc.wsvc.PublishedTicketTx() != nil {
+				publishedHash := wc.wsvc.PublishedTicketTx()
+				if expectedTicketHash.IsEqual(publishedHash) {
 					rep.reportRightTicketPublished()
 					correctTicket = true
 				} else {
-					rep.reportWrongTicketPublished(wc.publishedTicket, session)
+					rep.reportWrongTicketPublished(publishedHash, session)
 				}
 				notifiedTicket = true
 			}

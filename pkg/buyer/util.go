@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/wire"
 	pb "github.com/matheusd/dcr-split-ticket-matcher/pkg/api/matcherrpc"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/util"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/matcher"
@@ -121,12 +121,12 @@ func (rep *WriterReporter) reportRightTicketPublished() {
 	fmt.Fprintf(rep.w, "Correct ticket published in the network\n")
 }
 
-func (rep *WriterReporter) reportWrongTicketPublished(ticket *wire.MsgTx, session *Session) {
+func (rep *WriterReporter) reportWrongTicketPublished(ticket *chainhash.Hash, session *Session) {
 	fmt.Fprintf(rep.w, "\n!!! WARNING !!!\n")
 	fmt.Fprintf(rep.w, "Wrong ticket published in the network!\n")
 	fmt.Fprintf(rep.w, "Please notify the community that this matcher is compromised IMMEDIATELY!!\n")
 	fmt.Fprintf(rep.w, "Provide the saved session information for verification.\n")
-	fmt.Fprintf(rep.w, "Published ticket hash: %s\n", ticket.TxHash())
+	fmt.Fprintf(rep.w, "Published ticket hash: %s\n", ticket.String())
 	fmt.Fprintf(rep.w, "Expected ticket hash: %s\n", session.selectedTicket.TxHash())
 }
 
@@ -298,14 +298,14 @@ type NullReporter struct{}
 
 func (rep NullReporter) reportStage(ctx context.Context, stage Stage, session *Session, cfg *Config) {
 }
-func (rep NullReporter) reportMatcherStatus(status *pb.StatusResponse)                   {}
-func (rep NullReporter) reportSavedSession(string)                                       {}
-func (rep NullReporter) reportSrvRecordFound(record string)                              {}
-func (rep NullReporter) reportSrvLookupError(err error)                                  {}
-func (rep NullReporter) reportSplitPublished()                                           {}
-func (rep NullReporter) reportRightTicketPublished()                                     {}
-func (rep NullReporter) reportWrongTicketPublished(ticket *wire.MsgTx, session *Session) {}
-func (rep NullReporter) reportBuyingError(err error)                                     {}
+func (rep NullReporter) reportMatcherStatus(status *pb.StatusResponse)                       {}
+func (rep NullReporter) reportSavedSession(string)                                           {}
+func (rep NullReporter) reportSrvRecordFound(record string)                                  {}
+func (rep NullReporter) reportSrvLookupError(err error)                                      {}
+func (rep NullReporter) reportSplitPublished()                                               {}
+func (rep NullReporter) reportRightTicketPublished()                                         {}
+func (rep NullReporter) reportWrongTicketPublished(ticket *chainhash.Hash, session *Session) {}
+func (rep NullReporter) reportBuyingError(err error)                                         {}
 
 func reporterFromContext(ctx context.Context) Reporter {
 	val := ctx.Value(ReporterCtxKey)

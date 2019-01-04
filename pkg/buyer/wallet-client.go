@@ -3,7 +3,6 @@ package buyer
 import (
 	"bytes"
 	"context"
-	"math/rand"
 	"time"
 
 	"github.com/decred/dcrd/chaincfg"
@@ -17,18 +16,32 @@ import (
 	pb "github.com/decred/dcrwallet/rpc/walletrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 )
 
-// WalletClient is responsible for the interactions of the buyer with the local
+// WalletClientConn is an interface defining the functions needed by the buyer
+// by a remote wallet.
+type WalletClientConn interface {
+	Ping(ctx context.Context, in *pb.PingRequest, opts ...grpc.CallOption) (*pb.PingResponse, error)
+	Network(ctx context.Context, in *pb.NetworkRequest, opts ...grpc.CallOption) (*pb.NetworkResponse, error)
+	NextAddress(ctx context.Context, in *pb.NextAddressRequest, opts ...grpc.CallOption) (*pb.NextAddressResponse, error)
+	ConstructTransaction(ctx context.Context, in *pb.ConstructTransactionRequest, opts ...grpc.CallOption) (*pb.ConstructTransactionResponse, error)
+	SignTransactions(ctx context.Context, in *pb.SignTransactionsRequest, opts ...grpc.CallOption) (*pb.SignTransactionsResponse, error)
+	ValidateAddress(ctx context.Context, in *pb.ValidateAddressRequest, opts ...grpc.CallOption) (*pb.ValidateAddressResponse, error)
+	SignMessage(ctx context.Context, in *pb.SignMessageRequest, opts ...grpc.CallOption) (*pb.SignMessageResponse, error)
+	BestBlock(ctx context.Context, in *pb.BestBlockRequest, opts ...grpc.CallOption) (*pb.BestBlockResponse, error)
+	TicketPrice(ctx context.Context, in *pb.TicketPriceRequest, opts ...grpc.CallOption) (*pb.TicketPriceResponse, error)
+	MonitorForSessionTransactions(ctx context.Context, splitTxHash *chainhash.Hash, ticketsHashes []*chainhash.Hash) error
+	PublishedSplitTx() bool
+	PublishedTicketTx() *chainhash.Hash
+	Close() error
+}
+
+// walletClient is responsible for the interactions of the buyer with the local
 // wallet daemon (dcrwallet).
-type WalletClient struct {
-	conn            *grpc.ClientConn
-	wsvc            pb.WalletServiceClient
-	chainParams     *chaincfg.Params
-	publishedSplit  bool
-	publishedTicket *wire.MsgTx
+type walletClient struct {
+	wsvc        WalletClientConn
+	chainParams *chaincfg.Params
 }
 
 type currentChainInfo struct {
@@ -37,45 +50,8 @@ type currentChainInfo struct {
 	ticketPrice     dcrutil.Amount
 }
 
-// ConnectToWallet connects to the given wallet address
-func ConnectToWallet(walletHost string, walletCert string, chainParams *chaincfg.Params) (*WalletClient, error) {
-	rand.Seed(time.Now().Unix())
-	creds, err := credentials.NewClientTLSFromFile(walletCert, "localhost")
-	if err != nil {
-		return nil, err
-	}
-
-	optCreds := grpc.WithTransportCredentials(creds)
-
-	connCtx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	defer cancel()
-
-	// wallet doesn't allow config of keepalive for the moment, so disable it
-	// and perform a manual ping.
-	// optKeepAlive := grpc.WithKeepaliveParams(keepalive.ClientParameters{
-	// 	Time:                30 * time.Second,
-	// 	Timeout:             5 * time.Second,
-	// 	PermitWithoutStream: true,
-	// })
-
-	conn, err := grpc.DialContext(connCtx, walletHost, optCreds)
-	if err != nil {
-		return nil, err
-	}
-
-	wsvc := pb.NewWalletServiceClient(conn)
-
-	wc := &WalletClient{
-		conn:        conn,
-		wsvc:        wsvc,
-		chainParams: chainParams,
-	}
-
-	return wc, nil
-}
-
-func (wc *WalletClient) close() error {
-	return wc.conn.Close()
+func (wc *walletClient) close() error {
+	return wc.wsvc.Close()
 }
 
 // checkWalletWaitingForSession repeatedly pings wallet connection while the
@@ -83,7 +59,7 @@ func (wc *WalletClient) close() error {
 // alerted about this fact.
 // If context is canceled, then this returns nil.
 // This blocks, therefore it MUST be run from a goroutine.
-func (wc *WalletClient) checkWalletWaitingForSession(waitCtx context.Context) error {
+func (wc *walletClient) checkWalletWaitingForSession(waitCtx context.Context) error {
 	ticker := time.NewTicker(time.Second * 30)
 	defer ticker.Stop()
 
@@ -102,7 +78,7 @@ func (wc *WalletClient) checkWalletWaitingForSession(waitCtx context.Context) er
 	}
 }
 
-func (wc *WalletClient) checkNetwork(ctx context.Context) error {
+func (wc *walletClient) checkNetwork(ctx context.Context) error {
 	req := &pb.NetworkRequest{}
 	resp, err := wc.wsvc.Network(ctx, req)
 	if err != nil {
@@ -117,7 +93,7 @@ func (wc *WalletClient) checkNetwork(ctx context.Context) error {
 	return nil
 }
 
-func (wc *WalletClient) generateOutputs(ctx context.Context, session *Session, cfg *Config) error {
+func (wc *walletClient) generateOutputs(ctx context.Context, session *Session, cfg *Config) error {
 	splitOutAddr, splitChangeAddr, ticketOutAdd, err := wc.generateOutputAddresses(ctx, session, cfg)
 	if err != nil {
 		return errors.Wrapf(err, "error generating output addresses")
@@ -135,7 +111,7 @@ func (wc *WalletClient) generateOutputs(ctx context.Context, session *Session, c
 	return wc.generateSplitTxInputs(ctx, session, cfg)
 }
 
-func (wc *WalletClient) generateOutputAddresses(ctx context.Context, session *Session, cfg *Config) (
+func (wc *walletClient) generateOutputAddresses(ctx context.Context, session *Session, cfg *Config) (
 	splitOut, splitChange, ticketOut dcrutil.Address, err error) {
 
 	var req *pb.NextAddressRequest
@@ -190,7 +166,7 @@ func (wc *WalletClient) generateOutputAddresses(ctx context.Context, session *Se
 	return
 }
 
-func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *Session, cfg *Config) error {
+func (wc *walletClient) generateSplitTxInputs(ctx context.Context, session *Session, cfg *Config) error {
 
 	rep := reporterFromContext(ctx)
 
@@ -276,7 +252,7 @@ func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *Sess
 	return nil
 }
 
-func (wc *WalletClient) prepareTicketsForSigning(session *Session) (
+func (wc *walletClient) prepareTicketsForSigning(session *Session) (
 	[]*pb.SignTransactionsRequest_UnsignedTransaction,
 	[]*pb.SignTransactionsRequest_AdditionalScript, error) {
 
@@ -311,7 +287,7 @@ func (wc *WalletClient) prepareTicketsForSigning(session *Session) (
 	return tickets, splitScripts, nil
 }
 
-func (wc *WalletClient) processSignedTickets(
+func (wc *walletClient) processSignedTickets(
 	transactions []*pb.SignTransactionsResponse_SignedTransaction,
 	session *Session) error {
 
@@ -342,7 +318,7 @@ func (wc *WalletClient) processSignedTickets(
 	return nil
 }
 
-func (wc *WalletClient) prepareRevocationForSigning(session *Session) (
+func (wc *walletClient) prepareRevocationForSigning(session *Session) (
 	*pb.SignTransactionsRequest_UnsignedTransaction,
 	[]*pb.SignTransactionsRequest_AdditionalScript, error) {
 
@@ -382,7 +358,7 @@ func (wc *WalletClient) prepareRevocationForSigning(session *Session) (
 
 }
 
-func (wc *WalletClient) processSignedRevocation(
+func (wc *walletClient) processSignedRevocation(
 	transaction *pb.SignTransactionsResponse_SignedTransaction,
 	session *Session) error {
 
@@ -398,7 +374,7 @@ func (wc *WalletClient) processSignedRevocation(
 	return nil
 }
 
-func (wc *WalletClient) splitPkScripts(splitCopy *wire.MsgTx,
+func (wc *walletClient) splitPkScripts(splitCopy *wire.MsgTx,
 	session *Session) ([]*pb.SignTransactionsRequest_AdditionalScript,
 	error) {
 
@@ -422,7 +398,7 @@ func (wc *WalletClient) splitPkScripts(splitCopy *wire.MsgTx,
 
 }
 
-func (wc *WalletClient) prepareSplitForSigning(session *Session) (
+func (wc *walletClient) prepareSplitForSigning(session *Session) (
 	*pb.SignTransactionsRequest_UnsignedTransaction,
 	[]*pb.SignTransactionsRequest_AdditionalScript, error) {
 
@@ -446,7 +422,7 @@ func (wc *WalletClient) prepareSplitForSigning(session *Session) (
 	return txReq, scripts, nil
 }
 
-func (wc *WalletClient) processSignedSplit(
+func (wc *walletClient) processSignedSplit(
 	transaction *pb.SignTransactionsResponse_SignedTransaction,
 	session *Session) error {
 
@@ -485,7 +461,7 @@ func (wc *WalletClient) processSignedSplit(
 	return nil
 }
 
-func (wc *WalletClient) signTransactions(ctx context.Context, session *Session, cfg *Config) error {
+func (wc *walletClient) signTransactions(ctx context.Context, session *Session, cfg *Config) error {
 	req := &pb.SignTransactionsRequest{
 		Passphrase: cfg.Passphrase,
 	}
@@ -541,7 +517,7 @@ func (wc *WalletClient) signTransactions(ctx context.Context, session *Session, 
 
 // testVoteAddress tests whether the vote address is signable by the local
 // wallet
-func (wc *WalletClient) testVoteAddress(ctx context.Context, cfg *Config) error {
+func (wc *walletClient) testVoteAddress(ctx context.Context, cfg *Config) error {
 	resp, err := wc.wsvc.ValidateAddress(context.Background(), &pb.ValidateAddressRequest{
 		Address: cfg.VoteAddress,
 	})
@@ -563,7 +539,7 @@ func (wc *WalletClient) testVoteAddress(ctx context.Context, cfg *Config) error 
 // testPassphrase tests whether the configured password is correct by attempting
 // to sign a message. It generates an address on the internal branch of the
 // wallet.
-func (wc *WalletClient) testPassphrase(ctx context.Context, cfg *Config) error {
+func (wc *walletClient) testPassphrase(ctx context.Context, cfg *Config) error {
 
 	resp, err := wc.wsvc.NextAddress(ctx, &pb.NextAddressRequest{
 		Account:   cfg.SourceAccount,
@@ -593,7 +569,7 @@ func (wc *WalletClient) testPassphrase(ctx context.Context, cfg *Config) error {
 // specified maxAmount into a split ticket session.
 //
 // It returns the maximum contribution amount when accounting for possible
-func (wc *WalletClient) testFunds(ctx context.Context, cfg *Config) error {
+func (wc *walletClient) testFunds(ctx context.Context, cfg *Config) error {
 
 	amount, err := dcrutil.NewAmount(cfg.MaxAmount)
 	if err != nil {
@@ -708,7 +684,7 @@ func (wc *WalletClient) testFunds(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
-func (wc *WalletClient) currentChainInfo(ctx context.Context) (*currentChainInfo, error) {
+func (wc *walletClient) currentChainInfo(ctx context.Context) (*currentChainInfo, error) {
 	resp, err := wc.wsvc.BestBlock(ctx, &pb.BestBlockRequest{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "error getting best block from wallet")
@@ -738,71 +714,14 @@ func (wc *WalletClient) currentChainInfo(ctx context.Context) (*currentChainInfo
 //
 // This starts a new goroutine that will watch over new wallet transactions,
 // registering whether it has seen the split and ticket transactions.
-func (wc *WalletClient) monitorSession(ctx context.Context, sess *Session) error {
+func (wc *walletClient) monitorSession(ctx context.Context, sess *Session) error {
 
-	ticketsHashes := make(map[chainhash.Hash]*wire.MsgTx, sess.nbParticipants)
-	for _, p := range sess.participants {
-		ticketsHashes[p.ticket.TxHash()] = p.ticket
+	ticketsHashes := make([]*chainhash.Hash, sess.nbParticipants)
+	for i, p := range sess.participants {
+		txh := p.ticket.TxHash()
+		ticketsHashes[i] = &txh
 	}
 	splitHash := sess.splitTx.TxHash()
 
-	ntfs, err := wc.wsvc.TransactionNotifications(ctx, &pb.TransactionNotificationsRequest{})
-	if err != nil {
-		return errors.Wrap(err, "error attaching to transaction notifications")
-	}
-	go func() {
-		for {
-			resp, err := ntfs.Recv()
-			if err != nil {
-				// probably is due to the context closing
-				return
-			}
-
-			for _, tx := range resp.UnminedTransactions {
-				txh, err := chainhash.NewHash(tx.Hash)
-				if err != nil {
-					// maybe log?
-					continue
-				}
-
-				if !wc.publishedSplit && splitHash.IsEqual(txh) {
-					wc.publishedSplit = true
-					continue
-				}
-
-				ticket, has := ticketsHashes[*txh]
-				if has {
-					wc.publishedTicket = ticket
-				}
-			}
-
-			// unlikley to appear directly as a mined tx, but we should be thorough
-			for _, block := range resp.GetAttachedBlocks() {
-				for _, tx := range block.Transactions {
-					txh, err := chainhash.NewHash(tx.Hash)
-					if err != nil {
-						// maybe log?
-						continue
-					}
-
-					if !wc.publishedSplit && splitHash.IsEqual(txh) {
-						wc.publishedSplit = true
-						continue
-					}
-
-					ticket, has := ticketsHashes[*txh]
-					if has {
-						wc.publishedTicket = ticket
-					}
-				}
-			}
-
-			if wc.publishedSplit && (wc.publishedTicket != nil) {
-				// got both transactions. can exit.
-				return
-			}
-		}
-	}()
-
-	return nil
+	return wc.wsvc.MonitorForSessionTransactions(ctx, &splitHash, ticketsHashes)
 }
