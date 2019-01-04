@@ -221,16 +221,21 @@ func buySplitTicket(ctx context.Context, cfg *Config) error {
 }
 
 func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse {
+	var err error
+
 	rep := reporterFromContext(mainCtx)
 
 	setupCtx, setupCancel := context.WithTimeout(mainCtx, time.Second*60)
 
-	rep.reportStage(setupCtx, StageConnectingToWallet, nil, cfg)
-	wcc, err := connectToWallet(cfg.WalletHost, cfg.WalletCertFile)
-	if err != nil {
-		setupCancel()
-		return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
-			"error trying to connect to wallet")}
+	wcc := cfg.WalletConn
+	if wcc == nil {
+		rep.reportStage(setupCtx, StageConnectingToWallet, nil, cfg)
+		wcc, err = connectToWallet(cfg.WalletHost, cfg.WalletCertFile)
+		if err != nil {
+			setupCancel()
+			return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
+				"error trying to connect to wallet")}
+		}
 	}
 	wc := &walletClient{
 		wsvc:        wcc,
@@ -266,35 +271,39 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 	}
 
 	var dcrd *decredNetwork
-	var utxoProvider utxoMapProvider
-	if !cfg.UtxosFromDcrdata {
-		dcrd, err = connectToDecredNode(cfg.networkCfg())
-		if err != nil {
-			setupCancel()
-			return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
-				"error connecting to dcrd")}
-		}
-		rep.reportStage(setupCtx, StageConnectingToDcrd, nil, cfg)
-		utxoProvider = dcrd.fetchSplitUtxos
-	} else {
-		err = isDcrdataOnline(cfg.DcrdataURL, cfg.ChainParams)
-		if err != nil {
-			setupCancel()
-			return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
-				"error checking if dcrdata is online")}
+
+	mcc := cfg.MatcherConn
+	if mcc == nil {
+		var utxoProvider utxoMapProvider
+		if !cfg.UtxosFromDcrdata {
+			dcrd, err = connectToDecredNode(cfg.networkCfg())
+			if err != nil {
+				setupCancel()
+				return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
+					"error connecting to dcrd")}
+			}
+			rep.reportStage(setupCtx, StageConnectingToDcrd, nil, cfg)
+			utxoProvider = dcrd.fetchSplitUtxos
+		} else {
+			err = isDcrdataOnline(cfg.DcrdataURL, cfg.ChainParams)
+			if err != nil {
+				setupCancel()
+				return sessionWaiterResponse{nil, nil, nil, errors.Wrap(err,
+					"error checking if dcrdata is online")}
+			}
+
+			rep.reportStage(setupCtx, StageConnectingToDcrdata, nil, cfg)
+			utxoProvider = utxoProviderForDcrdataURL(cfg.DcrdataURL)
 		}
 
-		rep.reportStage(setupCtx, StageConnectingToDcrdata, nil, cfg)
-		utxoProvider = utxoProviderForDcrdataURL(cfg.DcrdataURL)
-	}
-
-	rep.reportStage(setupCtx, StageConnectingToMatcher, nil, cfg)
-	mcc, err := connectToMatcherService(setupCtx, cfg.MatcherHost, cfg.MatcherCertFile,
-		utxoProvider)
-	if err != nil {
-		setupCancel()
-		return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err,
-			"error connecting to matcher")}
+		rep.reportStage(setupCtx, StageConnectingToMatcher, nil, cfg)
+		mcc, err = connectToMatcherService(setupCtx, cfg.MatcherHost, cfg.MatcherCertFile,
+			utxoProvider)
+		if err != nil {
+			setupCancel()
+			return sessionWaiterResponse{nil, nil, nil, errors.Wrapf(err,
+				"error connecting to matcher")}
+		}
 	}
 	mc := &matcherClient{mcc}
 
@@ -331,7 +340,7 @@ func waitForSession(mainCtx context.Context, cfg *Config) sessionWaiterResponse 
 	}()
 
 	dcrdErrChan := make(chan error)
-	if !cfg.UtxosFromDcrdata {
+	if dcrd != nil {
 		go func() {
 			err := dcrd.checkDcrdWaitingForSession(waitCtx)
 			if err != nil {

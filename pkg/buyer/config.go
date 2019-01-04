@@ -72,6 +72,16 @@ type Config struct {
 
 	Passphrase  []byte
 	ChainParams *chaincfg.Params
+
+	// WalletConn is an alternative way of issuing wallet commands. When
+	// specified, instead of opening a direct grpc connection to the wallet, the
+	// buyer will relay all network-related calls to this object.
+	WalletConn WalletClientConn
+
+	// MatcherConn is an alternative way of issuing matcher commands. When
+	// specified, instead of opening a direct grpc connection to the matcher,
+	// the buyer will relay all network-related calls to this object.
+	MatcherConn MatcherClientConn
 }
 
 // ReadPassphrase reads the passphrase from stdin (if needed), fills the
@@ -106,6 +116,12 @@ func (cfg *Config) Validate() error {
 		return errors.New("specify only one of --testnet or --simnet")
 	}
 
+	if (cfg.WalletConn != nil && cfg.MatcherConn == nil) ||
+		(cfg.WalletConn == nil && cfg.MatcherConn != nil) {
+
+		return errors.New("specify either both or neither of WalletConn and MatcherConn")
+	}
+
 	if cfg.VoteAddress == "" {
 		return missing("VoteAddress")
 	}
@@ -117,6 +133,21 @@ func (cfg *Config) Validate() error {
 	if cfg.MaxAmount < 0 {
 		return missing("MaxAmount")
 	}
+
+	if cfg.DataDir == "" {
+		return missing("DataDir")
+	}
+
+	if cfg.MatcherHost == "" {
+		return missing("MatcherHost")
+	}
+
+	if cfg.WalletConn != nil && cfg.MatcherConn != nil {
+		return nil
+	}
+
+	// All checks after this point assume the buyer will try to open the
+	// connection to the wallet and matcher hosts.
 
 	if cfg.WalletHost == "" {
 		return missing("WalletHost")
@@ -154,14 +185,6 @@ func (cfg *Config) Validate() error {
 
 	if cfg.WalletCertFile == "" {
 		return missing("WalletCertFile")
-	}
-
-	if cfg.MatcherHost == "" {
-		return missing("MatcherHost")
-	}
-
-	if cfg.DataDir == "" {
-		return missing("DataDir")
 	}
 
 	return nil
