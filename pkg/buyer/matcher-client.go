@@ -205,19 +205,19 @@ func (mc *MatcherClient) generateTicket(ctx context.Context, session *Session, c
 	session.ticketTemplate = wire.NewMsgTx()
 	err = session.ticketTemplate.FromBytes(resp.TicketTemplate)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "error decoding ticket template")
 	}
 
 	session.splitTx = wire.NewMsgTx()
 	session.splitTx.FromBytes(resp.SplitTx)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "error decoding split tx template")
 	}
 
 	// cache the utxo map of the split so we can check for the validity of the tx
 	utxoMap, err := mc.utxoProvider(session.splitTx)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "error fetching split tx spent utxos")
 	}
 	session.splitTxUtxoMap = utxoMap
 
