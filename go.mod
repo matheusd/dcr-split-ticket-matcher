@@ -39,3 +39,8 @@ require (
 	golang.org/x/net v0.0.0-20180808004115-f9ce57c11b24
 	google.golang.org/grpc v1.14.0
 )
+
+replace (
+	github.com/btcsuite/goleveldb => github.com/matheusd/goleveldb v0.0.0-20190901102927-255f9b4fc43c
+	github.com/jessevdk/go-flags => github.com/jessevdk/go-flags v0.0.0-20182309103615-bf79fbdd4000
+)

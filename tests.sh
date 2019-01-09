@@ -30,7 +30,7 @@ testrepo () {
   # fi
 
   # Test application install
-  go install ./cmd/...
+  go install ./cmd/{dcrstmd,splitticketbuyer,splitticketbuyergui,watcher,stmvotepoolintegrator}
 
   # Check linters
   # (currently disabled)
@@ -48,7 +48,8 @@ testrepo () {
     --enable=deadcode \
     --enable=vetshadow \
     --enable=goconst \
-    ./...
+    ./cmd/{dcrstmd,splitticketbuyer,splitticketbuyergui,watcher,stmvotepoolintegrator}
+
   if [ $? != 0 ]; then
     echo 'gometalinter has some complaints'
     exit 1
@@ -60,7 +61,7 @@ testrepo () {
   fi
 
   # Check tests
-  env GORACE='halt_on_error=1' go test ./...
+  env GORACE='halt_on_error=1' go test ./pkg/...
   if [ $? != 0 ]; then
     echo 'go tests failed'
     exit 1
