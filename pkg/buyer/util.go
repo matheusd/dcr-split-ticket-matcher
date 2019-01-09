@@ -188,7 +188,7 @@ func (rep *WriterReporter) reportStage(ctx context.Context, stage Stage, session
 		out("Generating ticket...\n")
 	case StageTicketGenerated:
 		out("Ticket Generated\n")
-		out("Secret Number: %d\n", session.secretNb)
+		out("Secret Number: %s\n", session.secretNb)
 		out("Secret Number Hash: %s\n", hex.EncodeToString(session.secretNbHash[:]))
 		out("My index in the split: %d\n", session.myIndex)
 	case StageGenerateSplitOutputAddr:
@@ -272,7 +272,7 @@ func (rep *WriterReporter) reportStage(ctx context.Context, stage Stage, session
 		var sum dcrutil.Amount
 		for i, p := range session.participants {
 			sum += p.amount
-			out("Participant %d: cum_amount=%s secret=%d secret_hash=%s...\n",
+			out("Participant %d: cum_amount=%s secret=%s secret_hash=%s...\n",
 				i, sum, p.secretNb, hex.EncodeToString(p.secretHash[:10]))
 		}
 

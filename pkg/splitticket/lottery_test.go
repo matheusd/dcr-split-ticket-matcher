@@ -1,6 +1,7 @@
 package splitticket
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"math"
 	"testing"
@@ -145,6 +146,13 @@ func TestSecretNumberHashes(t *testing.T) {
 	mainchainHash := new(chainhash.Hash)
 	chainhash.Decode(mainchainHash, "000000000000437482b6d47f82f374cde539440ddb108b0a76886f0d87d126b9")
 
+	// number to secret number
+	nb2sn := func(nb uint64) SecretNumber {
+		var b [8]byte
+		binary.LittleEndian.PutUint64(b[:], nb)
+		return SecretNumber(b[:])
+	}
+
 	tests := []struct {
 		nb       uint64
 		expected string
@@ -157,7 +165,7 @@ func TestSecretNumberHashes(t *testing.T) {
 	var expected SecretNumberHash
 
 	for _, tc := range tests {
-		nb := SecretNumber(tc.nb)
+		nb := nb2sn(tc.nb)
 		res := nb.Hash(mainchainHash)
 		decoded, _ := hex.DecodeString(tc.expected)
 		copy(expected[:], decoded[:])
@@ -182,19 +190,26 @@ func TestLotteryCommitment(t *testing.T) {
 		addrFromStr("TsfPDKyDUbYyqwfNWsZpZqxfe9AeDzapkrR"),
 	}
 
+	// number to secret number
+	nb2sn := func(nb uint64) SecretNumber {
+		var b [8]byte
+		binary.LittleEndian.PutUint64(b[:], nb)
+		return SecretNumber(b[:])
+	}
+
 	tests := []struct {
 		hashIndex int
 		addrs     []int
-		nbs       []SecretNumber
+		nbs       []uint64
 		amounts   []dcrutil.Amount
 		res       string
 	}{
-		{0, []int{0, 1, 2}, []SecretNumber{0, 0, 0}, []dcrutil.Amount{10, 20, 30}, "d20fe4fb24e16d7030532574c252d5c41d8a291ffb3972c2545f5e89ab41ecfc"},
-		{0, []int{0, 1, 2}, []SecretNumber{0, 0, 0}, []dcrutil.Amount{10, 20, 30}, "d20fe4fb24e16d7030532574c252d5c41d8a291ffb3972c2545f5e89ab41ecfc"},
-		{1, []int{0, 1, 2}, []SecretNumber{0, 0, 0}, []dcrutil.Amount{10, 20, 30}, "6ab2adbbb2ac661bb8f52f9932630602946d638bcf04ed3c299b040ca6a47930"},
-		{0, []int{0, 1, 3}, []SecretNumber{0, 0, 0}, []dcrutil.Amount{10, 20, 30}, "0bb5cb6372cda797932f44527da3d29920977af003781e7c09a4ea400d5d99b4"},
-		{0, []int{0, 1, 2}, []SecretNumber{0, 0, 1}, []dcrutil.Amount{10, 20, 30}, "0bf2aae5036d2fb9742d456d466d078b73c2fd27455bbeb0d2869ba1e2b2735b"},
-		{0, []int{0, 1, 2}, []SecretNumber{0, 0, 0}, []dcrutil.Amount{11, 20, 30}, "7c1dd2b28cadcb58b9a3f62c3bd3f5013c31d2ce5f26512f79667a2edd894775"},
+		{0, []int{0, 1, 2}, []uint64{0, 0, 0}, []dcrutil.Amount{10, 20, 30}, "d20fe4fb24e16d7030532574c252d5c41d8a291ffb3972c2545f5e89ab41ecfc"},
+		{0, []int{0, 1, 2}, []uint64{0, 0, 0}, []dcrutil.Amount{10, 20, 30}, "d20fe4fb24e16d7030532574c252d5c41d8a291ffb3972c2545f5e89ab41ecfc"},
+		{1, []int{0, 1, 2}, []uint64{0, 0, 0}, []dcrutil.Amount{10, 20, 30}, "6ab2adbbb2ac661bb8f52f9932630602946d638bcf04ed3c299b040ca6a47930"},
+		{0, []int{0, 1, 3}, []uint64{0, 0, 0}, []dcrutil.Amount{10, 20, 30}, "0bb5cb6372cda797932f44527da3d29920977af003781e7c09a4ea400d5d99b4"},
+		{0, []int{0, 1, 2}, []uint64{0, 0, 1}, []dcrutil.Amount{10, 20, 30}, "0bf2aae5036d2fb9742d456d466d078b73c2fd27455bbeb0d2869ba1e2b2735b"},
+		{0, []int{0, 1, 2}, []uint64{0, 0, 0}, []dcrutil.Amount{11, 20, 30}, "7c1dd2b28cadcb58b9a3f62c3bd3f5013c31d2ce5f26512f79667a2edd894775"},
 	}
 
 	for i, tc := range tests {
@@ -202,7 +217,7 @@ func TestLotteryCommitment(t *testing.T) {
 
 		hashes := make([]SecretNumberHash, len(tc.nbs))
 		for j, nb := range tc.nbs {
-			hashes[j] = nb.Hash(chainHash)
+			hashes[j] = nb2sn(nb).Hash(chainHash)
 		}
 
 		addrs := make([]dcrutil.Address, len(tc.addrs))
@@ -227,36 +242,48 @@ func TestLotteryResults(t *testing.T) {
 		chainHashFromStr("000000000000c41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba"),
 	}
 
-	hi := ^SecretNumber(0)
+	// number to secret number
+	nb2sn := func(nb uint64) SecretNumber {
+		var b [8]byte
+		binary.LittleEndian.PutUint64(b[:], nb)
+		return SecretNumber(b[:])
+	}
+
+	hi := uint64(math.MaxUint64)
 	hiamt := dcrutil.Amount(21e14)
 
 	tests := []struct {
-		nbs       []SecretNumber
+		nbs       []uint64
 		amounts   []dcrutil.Amount
 		hashIndex int
 		resCoin   dcrutil.Amount
 		resIndex  int
 	}{
-		{[]SecretNumber{0, 0, 0}, []dcrutil.Amount{10, 20, 30}, 0, 4, 0},
-		{[]SecretNumber{0, 0, 0}, []dcrutil.Amount{10, 20, 30}, 1, 10, 1},
-		{[]SecretNumber{0, 0, 1}, []dcrutil.Amount{10, 20, 30}, 0, 10, 1},
-		{[]SecretNumber{0, 0, 1}, []dcrutil.Amount{10, 20, 30}, 1, 47, 2},
-		{[]SecretNumber{1, 0, 0}, []dcrutil.Amount{10, 20, 30}, 0, 17, 1},
-		{[]SecretNumber{0, 0, 13}, []dcrutil.Amount{10, 20, 30}, 0, 0, 0},
-		{[]SecretNumber{0, 0, 20}, []dcrutil.Amount{10, 20, 30}, 0, 59, 2},
-		{[]SecretNumber{1, 2, 3}, []dcrutil.Amount{10, 20, 30}, 0, 31, 2},
-		{[]SecretNumber{1, 2, 4}, []dcrutil.Amount{10, 20, 30}, 0, 56, 2},
-		{[]SecretNumber{1, 3, 4}, []dcrutil.Amount{10, 20, 30}, 0, 25, 1},
-		{[]SecretNumber{1, 3, 4}, []dcrutil.Amount{30, 10, 20}, 0, 25, 0},
-		{[]SecretNumber{1, 2, 3}, []dcrutil.Amount{10, 20, 30}, 1, 49, 2},
-		{[]SecretNumber{hi, hi - 1, hi - 2}, []dcrutil.Amount{10, 20, 30}, 1, 14, 1},
-		{[]SecretNumber{hi, hi - 1, hi - 3}, []dcrutil.Amount{10, 20, 30}, 1, 29, 1},
-		{[]SecretNumber{1, 2, 3}, []dcrutil.Amount{hiamt / 3, hiamt / 3, hiamt / 3}, 0, 577681244570491, 0},
-		{[]SecretNumber{1, 2, 4}, []dcrutil.Amount{hiamt/3 - 1, hiamt / 3, hiamt / 3}, 0, 1424220813911263, 2},
+		{[]uint64{0, 0, 0}, []dcrutil.Amount{10, 20, 30}, 0, 4, 0},
+		{[]uint64{0, 0, 0}, []dcrutil.Amount{10, 20, 30}, 1, 10, 1},
+		{[]uint64{0, 0, 1}, []dcrutil.Amount{10, 20, 30}, 0, 10, 1},
+		{[]uint64{0, 0, 1}, []dcrutil.Amount{10, 20, 30}, 1, 47, 2},
+		{[]uint64{1, 0, 0}, []dcrutil.Amount{10, 20, 30}, 0, 17, 1},
+		{[]uint64{0, 0, 13}, []dcrutil.Amount{10, 20, 30}, 0, 0, 0},
+		{[]uint64{0, 0, 20}, []dcrutil.Amount{10, 20, 30}, 0, 59, 2},
+		{[]uint64{1, 2, 3}, []dcrutil.Amount{10, 20, 30}, 0, 31, 2},
+		{[]uint64{1, 2, 4}, []dcrutil.Amount{10, 20, 30}, 0, 56, 2},
+		{[]uint64{1, 3, 4}, []dcrutil.Amount{10, 20, 30}, 0, 25, 1},
+		{[]uint64{1, 3, 4}, []dcrutil.Amount{30, 10, 20}, 0, 25, 0},
+		{[]uint64{1, 2, 3}, []dcrutil.Amount{10, 20, 30}, 1, 49, 2},
+		{[]uint64{hi, hi - 1, hi - 2}, []dcrutil.Amount{10, 20, 30}, 1, 14, 1},
+		{[]uint64{hi, hi - 1, hi - 3}, []dcrutil.Amount{10, 20, 30}, 1, 29, 1},
+		{[]uint64{1, 2, 3}, []dcrutil.Amount{hiamt / 3, hiamt / 3, hiamt / 3}, 0, 577681244570491, 0},
+		{[]uint64{1, 2, 4}, []dcrutil.Amount{hiamt/3 - 1, hiamt / 3, hiamt / 3}, 0, 1424220813911263, 2},
 	}
 
 	for _, tc := range tests {
-		coin, index := CalcLotteryResult(tc.nbs, tc.amounts, chainHashes[tc.hashIndex])
+		secretNbs := make([]SecretNumber, len(tc.nbs))
+		for i, nb := range tc.nbs {
+			secretNbs[i] = nb2sn(nb)
+		}
+
+		coin, index := CalcLotteryResult(secretNbs, tc.amounts, chainHashes[tc.hashIndex])
 		if coin != tc.resCoin {
 			t.Errorf("different coin (%s) than expected (%s)", coin, tc.resCoin)
 		} else if index != tc.resIndex {
@@ -277,6 +304,13 @@ func TestLotteryResultsStatistics(t *testing.T) {
 	var i int
 	var nbs []SecretNumber
 
+	// number to secret number
+	nb2sn := func(nb uint64) SecretNumber {
+		var b [8]byte
+		binary.LittleEndian.PutUint64(b[:], nb)
+		return SecretNumber(b[:])
+	}
+
 	amounts = []dcrutil.Amount{10000, 20000, 30000}
 	totalAmount := dcrutil.Amount(60000)
 	totalRepeats := 20
@@ -294,14 +328,14 @@ func TestLotteryResultsStatistics(t *testing.T) {
 
 		// calculate a resultset that is likely to include all coin indexes between
 		// 0..totalAmount-1 to perform some statistics in it.
-		nbs = []SecretNumber{0, 0, 0}
+		nbs = []SecretNumber{nb2sn(0), nb2sn(0), nb2sn(0)}
 
 		// histogram of coin and voter index selection
 		byCoin := make(map[dcrutil.Amount]uint32, int(totalAmount))
 		byIndex := make(map[int]uint32, len(amounts))
 
 		for i = 0; i < int(totalTries); i++ {
-			nbs[0] = SecretNumber(i)
+			nbs[0] = nb2sn(uint64(i))
 			coin, index := CalcLotteryResult(nbs, amounts, chainHash)
 
 			if coin >= totalAmount {

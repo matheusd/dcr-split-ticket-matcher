@@ -256,9 +256,9 @@ func (svc *SplitTicketMatcherService) FundSplitTx(ctx context.Context, req *pb.F
 		return nil, translateMatcherError(err)
 	}
 
-	respSecrets := make([]uint64, len(secrets))
+	respSecrets := make([][]byte, len(secrets))
 	for i, s := range secrets {
-		respSecrets[i] = uint64(s)
+		respSecrets[i] = s[:]
 	}
 
 	resp := &pb.FundSplitTxResponse{

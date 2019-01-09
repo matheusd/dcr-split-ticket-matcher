@@ -98,13 +98,13 @@ message FundTicketResponse {
 message FundSplitTxRequest {
     uint32 session_id = 1;
     repeated bytes split_tx_scriptsigs = 2;
-    uint64 secretnb = 3;
+    bytes secretnb = 3;
     bytes session_token = 4;
 }
 
 message FundSplitTxResponse {
     bytes split_tx = 1;
-    repeated uint64 secret_numbers = 2;
+    repeated bytes secret_numbers = 2;
 }
 
 message StatusRequest { }

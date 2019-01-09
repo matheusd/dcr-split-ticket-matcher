@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"os"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -17,16 +18,26 @@ func main() {
 		panic(err)
 	}
 
+	// number to secret number
+	nb2sn := func(nb uint64) splitticket.SecretNumber {
+		var b [8]byte
+		binary.LittleEndian.PutUint64(b[:], nb)
+		return splitticket.SecretNumber(b[:])
+	}
+
 	var i int
 	var nbs []splitticket.SecretNumber
 	var hash []byte
 
-	nbs = []splitticket.SecretNumber{0, 0, 0, 0, 0, 0, 0}
+	nbs = []splitticket.SecretNumber{nb2sn(0), nb2sn(0), nb2sn(0), nb2sn(0),
+		nb2sn(0), nb2sn(0), nb2sn(0)}
+	indices := []uint64{0, 0, 0, 0, 0, 0, 0}
 
 	for {
 		for i = 0; i < len(nbs); i++ {
-			nbs[i]++
-			if nbs[i] != 0 {
+			indices[i]++
+			nbs[i] = nb2sn(indices[i])
+			if indices[i] != 0 {
 				break
 			}
 		}

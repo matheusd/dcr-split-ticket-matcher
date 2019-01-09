@@ -107,7 +107,7 @@ func (mc *matcherClient) generateTicket(ctx context.Context, session *Session, c
 		}
 	}
 
-	session.secretNb = splitticket.SecretNumber(matcher.MustRandUint64())
+	session.secretNb = splitticket.RandomSecretNumber()
 	session.secretNbHash = session.secretNb.Hash(session.mainchainHash)
 	session.voteAddress = voteAddr
 	session.poolAddress = poolAddr
@@ -355,7 +355,7 @@ func (mc *matcherClient) fundSplitTx(ctx context.Context, session *Session, cfg 
 	req := &pb.FundSplitTxRequest{
 		SessionId:         uint32(session.ID),
 		SplitTxScriptsigs: splitTxSigs,
-		Secretnb:          uint64(session.secretNb),
+		Secretnb:          session.secretNb[:],
 		SessionToken:      session.sessionToken,
 	}
 

@@ -13,14 +13,15 @@ const (
 	// v3: Modified pool fee to be proportional by contribution amount
 	// v4: Added the session_token return to FindMatchesResponse, which must
 	// be sent back on all further requests to validate the access.
-	ProtocolVersion = 4
+	// v5: Switched the secret number type from uint64 to bytes
+	ProtocolVersion = 5
 )
 
 // These are the individual version numbers
 const (
 	Major = 0
-	Minor = 7
-	Patch = 2
+	Minor = 8
+	Patch = 0
 )
 
 // These are pre-release and build metadata vars that can be modified by linking

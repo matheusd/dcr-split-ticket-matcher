@@ -633,7 +633,7 @@ func (sess *Session) SaveSession(sessionDir string) error {
 			out("Change = [none]\n")
 		}
 		out("Secret Hash = %s\n", p.SecretHash)
-		out("Secret Number = %d\n", p.SecretNb)
+		out("Secret Number = %s\n", p.SecretNb)
 		out("Vote Address = %s\n", p.VoteAddress.EncodeAddress())
 		out("Pool Address = %s\n", p.PoolAddress.EncodeAddress())
 		out("Vote PkScript = %s\n", voteScript)

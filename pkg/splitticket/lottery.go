@@ -2,6 +2,7 @@ package splitticket
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -16,6 +17,9 @@ import (
 const (
 	// SecretNbHashSize is the size of the hash of a secret number
 	SecretNbHashSize = 32
+
+	// SecretNbSize is the number of random bytes of a secret number
+	SecretNbSize = 8
 
 	// LotteryCommitmentHashSize is the size in bytes of the lottery commitment
 	LotteryCommitmentHashSize = 32
@@ -137,23 +141,42 @@ func SelectContributionAmounts(maxAmounts []dcrutil.Amount, ticketPrice,
 }
 
 // SecretNumber is the secret number that each individual  participant chooses.
-type SecretNumber uint64
+type SecretNumber []byte
 
 // Hash gives the hash of the secret number, given the hash of a block to use as
 // salt. This is usually called with the block id of the mainchain tip.
 func (nb SecretNumber) Hash(mainchainHash *chainhash.Hash) SecretNumberHash {
 	var res SecretNumberHash
-	var data [8]byte
 	var calculated []byte
-
-	binary.LittleEndian.PutUint64(data[:], uint64(nb))
 
 	// note that block hashes are reversed, so the first bytes are the actual
 	// random bytes (ending bytes should be a string of 0000s)
 	h := blake256.NewSalt(mainchainHash[:16])
-	h.Write(data[:])
+	h.Write(nb[:])
 	calculated = h.Sum(nil)
 	copy(res[:], calculated)
+
+	return res
+}
+
+func (nb SecretNumber) String() string {
+	return hex.EncodeToString(nb)
+}
+
+// Format fulfills the fmt.Formatter interface
+func (nb SecretNumber) Format(f fmt.State, c rune) {
+	f.Write([]byte(nb.String()))
+}
+
+// RandomSecretNumber returns a cryptografically random secret number for use in
+// split ticket transactions.
+func RandomSecretNumber() SecretNumber {
+	res := make(SecretNumber, SecretNbSize)
+	_, err := rand.Read(res[:])
+	if err != nil {
+		// out of entropy. Nothing to do.
+		panic(err)
+	}
 
 	return res
 }
@@ -227,11 +250,9 @@ func CalcLotteryResultHash(secretNbs []SecretNumber,
 	mainchainHash *chainhash.Hash) []byte {
 
 	// hash the secret numbers to get a 256 bit number
-	var data [8]byte
 	h := blake256.NewSalt(mainchainHash[:16])
 	for _, nb := range secretNbs {
-		binary.LittleEndian.PutUint64(data[:], uint64(nb))
-		h.Write(data[:])
+		h.Write(nb[:])
 	}
 
 	return h.Sum(nil)

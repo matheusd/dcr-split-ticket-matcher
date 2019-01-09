@@ -1,6 +1,7 @@
 package splitticket
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -217,6 +218,13 @@ func (d *testSessionData) createTestTransactions() (split, ticket *wire.MsgTx) {
 func (d *testSessionData) fillParticipationData(ticketPrice,
 	partTicketFee dcrutil.Amount, poolFeeRate float64) {
 
+	// number to secret number
+	nb2sn := func(nb uint64) SecretNumber {
+		var b [8]byte
+		binary.LittleEndian.PutUint64(b[:], nb)
+		return SecretNumber(b[:])
+	}
+
 	rnd := rand.New(rand.NewSource(0x543210001701d))
 
 	splitPartFee := dcrutil.Amount(1 * 1e6)
@@ -239,7 +247,7 @@ func (d *testSessionData) fillParticipationData(ticketPrice,
 	splitOutIdx := uint32(2) // 0 = voter lottery commitment, 1 = pool fee output
 
 	for i := 0; i < d.nbParts; i++ {
-		secretNb := SecretNumber(rnd.Uint64())
+		secretNb := SecretNumber(nb2sn(rnd.Uint64()))
 		extraInputAmount := dcrutil.Amount((1 + rnd.Intn(10)) * dcrutil.AtomsPerCoin)
 		totalInputAmount := extraInputAmount + amounts[i] + poolFees[i] + splitPartFee
 
