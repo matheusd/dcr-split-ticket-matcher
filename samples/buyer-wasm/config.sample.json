@@ -1,0 +1,16 @@
+{
+    "walletHost": "127.0.0.1",
+    "walletPort": 19121,
+    "walletCertFile": "/home/user/.config/decrediton/wallets/testnet/default-wallet/rpc.cert",
+    "voteAddress": "Tc...",
+    "poolAddress": "Ts...",
+    "maxAmount": 40,
+    "passphrase": "123",
+    "matcherHost": "127.0.0.1:8475",
+    "matcherCertFile": "/home/user/.dcrstmd/rpc.cert",
+    "testnet": true,
+    "poolFeeRate": 7.5,
+    "maxTime": 30,
+    "maxWaitTime": 0,
+    "sourceAccount": 0
+}

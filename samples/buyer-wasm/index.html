@@ -1,0 +1,56 @@
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Split Ticket Buyer Wasm Demo</title>
+</head>
+
+<body>
+    <script src="wasm_exec.js"></script>
+    <script src="splitticketbuyer.js"></script>
+	<script>
+		var splitTicketBuyerModule, inst;
+
+		if (!WebAssembly.compileStreaming) { // polyfill
+			WebAssembly.compileStreaming = async (resp, importObject) => {
+				const source = await (await resp).arrayBuffer();
+				return await WebAssembly.compile(source, importObject);
+			};
+		}
+
+        fetch("splitticketbuyer.wasm")
+            .then(response => response.arrayBuffer())
+            .then(bytes => {
+                console.log("Starting wasm compilation");
+                return WebAssembly.compile(bytes);
+            })
+            .then(mod => {
+                console.log("Compiled splitticketbuyer.wasm")
+                splitTicketBuyerModule = mod;
+                document.getElementById("runButton").disabled = false;
+            });
+
+		async function run() {
+            document.getElementById("runButton").disabled = true;
+            go = new Go();
+            inst = await WebAssembly.instantiate(splitTicketBuyerModule, go.importObject); // reset instance
+            setTimeout(() => buyerLoop(), 100);
+            await go.run(inst);
+            console.log("Go finalized and returned from run(). Resolving promise.");
+            document.getElementById("runButton").disabled = false;
+        }
+
+        async function buyerLoop() {
+
+            const electron = require("electron");
+            const config = electron.ipcRenderer.sendSync("get-config");
+            const buyer = new SplitTicketBuyer();
+            await buyer.setup(config);
+            buyer.run();
+        }
+	</script>
+
+	<button onClick="run();" id="runButton" disabled>Run</button><br><br>
+</body>
+
+</html>

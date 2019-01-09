@@ -1,3 +1,6 @@
 vendor/
 data/
 dist/
+samples/buyer-wasm/node_modules/
+samples/buyer-wasm/config.json
+*.wasm
