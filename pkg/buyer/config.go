@@ -82,6 +82,11 @@ type Config struct {
 	// specified, instead of opening a direct grpc connection to the matcher,
 	// the buyer will relay all network-related calls to this object.
 	MatcherConn MatcherClientConn
+
+	// SaveSessionWriter is an alternative way of saving session data of
+	// completed sessions. If specified, it will be used instead of directly
+	// saving to a file.
+	SaveSessionWriter SessionWriter
 }
 
 // ReadPassphrase reads the passphrase from stdin (if needed), fills the

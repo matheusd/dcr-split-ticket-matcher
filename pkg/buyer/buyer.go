@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"io"
 	unsafe_rand "math/rand"
 	"os"
 	"path/filepath"
@@ -589,22 +590,17 @@ func waitForPublishedTxs(ctx context.Context, session *Session,
 	return nil
 }
 
+// SessionWriter is an interface defining the methods needed for writing
+// information of a successful ticket session to disk.
+type SessionWriter interface {
+	io.Writer
+	StartWritingSession(ticketHash string)
+	SessionWritingFinished()
+}
+
 func saveSession(ctx context.Context, session *Session, cfg *Config) error {
 
 	rep := reporterFromContext(ctx)
-
-	sessionDir := filepath.Join(cfg.DataDir, "sessions")
-
-	_, err := os.Stat(sessionDir)
-
-	if os.IsNotExist(err) {
-		err = os.MkdirAll(sessionDir, 0700)
-		if err != nil {
-			return err
-		}
-	} else if err != nil {
-		return err
-	}
 
 	ticketHashHex := session.selectedTicket.TxHash().String()
 	ticketBytes, err := session.selectedTicket.Bytes()
@@ -612,21 +608,53 @@ func saveSession(ctx context.Context, session *Session, cfg *Config) error {
 		return err
 	}
 
-	fname := filepath.Join(sessionDir, ticketHashHex)
+	var out func(format string, args ...interface{})
+	var w *bufio.Writer
+	var f *os.File
+	var fname string
+	var hexWriter io.Writer
 
-	fflags := os.O_TRUNC | os.O_CREATE | os.O_WRONLY
-	f, err := os.OpenFile(fname, fflags, 0600)
-	if err != nil {
-		return err
+	if cfg.SaveSessionWriter == nil {
+		// Save directly to a file
+		sessionDir := filepath.Join(cfg.DataDir, "sessions")
+		_, err = os.Stat(sessionDir)
+
+		if os.IsNotExist(err) {
+			err = os.MkdirAll(sessionDir, 0700)
+			if err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		}
+
+		fname = filepath.Join(sessionDir, ticketHashHex)
+
+		fflags := os.O_TRUNC | os.O_CREATE | os.O_WRONLY
+		f, err = os.OpenFile(fname, fflags, 0600)
+		if err != nil {
+			return err
+		}
+		w = bufio.NewWriter(f)
+
+		defer func() {
+			w.Flush()
+			f.Sync()
+			f.Close()
+		}()
+
+		out = func(format string, args ...interface{}) {
+			w.WriteString(fmt.Sprintf(format, args...))
+		}
+		hexWriter = hex.NewEncoder(w)
+	} else {
+		// save using the writer
+		cfg.SaveSessionWriter.StartWritingSession(ticketHashHex)
+		out = func(format string, args ...interface{}) {
+			cfg.SaveSessionWriter.Write([]byte(fmt.Sprintf(format, args...)))
+		}
+		hexWriter = hex.NewEncoder(cfg.SaveSessionWriter)
 	}
-	w := bufio.NewWriter(f)
-	hexWriter := hex.NewEncoder(w)
-
-	defer func() {
-		w.Flush()
-		f.Sync()
-		f.Close()
-	}()
 
 	splitHash := session.fundedSplitTx.TxHash()
 	splitBytes, err := session.fundedSplitTx.Bytes()
@@ -642,10 +670,6 @@ func saveSession(ctx context.Context, session *Session, cfg *Config) error {
 
 	totalPoolFee := dcrutil.Amount(session.fundedSplitTx.TxOut[1].Value)
 	contribPerc := float64(session.Amount+session.PoolFee) / float64(session.TicketPrice) * 100
-
-	out := func(format string, args ...interface{}) {
-		w.WriteString(fmt.Sprintf(format, args...))
-	}
 
 	out("====== General Info ======\n")
 
@@ -742,10 +766,13 @@ func saveSession(ctx context.Context, session *Session, cfg *Config) error {
 		out("Revocation = %s\n", hex.EncodeToString(partRevocation))
 	}
 
-	w.Flush()
-	f.Sync()
-
-	rep.reportSavedSession(fname)
+	if cfg.SaveSessionWriter == nil {
+		w.Flush()
+		f.Sync()
+		rep.reportSavedSession(fname)
+	} else {
+		cfg.SaveSessionWriter.SessionWritingFinished()
+	}
 
 	return nil
 }
