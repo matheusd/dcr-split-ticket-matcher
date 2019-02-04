@@ -77,18 +77,23 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	}
 	d.dcrd = dcrd
 
-	dcrwcfg := &WalletConfig{
-		Host:     cfg.DcrwHost,
-		User:     cfg.DcrwUser,
-		Pass:     cfg.DcrwPass,
-		CertFile: cfg.DcrwCert,
-		Log:      cfg.logger("WLLT"),
+	// The wallet is only needed when validating voting addresses directly on
+	// it (vs using a stakepoolintegrator instance or not validating at all),
+	// so only initialize and maintain a connection to it if needed.
+	if cfg.ValidateVoteAddressOnWallet {
+		dcrwcfg := &WalletConfig{
+			Host:     cfg.DcrwHost,
+			User:     cfg.DcrwUser,
+			Pass:     cfg.DcrwPass,
+			CertFile: cfg.DcrwCert,
+			Log:      cfg.logger("WLLT"),
+		}
+		dcrw, err := ConnectToDcrWallet(dcrwcfg)
+		if err != nil {
+			panic(err)
+		}
+		d.wallet = dcrw
 	}
-	dcrw, err := ConnectToDcrWallet(dcrwcfg)
-	if err != nil {
-		panic(err)
-	}
-	d.wallet = dcrw
 
 	if cfg.KeyFile != "" {
 		var cert *tls.Certificate
@@ -244,7 +249,9 @@ func (daemon *Daemon) Run(serverCtx context.Context) error {
 	}
 
 	daemon.log.Criticalf("Running matching engine")
-	go daemon.wallet.Run(serverCtx)
+	if daemon.wallet != nil {
+		go daemon.wallet.Run(serverCtx)
+	}
 	go daemon.matcher.Run(serverCtx)
 	go daemon.dcrd.run(serverCtx)
 
