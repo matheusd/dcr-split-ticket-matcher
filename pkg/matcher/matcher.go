@@ -4,10 +4,11 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/hex"
-	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/util"
 	"math/rand"
 	"sort"
 	"time"
+
+	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/util"
 
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 
@@ -741,6 +742,15 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest, part *SessionPartic
 			hex.EncodeToString(part.SecretHash[:]))
 	}
 
+	// Sanity check the provided SigScript.
+	for i, script := range req.inputScriptSigs {
+		l := len(script)
+		if (l < 1) || (l > splitticket.MaxAllowedSigScriptSize) {
+			return errors.Errorf("participant sent input script %d with wrong "+
+				"length (%d)", i, l)
+		}
+	}
+
 	// TODO: make sure the script sigs actually sign the split tx
 
 	part.CurrentStage = StageDone
@@ -753,6 +763,7 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest, part *SessionPartic
 	part.log.Infof("Participant sent split tx input sigs")
 
 	if sess.SplitTxIsFunded() {
+		sess.log.Infof("All inputs for split tx received. Creating split tx.")
 		var splitBytes []byte
 		var err error
 
@@ -764,7 +775,6 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest, part *SessionPartic
 		sess.SelectedCoin = selCoin
 		voter := sess.Participants[sess.VoterIndex]
 
-		sess.log.Infof("All inputs for split tx received. Creating split tx.")
 		sess.log.Infof("Voter index selected: %d (%s coin %s)", sess.VoterIndex,
 			voter.ID, selCoin)
 

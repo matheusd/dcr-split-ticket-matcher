@@ -32,4 +32,13 @@ const (
 	//
 	// Measured as Atoms/KB. 1e5 = 0.001 DCR
 	TxFeeRate dcrutil.Amount = 1e5
+
+	// MaxAllowedSigScriptSize is the maximum size (in bytes) of a signature
+	// script used in a split ticket input. This is only used as a sanity check
+	// for maximum input script size.
+	//
+	// Its current size is equal to the signature script required to redeem a
+	// 2-of-2 utxo, which should be reasonable for the current decred software
+	// ecosystem used in split transactions.
+	MaxAllowedSigScriptSize = 220
 )
