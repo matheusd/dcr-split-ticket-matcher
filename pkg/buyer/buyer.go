@@ -118,6 +118,14 @@ func (session *Session) splitInputOutpoints() []wire.OutPoint {
 	return res
 }
 
+func (session *Session) mySplitInputOupoints() []wire.OutPoint {
+	res := make([]wire.OutPoint, len(session.splitInputs))
+	for i, in := range session.splitInputs {
+		res[i] = in.PreviousOutPoint
+	}
+	return res
+}
+
 func (session *Session) myTotalAmountIn() dcrutil.Amount {
 	total := dcrutil.Amount(0)
 	for _, in := range session.splitInputs {

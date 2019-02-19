@@ -3,6 +3,7 @@ package splitticket
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 
 	"github.com/decred/dcrd/blockchain"
 	"github.com/decred/dcrd/chaincfg"
@@ -210,27 +211,44 @@ func CheckParticipantInSplit(split *wire.MsgTx, splitAddress dcrutil.Address,
 // Only safe to be called on splits that have passed the CheckSplit function.
 func CheckOnlySignedInSplit(split *wire.MsgTx, outpoints []wire.OutPoint) error {
 
-	expected := make(map[wire.OutPoint]bool, len(outpoints))
+	// Make an aux list of expected outpoits, so we can easily check if
+	// individual inputs were expected to be signed or not.
+	expected := make(map[wire.OutPoint]struct{}, len(outpoints))
 	for _, outp := range outpoints {
-		expected[outp] = false
+		expected[outp] = struct{}{}
 	}
-	signedCount := 0
 
 	for _, in := range split.TxIn {
-		if in.SignatureScript == nil {
-			continue
+		_, isExpected := expected[in.PreviousOutPoint]
+		isSigEmpty := len(in.SignatureScript) == 0
+		if isExpected && isSigEmpty {
+			return errors.Errorf("input %s was not signed by wallet",
+				in.PreviousOutPoint)
+		}
+		if !isExpected && !isSigEmpty {
+			return errors.Errorf("input %s should NOT have been signed by wallet",
+				in.PreviousOutPoint)
 		}
 
-		signedCount++
-		if _, has := expected[in.PreviousOutPoint]; !has {
-			return errors.Errorf("signed input %s not in the expected list of inputs "+
-				"to be signed", in.PreviousOutPoint)
+		// isExpected && !isSigEmpty means the input was successfully signed.
+		// Remove from the expected map so that we verify for missing outpoints.
+		if isExpected {
+			delete(expected, in.PreviousOutPoint)
 		}
+
+		// !isExpected && isSigEmpty means this was not an output for the
+		// wallet.
 	}
 
-	if signedCount != len(outpoints) {
-		return errors.Errorf("signed less inputs (%d) than the expected (%d)",
-			signedCount, len(outpoints))
+	// Check if any outpoints were left in the expected map, meaning they should
+	// have been signed.
+	var notFoundOutps string
+	for outp := range expected {
+		notFoundOutps += fmt.Sprintf("%s;", outp)
+	}
+	if notFoundOutps != "" {
+		return errors.Errorf("expected outpoints not found signed: %s",
+			notFoundOutps)
 	}
 
 	return nil

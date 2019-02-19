@@ -453,33 +453,33 @@ func (wc *WalletClient) processSignedSplit(
 	signed := wire.NewMsgTx()
 	signed.FromBytes(transaction.Transaction)
 
-	// ensure my wallet is only signing the explicit inputs I previously sent
-	// (to avoid someone injecting an input known to be mine)
-	err := splitticket.CheckOnlySignedInSplit(signed, session.splitInputOutpoints())
+	// Ensure my wallet is only signing the explicit inputs I previously sent
+	// (to avoid someone injecting an input known to be mine).
+	err := splitticket.CheckOnlySignedInSplit(signed, session.mySplitInputOupoints())
 	if err != nil {
 		return err
 	}
 
-	signedCount := 0
+	// Make an aux map of the selected outpoints => *TxIn, so that we can
+	// directly reference it in the next loop.
+	splitInputMap := make(map[wire.OutPoint]*wire.TxIn, len(session.splitInputs))
+	for _, in := range session.splitInputs {
+		splitInputMap[in.PreviousOutPoint] = in
+	}
+
+	// Copy the signature scripts for the wallet-signed inputs.
 	for _, in := range signed.TxIn {
-		if in.SignatureScript == nil {
+		if len(in.SignatureScript) == 0 {
 			continue
 		}
 
-		for _, inSplit := range session.splitInputs {
-			if (bytes.Equal(inSplit.PreviousOutPoint.Hash[:], in.PreviousOutPoint.Hash[:])) &&
-				(inSplit.PreviousOutPoint.Index == in.PreviousOutPoint.Index) {
-
-				inSplit.SignatureScript = in.SignatureScript
-				signedCount++
-			}
+		if inSplit, has := splitInputMap[in.PreviousOutPoint]; has {
+			// This test should never actually fail due to the previous
+			// CheckOnlySignedInSplit() call, but is left in case that function
+			// ever changes, since it ensures only signatures for the previously
+			// selected inputs are copied.
+			inSplit.SignatureScript = in.SignatureScript
 		}
-	}
-
-	if signedCount != len(session.splitInputs) {
-		return errors.Errorf("number of signed inputs of split tx (%d) "+
-			"different than expected (%d)", signedCount,
-			len(session.splitInputs))
 	}
 
 	return nil
