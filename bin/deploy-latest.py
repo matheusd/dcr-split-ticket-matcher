@@ -113,7 +113,7 @@ def main():
         print("Local repo is dirty. Please commit.")
         sys.exit(1)
 
-    if local.active_branch.name != "master":
+    if (local.active_branch.name != "master") and not ("release" in local.active_branch.name):
         print("Trying to deploy when not in master (%s)." % local.active_branch.name)
         sys.exit(1)
 
