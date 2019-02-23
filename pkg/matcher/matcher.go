@@ -543,7 +543,8 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 		return errors.Wrap(err, "error creating IOs for participant")
 	}
 
-	part.log.Infof("Participant set output commitment %s", part.CommitAmount)
+	part.log.Infof("Participant sent inputs (%d) and outputs",
+		len(req.splitTxOutPoints))
 
 	sess := part.Session
 
@@ -746,6 +747,14 @@ func (matcher *Matcher) fundSplitTx(req *fundSplitTxRequest, part *SessionPartic
 	for i, script := range req.inputScriptSigs {
 		l := len(script)
 		if (l < 1) || (l > splitticket.MaxAllowedSigScriptSize) {
+			// Debug this error. This can probably be removed in the future.
+			for _, p := range sess.Participants {
+				for inIdx, in := range p.splitTxInputs {
+					p.log.Warnf("SigScriptSizeError: %.2d %s",
+						inIdx, in.PreviousOutPoint)
+				}
+			}
+
 			return errors.Errorf("participant sent input script %d with wrong "+
 				"length (%d)", i, l)
 		}

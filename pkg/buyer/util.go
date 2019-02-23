@@ -184,6 +184,10 @@ func (rep *WriterReporter) reportStage(ctx context.Context, stage Stage, session
 		out("Pool subsidy address: %s\n", cfg.PoolAddress)
 		out("Ticket commitment address: %s\n", session.ticketOutputAddress.String())
 		out("Split tx output address: %s\n", session.splitOutputAddress.String())
+		out("Split inputs used (total %d):\n", len(session.splitInputs))
+		for i, in := range session.splitInputs {
+			out(fmt.Sprintf("  %.2d: %s\n", i, in.PreviousOutPoint))
+		}
 	case StageGeneratingTicket:
 		out("Generating ticket...\n")
 	case StageFetchingUTXOs:
