@@ -26,6 +26,7 @@ const (
 	StageGenerateSplitInputs
 	StageOutputsGenerated
 	StageGeneratingTicket
+	StageFetchingUTXOs
 	StageTicketGenerated
 	StageSigningTicket
 	StageTicketSigned

@@ -186,6 +186,8 @@ func (rep *WriterReporter) reportStage(ctx context.Context, stage Stage, session
 		out("Split tx output address: %s\n", session.splitOutputAddress.String())
 	case StageGeneratingTicket:
 		out("Generating ticket...\n")
+	case StageFetchingUTXOs:
+		out("Fetching UTXOs...\n")
 	case StageTicketGenerated:
 		out("Ticket Generated\n")
 		out("Secret Number: %d\n", session.secretNb)

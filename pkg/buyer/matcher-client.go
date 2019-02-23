@@ -143,6 +143,8 @@ func (mc *MatcherClient) participate(ctx context.Context, maxAmount dcrutil.Amou
 
 func (mc *MatcherClient) generateTicket(ctx context.Context, session *Session, cfg *Config) error {
 
+	rep := reporterFromContext(ctx)
+
 	voteAddr, err := dcrutil.DecodeAddress(cfg.VoteAddress)
 	if err != nil {
 		return err
@@ -215,6 +217,7 @@ func (mc *MatcherClient) generateTicket(ctx context.Context, session *Session, c
 	}
 
 	// cache the utxo map of the split so we can check for the validity of the tx
+	rep.reportStage(ctx, StageFetchingUTXOs, session, cfg)
 	utxoMap, err := mc.utxoProvider(session.splitTx)
 	if err != nil {
 		return err
