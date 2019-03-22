@@ -93,8 +93,9 @@ func CheckSignedSplit(split *wire.MsgTx, utxos UtxoMap, params *chaincfg.Params)
 		}
 
 		if in.ValueIn != wire.NullValueIn && utxo.Value != dcrutil.Amount(in.ValueIn) {
-			return errors.Errorf("valueIn for input %d of split tx not equal "+
-				"to corresponding utxo value", i)
+			return errors.Errorf("valueIn (%d) for input %d of split tx  "+
+				"not equal to corresponding utxo (%s) value (%d)", in.ValueIn,
+				i, in.PreviousOutPoint, utxo.Value)
 		}
 
 		// ensure the input actually signs the split transaction

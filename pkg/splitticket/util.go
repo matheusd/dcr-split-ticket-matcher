@@ -1,18 +1,20 @@
 package splitticket
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/decred/dcrd/chaincfg/chainhash"
+
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/rpcclient"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
-	dcrdatatypes "github.com/decred/dcrdata/api/types"
 	"github.com/pkg/errors"
 )
 
@@ -115,46 +117,92 @@ func UtxoMapFromDcrdata(dcrdataURL string, tx *wire.MsgTx) (UtxoMap, error) {
 // functions.
 func UtxoMapOutpointsFromDcrdata(dcrdataURL string, outpoints []*wire.OutPoint) (UtxoMap, error) {
 
-	// Ideally, this should be a batched call, but dcrdata doesn't currently
-	// have one that will return the pkscript of multiple utxos.
-
 	client := http.Client{Timeout: time.Second * 10}
 	utxos := make(UtxoMap, len(outpoints))
-	respTxOut := new(dcrdatatypes.TxOut)
+
+	// Prepare request for a batch of transactions.
+	var reqTxns txns
+	for _, outp := range outpoints {
+		if _, has := utxos[*outp]; !has {
+			reqTxns.Transactions = append(reqTxns.Transactions, outp.Hash.String())
+			utxos[*outp] = UtxoEntry{}
+		}
+	}
+	var reqBuff bytes.Buffer
+	enc := json.NewEncoder(&reqBuff)
+	err := enc.Encode(&reqTxns)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error encoding txs for dcrdata request")
+	}
+
+	// Perform the request and decode the response.
+	//
+	// TODO: verify spend status once ?spends=true works.
+	var respTxns []txShort
+	url := fmt.Sprintf("%s/api/txs", dcrdataURL)
+	urlResp, err := client.Post(url, "application/json", &reqBuff)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error during POST of dcrdata txns")
+	}
+	if urlResp.StatusCode != 200 {
+		return nil, fmt.Errorf("dcrdata returned http error %d (%s)",
+			urlResp.StatusCode, urlResp.Status)
+	}
+	dec := json.NewDecoder(urlResp.Body)
+	err = dec.Decode(&respTxns)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error decoding dcrdata txns response")
+	}
+
+	respTxnsMap := make(map[chainhash.Hash]*txShort, len(respTxns))
+	for i := 0; i < len(respTxns); i++ {
+		tx := &respTxns[i]
+		txid := new(chainhash.Hash)
+		err = chainhash.Decode(txid, tx.TxID)
+		if err != nil {
+			return nil, errors.Wrapf(err, "error decoding txhash (%s) from "+
+				"dcrdata tx %d", tx.TxID, i)
+		}
+
+		respTxnsMap[*txid] = tx
+	}
 
 	for _, outp := range outpoints {
-		url := fmt.Sprintf("%s/api/tx/%s/out/%d", dcrdataURL, outp.Hash.String(),
-			outp.Index)
 
-		urlResp, err := client.Get(url)
-		if err != nil {
-			return nil, errors.Wrapf(err, "error during GET of outpoint %s",
-				outp.String())
+		tx, has := respTxnsMap[outp.Hash]
+		if !has {
+			return nil, fmt.Errorf("dcrdata did not return info for tx %s",
+				outp.Hash.String())
 		}
 
-		dec := json.NewDecoder(urlResp.Body)
-		err = dec.Decode(respTxOut)
-		urlResp.Body.Close()
-		if err != nil {
-			return nil, errors.Wrap(err, "error decoding json response")
+		if len(tx.Vout) < int(outp.Index) {
+			return nil, fmt.Errorf("tx %s returned by dcrdata does not have "+
+				"output %d", outp.Hash.String(), outp.Index)
 		}
 
-		amount, err := dcrutil.NewAmount(respTxOut.Value)
+		txout := tx.Vout[outp.Index]
+
+		amount, err := dcrutil.NewAmount(txout.Value)
 		if err != nil {
 			return nil, errors.Wrapf(err, "error converting outpoint %s value "+
-				"(%f) to amount", outp.String(), respTxOut.Value)
+				"(%f) to amount", outp.String(), txout.Value)
 		}
 
-		pkscript, err := hex.DecodeString(respTxOut.PkScript)
+		pkscript, err := hex.DecodeString(txout.ScriptPubKeyDecoded.Hex)
 		if err != nil {
 			return nil, errors.Wrapf(err, "error decoding pkscript of outpoint "+
 				"%s from hex", outp.String())
 		}
 
+		if len(pkscript) == 0 {
+			return nil, fmt.Errorf("dcrdata returned outpoint %s with empty "+
+				"pkscript", outp.String())
+		}
+
 		utxos[*outp] = UtxoEntry{
 			PkScript: pkscript,
 			Value:    amount,
-			Version:  respTxOut.Version,
+			Version:  txout.Version,
 		}
 	}
 
