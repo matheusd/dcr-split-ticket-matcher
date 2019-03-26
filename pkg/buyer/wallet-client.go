@@ -269,8 +269,7 @@ func (wc *WalletClient) generateSplitTxInputs(ctx context.Context, session *Sess
 
 	session.splitInputs = make([]*wire.TxIn, len(tx.TxIn))
 	for i, in := range tx.TxIn {
-		outp := wire.NewOutPoint(&in.PreviousOutPoint.Hash, in.PreviousOutPoint.Index, in.PreviousOutPoint.Tree)
-		session.splitInputs[i] = wire.NewTxIn(outp, wire.NullValueIn, nil)
+		session.splitInputs[i] = in
 	}
 
 	return nil
