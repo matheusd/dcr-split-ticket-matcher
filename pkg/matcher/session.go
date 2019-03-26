@@ -512,11 +512,6 @@ func (sess *Session) SaveSession(sessionDir string) error {
 		return err
 	}
 
-	utxos, err := sess.SplitUtxoMap()
-	if err != nil {
-		return errors.Wrapf(err, "error getting split utxo map")
-	}
-
 	out := func(format string, args ...interface{}) {
 		w.WriteString(fmt.Sprintf(format, args...))
 	}
@@ -594,7 +589,7 @@ func (sess *Session) SaveSession(sessionDir string) error {
 	out("\n")
 	out("====== Split Inputs ======\n")
 
-	for outp, entry := range utxos {
+	for outp, entry := range splitUtxos {
 		out("Input %s = %s\n", outp, entry.Value)
 	}
 
