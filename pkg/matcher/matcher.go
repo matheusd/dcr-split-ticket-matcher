@@ -481,11 +481,43 @@ func (matcher *Matcher) setParticipantsOutputs(req *setParticipantOutputsRequest
 			"participant was in stage [%s]", part.CurrentStage)
 	}
 
-	var err error
-
 	if len(req.splitTxOutPoints) > splitticket.MaximumSplitInputs {
 		return errors.Errorf("participant tried to use too many inputs "+
 			"into the split tx (%d)", len(req.splitTxOutPoints))
+	}
+
+	// Verify if there are any duplicate outpoints, either on this request or
+	// from participants that already sent outpoints.
+	reqUtxos := make(map[wire.OutPoint]struct{}, len(req.splitTxOutPoints))
+	for _, utxo := range req.splitTxOutPoints {
+		if _, has := reqUtxos[*utxo]; has {
+			// Debug data for this error. This can probably be removed in the
+			// future.
+			for _, utxo2 := range req.splitTxOutPoints {
+				part.log.Infof("dupeUtxoReqErr: %s", utxo2)
+			}
+
+			return errors.Errorf("participant tried to use utxo %s twice",
+				utxo)
+		}
+		reqUtxos[*utxo] = struct{}{}
+	}
+	for _, p := range part.Session.Participants {
+		for utxo := range p.splitTxUtxos {
+			if _, has := reqUtxos[utxo]; has {
+				// Debug data for this error. This can probably be removed in
+				// the future.
+				for utxo2 := range p.splitTxUtxos {
+					p.log.Infof("dupePartUtxoErr A: %s", utxo2)
+				}
+				for _, utxo2 := range req.splitTxOutPoints {
+					part.log.Infof("dupePartUtxoErr B: %s", utxo2)
+				}
+
+				return errors.Errorf("participant tried to use utxo %s "+
+					"already sent by %s", utxo, p.ID)
+			}
+		}
 	}
 
 	utxos, err := matcher.cfg.NetworkProvider.GetUtxos(req.splitTxOutPoints)
