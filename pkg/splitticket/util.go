@@ -117,15 +117,14 @@ func UtxoMapFromDcrdata(dcrdataURL string, tx *wire.MsgTx) (UtxoMap, error) {
 // functions.
 func UtxoMapOutpointsFromDcrdata(dcrdataURL string, outpoints []*wire.OutPoint) (UtxoMap, error) {
 
-	client := http.Client{Timeout: time.Second * 10}
-	utxos := make(UtxoMap, len(outpoints))
-
-	// Prepare request for a batch of transactions.
+	// Prepare request for a batch of transactions. We should only request
+	// transactions once, so keep track of which ones were already requested.
 	var reqTxns txns
+	txMap := make(map[chainhash.Hash]struct{}, len(outpoints))
 	for _, outp := range outpoints {
-		if _, has := utxos[*outp]; !has {
+		if _, has := txMap[outp.Hash]; !has {
 			reqTxns.Transactions = append(reqTxns.Transactions, outp.Hash.String())
-			utxos[*outp] = UtxoEntry{}
+			txMap[outp.Hash] = struct{}{}
 		}
 	}
 	var reqBuff bytes.Buffer
@@ -138,6 +137,7 @@ func UtxoMapOutpointsFromDcrdata(dcrdataURL string, outpoints []*wire.OutPoint) 
 	// Perform the request and decode the response.
 	//
 	// TODO: verify spend status once ?spends=true works.
+	client := http.Client{Timeout: time.Second * 10}
 	var respTxns []txShort
 	url := fmt.Sprintf("%s/api/txs", dcrdataURL)
 	urlResp, err := client.Post(url, "application/json", &reqBuff)
@@ -154,6 +154,7 @@ func UtxoMapOutpointsFromDcrdata(dcrdataURL string, outpoints []*wire.OutPoint) 
 		return nil, errors.Wrapf(err, "error decoding dcrdata txns response")
 	}
 
+	// Create aux map from hash into tx info so that we can alter find it.
 	respTxnsMap := make(map[chainhash.Hash]*txShort, len(respTxns))
 	for i := 0; i < len(respTxns); i++ {
 		tx := &respTxns[i]
@@ -167,6 +168,9 @@ func UtxoMapOutpointsFromDcrdata(dcrdataURL string, outpoints []*wire.OutPoint) 
 		respTxnsMap[*txid] = tx
 	}
 
+	// Build the output utxo map. Iterate over the requested outpoints, find
+	// the response tx info and fill the data.
+	utxos := make(UtxoMap, len(outpoints))
 	for _, outp := range outpoints {
 
 		tx, has := respTxnsMap[outp.Hash]
