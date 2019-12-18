@@ -9,9 +9,9 @@ import (
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/internal/util"
 	"github.com/matheusd/dcr-split-ticket-matcher/pkg/splitticket"
 
-	flags "github.com/btcsuite/go-flags"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/slog"
+	flags "github.com/jessevdk/go-flags"
 	"github.com/pkg/errors"
 )
 

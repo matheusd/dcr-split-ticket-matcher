@@ -357,6 +357,8 @@ func buildUI() gtk.IWidget {
 	vbox.PackStart(buttonStop, false, false, 2)
 
 	// log area
+	boldTag := make(map[string]interface{})
+	boldTag["foreground"] = "gray"
 
 	swin := gtk.NewScrolledWindow(nil, nil)
 	swin.SetPolicy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
@@ -370,7 +372,7 @@ func buildUI() gtk.IWidget {
 	buffer.Insert(&start, "Waiting to participate in session")
 	buffer.GetEndIter(&end)
 	buffer.InsertAtCursor("\n")
-	tag := buffer.CreateTag("bold", map[string]string{"foreground": "gray"})
+	tag := buffer.CreateTag("bold", boldTag)
 	buffer.GetStartIter(&start)
 	buffer.GetEndIter(&end)
 	buffer.ApplyTag(tag, &start, &end)
