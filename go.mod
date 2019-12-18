@@ -1,7 +1,6 @@
 module github.com/matheusd/dcr-split-ticket-matcher
 
 require (
-	github.com/btcsuite/go-flags v0.0.0-20150116065318-6c288d648c1c
 	github.com/dchest/blake256 v1.0.0
 	github.com/decred/dcrd/blockchain v1.0.2
 	github.com/decred/dcrd/blockchain/stake v1.0.2
@@ -29,8 +28,8 @@ require (
 	github.com/gorilla/websocket v1.2.0
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jtolds/gls v4.2.1+incompatible // indirect
-	github.com/mattn/go-gtk v0.0.0-20180626024644-7d65db4a7c69
-	github.com/mattn/go-pointer v0.0.0-20171114154726-1d30dc4b6f28 // indirect
+	github.com/mattn/go-gtk v0.0.0-20191030024613-af2e013261f5
+	github.com/mattn/go-pointer v0.0.0-20190911064623-a0a44394634f // indirect
 	github.com/pkg/errors v0.8.0
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d // indirect
@@ -40,7 +39,6 @@ require (
 	google.golang.org/grpc v1.14.0
 )
 
-replace (
-	github.com/btcsuite/goleveldb => github.com/matheusd/goleveldb v0.0.0-20190901102927-255f9b4fc43c
-	github.com/jessevdk/go-flags => github.com/jessevdk/go-flags v0.0.0-20182309103615-bf79fbdd4000
-)
+replace github.com/btcsuite/goleveldb => github.com/matheusd/goleveldb v0.0.0-20190109102927-255f9b4fc43c
+
+go 1.12
