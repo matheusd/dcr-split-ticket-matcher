@@ -20,6 +20,6 @@
   "dependencies": {
     "axios": "^0.18.0",
     "google-protobuf": "^3.6.1",
-    "grpc": "^1.17.0"
+    "grpc": "^1.24.9"
   }
 }
