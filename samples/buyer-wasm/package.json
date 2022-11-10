@@ -13,7 +13,7 @@
     "rebuild-module": "GOOS=js GOARCH=wasm go build -o splitticketbuyer.wasm ../../cmd/splitticketbuyerwasm"
   },
   "devDependencies": {
-    "electron": "3.0.13",
+    "electron": "18.3.7",
     "electron-rebuild": "^1.8.2",
     "grpc-tools": "^1.6.6"
   },
